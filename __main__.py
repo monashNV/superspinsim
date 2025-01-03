@@ -5,15 +5,18 @@ import numpy as np
 import numba as nb
 import numba.cuda as nc
 
+import scipy.linalg as sl
+
 import matplotlib.pyplot as plt
 from cmcrameri import cm
+
 
 meta_use_cuda = True
 meta_datatype = np.float64
 meta_use_residual = True
 meta_wavefunction_size = 7
 meta_operator_size = meta_wavefunction_size**2
-meta_number_of_quartic_repeats = 8
+meta_number_of_quartic_repeats = 12
 
 if meta_use_cuda:
     _synchronise_block = nc.syncthreads
@@ -181,6 +184,13 @@ if meta_use_cuda:
 
 nb.jit(nopython=True, parallel=True)
 def _repeated_quartic_superoperator_run(superoperators):
+    """
+    Effort:
+
+    Parallel: N^3
+    Series: 4 N K
+    """
+
     if meta_use_cuda:
         number_of_blocks = (superoperators.shape[0], 1)
         block_shape = (meta_wavefunction_size, meta_operator_size)
@@ -205,10 +215,27 @@ def _telescope_combine(unitary):
     pass
 
 
+def _colour_complex_matrix(inp):
+    out = np.zeros(
+        (meta_operator_size, meta_operator_size, 3),
+        dtype=meta_datatype
+    )
+    out[:, :, 0] += (2/math.sqrt(6))*inp[:, :, 0]
+    out[:, :, 1] += (-1/math.sqrt(6))*inp[:, :, 0] \
+        + (1/math.sqrt(2))*inp[:, :, 1]
+    out[:, :, 2] += (-1/math.sqrt(6))*inp[:, :, 0] \
+        + (-1/math.sqrt(2))*inp[:, :, 1]
+    # vmax = np.max(np.sqrt(np.sum(out**2, axis = 2)))
+    # out /= 2*vmax
+    out += 1/math.sqrt(3)
+    out = np.clip(out, 0, 1)
+    return out
+    
+
 if __name__ == "__main__":
     print("Testing squaring")
 
-    number_of_superoperators = int(10e4)
+    number_of_superoperators = int(2e0)
     superoperators = np.random.normal(
         size=(number_of_superoperators, meta_operator_size, meta_operator_size, 2),
     )
@@ -216,26 +243,69 @@ if __name__ == "__main__":
     #     (number_of_superoperators, meta_operator_size, meta_operator_size, 2),
     # )
     superoperators = np.array(superoperators, dtype=meta_datatype)
-    superoperators /= (4**meta_number_of_quartic_repeats)
+    superoperators /= 10e6*meta_wavefunction_size
+
+    superoperators_visualise = _colour_complex_matrix(superoperators[0, :, :, :])
 
     plt.figure()
-    vmax = np.max(np.abs(superoperators[0, :, :, 0]))
-    plt.imshow(superoperators[0, :, :, 0], cmap=cm.managua, vmin=-vmax, vmax=vmax)
+    plt.imshow(superoperators_visualise)
     plt.title("Before")
     plt.draw()
 
     if meta_use_cuda:
-        superoperators_device = nc.to_device(superoperators)
+        superoperators_device = nc.to_device(
+            superoperators/(2**(2*meta_number_of_quartic_repeats))
+        )
     else:
-        superoperators_device = superoperators
+        superoperators_device = superoperators \
+            / (2**(2*meta_number_of_quartic_repeats))
+
     _repeated_quartic_superoperator_run(superoperators_device)
     if meta_use_cuda:
-        superoperators_device.copy_to_host(superoperators)
+        transforms = superoperators_device.copy_to_host()
+
+    transforms_true = transforms.copy()
+    transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
+
+    # Comparison with scipy.linalg
+    superoperator_true_complex = superoperators[0, :, :, 0] \
+        + 1j*superoperators[0, :, :, 1]
+    transform_true_complex_sl = sl.expm(superoperator_true_complex)
+    transform_true_sl = np.empty(
+        (meta_operator_size, meta_operator_size, 2), dtype=meta_datatype
+    )
+    transform_true_sl[:, :, 0] = np.real(transform_true_complex_sl)
+    transform_true_sl[:, :, 1] = np.imag(transform_true_complex_sl)
+
+    transform_true_error_sl = transforms_true[0, :, :, :] - transform_true_sl
+
+    # Visualise
+    transform_true_visualise = _colour_complex_matrix(
+        transforms_true[0, :, :, :]
+    )
+    transform_true_sl_visualise = _colour_complex_matrix(
+        transform_true_sl[:, :, :]
+    )
+    transform_true_error_sl_visualise = _colour_complex_matrix(
+        transform_true_error_sl[:, :, :]
+    )
+
+    transform_true_error_sl_f = np.sqrt(np.sum(transform_true_error_sl**2))/(meta_operator_size**2)
+    print(f"Error (Frobenius): {transform_true_error_sl_f}")
 
     plt.figure()
-    vmax = np.max(np.abs(superoperators[0, :, :, 0]))
-    plt.imshow(superoperators[0, :, :, 0], cmap=cm.managua, vmin=-vmax, vmax=vmax)
+    plt.subplot(1, 3, 1)
+    plt.imshow(transform_true_visualise)
     plt.title("After")
+
+    plt.subplot(1, 3, 2)
+    plt.imshow(transform_true_sl_visualise)
+    plt.title("Scipy\nground truth")
+    plt.draw()
+
+    plt.subplot(1, 3, 3)
+    plt.imshow(transform_true_error_sl_visualise)
+    plt.title("Error")
     plt.draw()
 
     plt.show()
