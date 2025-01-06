@@ -366,8 +366,22 @@ if __name__ == "__main__":
                    "`generate_generators.py`.\n\"\"\"\n\n\n")
         file.write("import numpy as np\n\n\n")
 
+        file.write("operators = {}\n\n")
+
+        for label, operator in _operators.items():
+            file.write(f"operators[\"{label}\"] = np.array([\n")
+            for y_index in range(7):
+                file.write("[")
+                for x_index in range(7):
+                    file.write(f"[{operator[y_index, x_index, 0]}, ")
+                    file.write(f"{operator[y_index, x_index, 1]}], ")
+                file.write("],\n")
+            file.write("], dtype={np.float64})\n\n")
+
+        file.write("superoperators = {}\n\n")
+
         for label, superoperator in _superoperators.items():
-            file.write(f"{label} = np.array([")
+            file.write(f"superoperators[\"{label}\"] = np.array([\n")
             for y_index in range(49):
                 file.write("[")
                 for x_index in range(49):
