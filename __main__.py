@@ -11,7 +11,7 @@ import numba.cuda as nc
 import scipy.linalg as sl
 
 import matplotlib.pyplot as plt
-# from cmcrameri import cm
+from PIL import Image as pli
 
 
 meta_use_cuda = True
@@ -279,8 +279,65 @@ def _basic_combine_run(time_evolutions):
                 (time_evolutions, time_index)
 
 
-def _telescope_combine(unitary):
+def _telescope_combine(time_evolution):
     pass
+
+
+def _multiply_superoperator_operator(superoperator, operator, out, index):
+    out[index, 0] = operator[index, 0]
+    out[index, 1] = operator[index, 1]
+    for trace_index in range(meta_operator_size):
+        out[index, 0] = nc.fma(
+            superoperator[index, trace_index, 0],
+            operator[trace_index, 0],
+            out[index, 0]
+        )
+
+        out[index, 0] = nc.fma(
+            superoperator[index, trace_index, 1],
+            -operator[trace_index, 1],
+            out[index, 0]
+        )
+
+        out[index, 1] = nc.fma(
+            superoperator[index, trace_index, 0],
+            operator[trace_index, 1],
+            out[index, 1]
+        )
+
+        out[index, 1] = nc.fma(
+            superoperator[index, trace_index, 1],
+            operator[trace_index, 0],
+            out[index, 1]
+        )
+
+
+if meta_use_cuda:
+    _multiply_superoperator_operator = nc.jit(
+        _multiply_superoperator_operator,
+        device=True
+    )
+
+    def _apply_time_evolution_kernel(time_evolutions, density_operator_initial,
+                                     denisty_operators):
+        if nc.threadIdx.x < meta_operator_size:
+            _multiply_superoperator_operator(
+                time_evolutions[nc.blockIdx.x, :, :, :],
+                density_operator_initial,
+                denisty_operators[nc.blockIdx.x, :, :],
+                nc.threadIdx.x
+            )
+
+    _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
+
+
+def _apply_time_evolution_run(time_evolutions,
+                              density_operator_initial, denisty_operators):
+    if meta_use_cuda:
+        grid_size = (time_evolutions.shape[0], 1)
+        block_size = (meta_operator_size, 1)
+        _apply_time_evolution_kernel[grid_size, block_size] \
+            (time_evolutions, density_operator_initial, denisty_operators)
 
 
 def test_generators():
@@ -416,15 +473,36 @@ def test_combination():
     )
 
     superoperators = np.empty(
-        (15, meta_operator_size, meta_operator_size, 2),
+        (60, meta_operator_size, meta_operator_size, 2),
         dtype=meta_datatype
     )
-    superoperators[:, :, :, :] = (math.tau/15)*generators[0, :, :, :]
+    superoperators[:, :, :, :] = (math.tau/60)*(
+        2*generators[0, :, :, :] + 2*generators[2, :, :, :]
+        + 5*generators[5, :, :, :] + 5*generators[6, :, :, :]
+        + 10*generators[3, :, :, :] + 10*generators[7, :, :, :]
+        + generators[8, :, :, :] + generators[10, :, :, :]
+        + 2*generators[9, :, :, :]
+        + 2*generators[13, :, :, :]
+    )
+
+    density_operator_initial = np.zeros(
+        (meta_wavefunction_size, meta_wavefunction_size, 2),
+        dtype=meta_datatype
+    )
+    density_operator_initial[1, 1, 0] = 1
+
+    density_operator_initial_flat = density_operator_initial.reshape(
+        (meta_operator_size, 2))
 
     if meta_use_cuda:
         superoperators_device = nc.to_device(
-            superoperators/(2**(2*meta_number_of_quartic_repeats))
-        )
+            superoperators/(2**(2*meta_number_of_quartic_repeats)))
+        density_operator_initial_device = nc.to_device(
+                              density_operator_initial_flat)
+        density_operators_device = nc.device_array(
+            (superoperators_device.shape[0],
+             meta_operator_size, 2),
+            dtype=meta_datatype)
     else:
         superoperators_device = superoperators \
             / (2**(2*meta_number_of_quartic_repeats))
@@ -433,21 +511,79 @@ def test_combination():
 
     _basic_combine_run(superoperators_device)
 
+    _apply_time_evolution_run(superoperators_device,
+                              density_operator_initial_device,
+                              density_operators_device)
+
     if meta_use_cuda:
         transforms = superoperators_device.copy_to_host()
+        density_operators = density_operators_device.copy_to_host()
 
     transforms_true = transforms.copy()
     transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
 
+    density_operators = density_operators.reshape((density_operators.shape[0],
+                                                   meta_wavefunction_size,
+                                                   meta_wavefunction_size, 2))
+
     # Visualise
+    frames = []
+
     plt.figure()
     for transform_index in range(transforms_true.shape[0]):
-        plt.subplot(3, 5, transform_index + 1)
-        plt.imshow(_colour_complex_matrix(
+        plt.subplot(6, 10, transform_index + 1)
+        coloured = _colour_complex_matrix(
             transforms_true[transform_index, :, :, :])
-        )
+        plt.imshow(coloured)
         plt.axis("off")
 
+        scale = 10
+        frame = np.empty(
+            (scale*meta_operator_size, scale*meta_operator_size, 3),
+            dtype=np.uint8
+        )
+        for x_index in range(scale):
+            for y_index in range(scale):
+                frame[y_index::scale, x_index::scale] = coloured*255
+        frame = pli.fromarray(frame)
+        frames.append(frame)
+
+    frames[0].save(
+        "time_evolution.gif",
+        save_all=True,
+        append_images=frames[1:],
+        duration=1e3/15,
+        loop=0
+    )
+
+    frames = []
+
+    plt.figure()
+    for density_operator_index in range(density_operators.shape[0]):
+        plt.subplot(6, 10, density_operator_index + 1)
+        coloured = _colour_complex_matrix(
+            density_operators[density_operator_index, :, :, :])
+        plt.imshow(coloured)
+        plt.axis("off")
+
+        scale = 100
+        frame = np.empty(
+            (scale*meta_wavefunction_size, scale*meta_wavefunction_size, 3),
+            dtype=np.uint8
+        )
+        for x_index in range(scale):
+            for y_index in range(scale):
+                frame[y_index::scale, x_index::scale] = coloured*255
+        frame = pli.fromarray(frame)
+        frames.append(frame)
+
+    frames[0].save(
+        "density_operator.gif",
+        save_all=True,
+        append_images=frames[1:],
+        duration=1e3/15,
+        loop=0
+    )
     print("Done!")
 
 
