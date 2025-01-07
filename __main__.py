@@ -1,6 +1,7 @@
 # https://doi.org/10.1016/j.apnum.2005.11.004
 
 from util import colour_complex_matrix as _colour_complex_matrix
+from generators import superoperators as superperator_basis_dict
 
 import math
 import numpy as np
@@ -18,14 +19,17 @@ meta_datatype = np.float64
 meta_use_residual = True
 meta_wavefunction_size = 7
 meta_operator_size = meta_wavefunction_size**2
-meta_number_of_quartic_repeats = 12
+meta_number_of_quartic_repeats = 23
 
 if meta_use_cuda:
     _synchronise_block = nc.syncthreads
     _fma = nc.fma
 else:
-    _synchronise_block = lambda: 1
-    _fma = math.fma
+    def _synchronise_block():
+        return 1
+
+    def _fma(x, y, z):
+        return x*y + z
 
 
 weights_cf_4_2 = np.array([
@@ -50,7 +54,7 @@ def _calculate_differential(time_step, generator, coefficient, differential):
     pass
 
 
-def _square_superoperator(inp, out, column_index, row_index):
+def _square_superoperator(inp, out, y_index, x_index):
     r"""
     Calculates,
 
@@ -68,8 +72,8 @@ def _square_superoperator(inp, out, column_index, row_index):
     """
 
     if meta_use_residual:
-        out_scratch_real: meta_datatype = 2*inp[column_index, row_index, 0]
-        out_scratch_imag: meta_datatype = 2*inp[column_index, row_index, 1]
+        out_scratch_real: meta_datatype = 2*inp[y_index, x_index, 0]
+        out_scratch_imag: meta_datatype = 2*inp[y_index, x_index, 1]
     else:
         out_scratch_real: meta_datatype = 0.0
         out_scratch_imag: meta_datatype = 0.0
@@ -77,32 +81,32 @@ def _square_superoperator(inp, out, column_index, row_index):
     for trace_index in range(meta_operator_size):
         # TODO: unroll?
         out_scratch_real = nc.fma(
-                inp[column_index, trace_index, 0],
-                inp[trace_index, row_index, 0],
+                inp[y_index, trace_index, 0],
+                inp[trace_index, x_index, 0],
                 out_scratch_real
         )
         out_scratch_real = nc.fma(
-                inp[column_index, trace_index, 1],
-                -inp[trace_index, row_index, 1],
+                inp[y_index, trace_index, 1],
+                -inp[trace_index, x_index, 1],
                 out_scratch_real
         )
         out_scratch_imag = nc.fma(
-                inp[column_index, trace_index, 0],
-                inp[trace_index, row_index, 1],
+                inp[y_index, trace_index, 0],
+                inp[trace_index, x_index, 1],
                 out_scratch_imag
         )
         out_scratch_imag = nc.fma(
-                inp[column_index, trace_index, 1],
-                inp[trace_index, row_index, 0],
+                inp[y_index, trace_index, 1],
+                inp[trace_index, x_index, 0],
                 out_scratch_imag
         )
 
-    out[column_index, row_index, 0] = out_scratch_real
-    out[column_index, row_index, 1] = out_scratch_imag
+    out[y_index, x_index, 0] = out_scratch_real
+    out[y_index, x_index, 1] = out_scratch_imag
 
 
 def _multiply_superoperator(
-        left, right, out, superoperator_index, column_index, row_index):
+        left, right, out, y_index, x_index):
     r"""
     Calculates,
 
@@ -122,53 +126,53 @@ def _multiply_superoperator(
 
     if meta_use_residual:
         out_scratch_real = \
-            left[superoperator_index, column_index, row_index, 0]
+            left[y_index, x_index, 0]
         out_scratch_imag = \
-            left[superoperator_index, column_index, row_index, 1]
+            left[y_index, x_index, 1]
         out_scratch_real += \
-            right[superoperator_index, column_index, row_index, 0]
+            right[y_index, x_index, 0]
         out_scratch_imag += \
-            right[superoperator_index, column_index, row_index, 1]
+            right[y_index, x_index, 1]
 
     for trace_index in range(meta_operator_size):
         out_scratch_real = nc.fma(
-                left[superoperator_index, column_index, trace_index, 0],
-                right[superoperator_index, trace_index, row_index, 0],
+                left[y_index, trace_index, 0],
+                right[trace_index, x_index, 0],
                 out_scratch_real
         )
         out_scratch_real = nc.fma(
-                left[superoperator_index, column_index, trace_index, 1],
-                -right[superoperator_index, trace_index, row_index, 1],
+                left[y_index, trace_index, 1],
+                -right[trace_index, x_index, 1],
                 out_scratch_real
         )
 
         out_scratch_imag = nc.fma(
-                left[superoperator_index, column_index, trace_index, 0],
-                right[superoperator_index, trace_index, row_index, 1],
+                left[y_index, trace_index, 0],
+                right[trace_index, x_index, 1],
                 out_scratch_imag
         )
         out_scratch_imag = nc.fma(
-                left[superoperator_index, column_index, trace_index, 1],
-                right[superoperator_index, trace_index, row_index, 0],
+                left[y_index, trace_index, 1],
+                right[trace_index, x_index, 0],
                 out_scratch_imag
         )
-    out[superoperator_index, column_index, row_index, 0] = out_scratch_real
-    out[superoperator_index, column_index, row_index, 1] = out_scratch_imag
+    out[y_index, x_index, 0] = out_scratch_real
+    out[y_index, x_index, 1] = out_scratch_imag
 
 
 def _repeated_quartic_superoperator(
-        superoperator, scratch, column_index, row_index_reduced):
+        superoperator, scratch, y_index, x_index_reduced):
     for _ in range(meta_number_of_quartic_repeats):
-        for row_index_stride in range(meta_wavefunction_size):
+        for x_index_stride in range(meta_wavefunction_size):
             _square_superoperator(
-                superoperator, scratch, column_index,
-                row_index_reduced + row_index_stride*meta_wavefunction_size
+                superoperator, scratch, y_index,
+                x_index_reduced + x_index_stride*meta_wavefunction_size
             )
         _synchronise_block()
-        for row_index_stride in range(meta_wavefunction_size):
+        for x_index_stride in range(meta_wavefunction_size):
             _square_superoperator(
-                scratch, superoperator, column_index,
-                row_index_reduced + row_index_stride*meta_wavefunction_size
+                scratch, superoperator, y_index,
+                x_index_reduced + x_index_stride*meta_wavefunction_size
             )
         _synchronise_block()
 
@@ -217,25 +221,108 @@ def _repeated_quartic_superoperator_run(superoperators):
             scratch = np.empty(
                 (meta_operator_size, meta_operator_size, 2), meta_datatype
             )
-            for column_index in range(meta_operator_size):
-                for row_index in range(meta_operator_size):
+            for y_index in nb.prange(meta_operator_size):
+                for x_index in nb.prange(meta_wavefunction_size):
                     _repeated_quartic_superoperator(
-                        superoperator, scratch, column_index, row_index
+                        superoperator, scratch, y_index, x_index
                     )
 
 
-def _partial_combine(unitary, new_unitary):
+def _partial_combine(time_evolution, new_time_evolution):
     pass
+
+
+def _copy_superoperator(original, clone, y_index, x_index):
+    clone[y_index, x_index, 0] = original[y_index, x_index, 0]
+    clone[y_index, x_index, 1] = original[y_index, x_index, 1]
+
+
+if meta_use_cuda:
+    _multiply_superoperator = nc.jit(_multiply_superoperator, device=True)
+    _copy_superoperator = nc.jit(_copy_superoperator, device=True)
+
+    def _basic_combine_kernel(time_evolutions, time_index):
+        scratch = nc.shared.array(
+            (meta_operator_size, meta_operator_size, 2), dtype=meta_datatype
+        )
+
+        if nc.blockIdx.y < meta_operator_size \
+                and nc.blockIdx.x < meta_wavefunction_size:
+            for x_index_stride in range(meta_wavefunction_size):
+                _multiply_superoperator(
+                    time_evolutions[time_index, :, :, :],
+                    time_evolutions[time_index + 1, :, :, :],
+                    scratch,
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + x_index_stride*meta_wavefunction_size
+                )
+            _synchronise_block()
+
+            for x_index_stride in range(meta_wavefunction_size):
+                _copy_superoperator(
+                    scratch,
+                    time_evolutions[time_index + 1, :, :, :],
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + x_index_stride*meta_wavefunction_size
+                )
+            _synchronise_block()
+
+    _basic_combine_kernel = nc.jit(_basic_combine_kernel)
+
+
+nb.jit(nopython=True, parallel=False)
+def _basic_combine_run(time_evolutions):
+    if meta_use_cuda:
+        block_size = (meta_wavefunction_size, meta_operator_size)
+        for time_index in range(0, time_evolutions.shape[0] - 1):
+            _basic_combine_kernel[(1, 1), block_size] \
+                (time_evolutions, time_index)
 
 
 def _telescope_combine(unitary):
     pass
 
 
-if __name__ == "__main__":
+def test_generators():
+    print("Testing generators...")
+    superoperators = np.array(
+        list(superperator_basis_dict.values()), dtype=meta_datatype
+    )
+
+    superoperators *= 100
+
+    if meta_use_cuda:
+        superoperators_device = nc.to_device(
+            superoperators/(2**(2*meta_number_of_quartic_repeats))
+        )
+    else:
+        superoperators_device = superoperators \
+            / (2**(2*meta_number_of_quartic_repeats))
+
+    _repeated_quartic_superoperator_run(superoperators_device)
+    if meta_use_cuda:
+        transforms = superoperators_device.copy_to_host()
+
+    transforms_true = transforms.copy()
+    transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
+
+    # Visualise
+    plt.figure()
+    for transform_index in range(transforms_true.shape[0]):
+        plt.subplot(3, 5, transform_index + 1)
+        plt.imshow(_colour_complex_matrix(
+            transforms_true[transform_index, :, :, :])
+        )
+        plt.title(list(superperator_basis_dict.keys())[transform_index])
+        plt.axis("off")
+
+    print("Done!")
+
+
+def test_squaring():
     print("Testing squaring")
 
-    number_of_superoperators = int(1e3)
+    number_of_superoperators = int(1e2)
     superoperators = np.random.normal(
         size=(
             number_of_superoperators,
@@ -319,4 +406,53 @@ if __name__ == "__main__":
         plt.title("Error")
         plt.draw()
 
-    # plt.show()
+    print("Done!")
+
+
+def test_combination():
+    print("Testing basic combination...")
+    generators = np.array(
+        list(superperator_basis_dict.values()), dtype=meta_datatype
+    )
+
+    superoperators = np.empty(
+        (15, meta_operator_size, meta_operator_size, 2),
+        dtype=meta_datatype
+    )
+    superoperators[:, :, :, :] = (math.tau/15)*generators[0, :, :, :]
+
+    if meta_use_cuda:
+        superoperators_device = nc.to_device(
+            superoperators/(2**(2*meta_number_of_quartic_repeats))
+        )
+    else:
+        superoperators_device = superoperators \
+            / (2**(2*meta_number_of_quartic_repeats))
+
+    _repeated_quartic_superoperator_run(superoperators_device)
+
+    _basic_combine_run(superoperators_device)
+
+    if meta_use_cuda:
+        transforms = superoperators_device.copy_to_host()
+
+    transforms_true = transforms.copy()
+    transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
+
+    # Visualise
+    plt.figure()
+    for transform_index in range(transforms_true.shape[0]):
+        plt.subplot(3, 5, transform_index + 1)
+        plt.imshow(_colour_complex_matrix(
+            transforms_true[transform_index, :, :, :])
+        )
+        plt.axis("off")
+
+    print("Done!")
+
+
+if __name__ == "__main__":
+    # test_generators()
+    # test_squaring()
+    test_combination()
+    plt.show()
