@@ -42,16 +42,101 @@ nodes_cf_4_2 = np.array(
 )
 
 
-def _calculate_time(time, time_sample):
-    pass
+def _calculate_time(time, time_index, time_start, time_step):
+    time[time_index] = time_start + time_step*(time_index + 1)
 
 
-def _sample(time, coefficient):
-    pass
+if meta_use_cuda:
+    _calculate_time = nc.jit(_calculate_time, device=True)
+
+    def _calculate_time_basic_kernel(time, time_sample, time_start, time_step):
+        time_index = nc.blockDim.x*nc.blockIdx.x + nc.threadIdx.x
+        if time_index < time.size:
+            _calculate_time(time, time_index, time_start, time_step)
+            _calculate_time(time_sample, time_index, time_start, time_step)
+
+    _calculate_time_basic_kernel = nc.jit(_calculate_time_basic_kernel)
 
 
-def _calculate_differential(time_step, generator, coefficient, differential):
-    pass
+def _calculate_time_basic_run(time, time_sample, time_start, time_step):
+    if meta_use_cuda:
+        grid_size = (int(math.ceil(time.size/32)), 1)
+        block_size = (32, 1)
+        _calculate_time_basic_kernel[grid_size, block_size] \
+            (time, time_sample, time_start, time_step)
+
+
+def _generate_sampler(sampler):
+    if meta_use_cuda:
+        sampler_device = nc.jit(sampler, device=True)
+
+        def sample_kernel(times, coefficients):
+            time_index = nc.blockDim.x*nc.blockIdx.x + nc.threadIdx.x
+            if time_index < times.size:
+                for generator_index in range(coefficients.shape[1]):
+                    coefficients[time_index, generator_index] = 0.0
+
+                sampler_device(times[time_index], coefficients[time_index, :])
+
+        sample_kernel = nc.jit(sample_kernel)
+
+    def sample_run(times, coefficients):
+        if meta_use_cuda:
+            grid_size = (int(math.ceil(times.size/32)), 1)
+            block_size = (32, 1)
+            sample_kernel[grid_size, block_size](times, coefficients)
+
+    return sample_run
+
+
+def _calculate_differential(
+        time_step, generator, coefficient, differential, y_index, x_index):
+    differential_real: meta_datatype = 0.0
+    differential_imag: meta_datatype = 0.0
+
+    for generator_index in range(generator.shape[0]):
+        differential_real = nc.fma(
+            coefficient[generator_index],
+            generator[generator_index, y_index, x_index, 0],
+            differential_real
+        )
+        differential_imag = nc.fma(
+            coefficient[generator_index],
+            generator[generator_index, y_index, x_index, 1],
+            differential_imag
+        )
+
+    differential[y_index, x_index, 0] = time_step*differential_real
+    differential[y_index, x_index, 1] = time_step*differential_imag
+
+
+if meta_use_cuda:
+    _calculate_differential = nc.jit(_calculate_differential, device=True)
+
+    def _calculate_differential_kernel(
+            time_step, generator, coefficient, differential):
+        if nc.threadIdx.y < meta_operator_size \
+                and nc.threadIdx.x < meta_wavefunction_size:
+            for x_index_stride in range(meta_wavefunction_size):
+                _calculate_differential(
+                    time_step,
+                    generator,
+                    coefficient[nc.blockIdx.x, :],
+                    differential[nc.blockIdx.x, :, :, :],
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + x_index_stride*meta_wavefunction_size
+                )
+
+    _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
+
+
+def _calculate_differential_run(
+        time_step, generator, coefficient, differential):
+    if meta_use_cuda:
+        grid_size = (coefficient.shape[0], 1)
+        block_size = (meta_wavefunction_size, meta_operator_size)
+        _calculate_differential_kernel[grid_size, block_size] \
+            (time_step, generator, coefficient, differential)
 
 
 def _square_superoperator(inp, out, y_index, x_index):
@@ -246,8 +331,8 @@ if meta_use_cuda:
             (meta_operator_size, meta_operator_size, 2), dtype=meta_datatype
         )
 
-        if nc.blockIdx.y < meta_operator_size \
-                and nc.blockIdx.x < meta_wavefunction_size:
+        if nc.threadIdx.y < meta_operator_size \
+                and nc.threadIdx.x < meta_wavefunction_size:
             for x_index_stride in range(meta_wavefunction_size):
                 _multiply_superoperator(
                     time_evolutions[time_index, :, :, :],
@@ -489,7 +574,9 @@ def test_combination():
         (meta_wavefunction_size, meta_wavefunction_size, 2),
         dtype=meta_datatype
     )
-    density_operator_initial[1, 1, 0] = 1
+    density_operator_initial[0, 0, 0] = 1/3
+    density_operator_initial[1, 1, 0] = 1/3
+    density_operator_initial[2, 2, 0] = 1/3
 
     density_operator_initial_flat = density_operator_initial.reshape(
         (meta_operator_size, 2))
@@ -587,8 +674,65 @@ def test_combination():
     print("Done!")
 
 
+def test_time_sample():
+    print("Testing time sampling...")
+
+    number_of_samples = 128
+    if meta_use_cuda:
+        time_device = nc.device_array(number_of_samples, dtype=meta_datatype)
+        time_sample_device = nc.device_array(
+            number_of_samples, dtype=meta_datatype)
+
+    time_start: meta_datatype = 0.0
+    time_step: meta_datatype = 1/128
+    _calculate_time_basic_run(
+        time_device, time_sample_device, time_start, time_step)
+
+    if meta_use_cuda:
+        time = time_device.copy_to_host()
+        time_device = None
+
+    # Sample coefficients
+    generators = np.array(
+        list(superperator_basis_dict.values()), dtype=meta_datatype
+    )
+
+    def sampler(time, coefficient):
+        coefficient[0] = 1.0
+
+    sample_run = _generate_sampler(sampler)
+
+    if meta_use_cuda:
+        coefficients_device = nc.device_array(
+            (time_sample_device.size, generators.shape[0]),
+            dtype=meta_datatype
+        )
+
+    sample_run(time_sample_device, coefficients_device)
+
+    # Scale generators
+    if meta_use_cuda:
+        generators_device = nc.to_device(generators)
+        superoperators_device = nc.device_array(
+            (
+                time_sample_device.shape[0], meta_operator_size,
+                meta_operator_size, 2
+            ), dtype=meta_datatype)
+
+    _calculate_differential_run(
+        time_step, generators_device,
+        coefficients_device, superoperators_device
+    )
+
+    if meta_use_cuda:
+        coefficients_device = None
+
+    # Exponentiate
+
+
 if __name__ == "__main__":
     # test_generators()
     # test_squaring()
-    test_combination()
+    # test_combination()
+    test_time_sample()
     plt.show()
