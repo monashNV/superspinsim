@@ -20,6 +20,7 @@ meta_use_residual = True
 meta_wavefunction_size = 7
 meta_operator_size = meta_wavefunction_size**2
 meta_number_of_quartic_repeats = 23
+meta_scaling_for_quartics: meta_datatype = 4.0**meta_number_of_quartic_repeats
 
 if meta_use_cuda:
     _synchronise_block = nc.syncthreads
@@ -137,6 +138,34 @@ def _calculate_differential_run(
         block_size = (meta_wavefunction_size, meta_operator_size)
         _calculate_differential_kernel[grid_size, block_size] \
             (time_step, generator, coefficient, differential)
+
+
+def _scale_differential_basic(differential, y_index, x_index):
+    differential[y_index, x_index, 0] /= 4**meta_number_of_quartic_repeats
+    differential[y_index, x_index, 1] /= 4**meta_number_of_quartic_repeats
+
+
+if meta_use_cuda:
+    _scale_differential_basic = nc.jit(_scale_differential_basic, device=True)
+
+    def _scale_differential_basic_kernel(differential):
+        if nc.threadIdx.y < meta_operator_size \
+                and nc.threadIdx.x < meta_wavefunction_size:
+            for x_index_stride in range(meta_wavefunction_size):
+                _scale_differential_basic(
+                    differential[nc.blockIdx.x, :, :, :],
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + x_index_stride*meta_wavefunction_size
+                )
+
+    _scale_differential_basic_kernel = nc.jit(_scale_differential_basic_kernel)
+
+
+def _scale_differential_basic_run(differential):
+    if meta_use_cuda:
+        grid_size = (differential.shape[0], 1)
+        block_size = (meta_wavefunction_size, meta_operator_size)
+        _scale_differential_basic_kernel[grid_size, block_size](differential)
 
 
 def _square_superoperator(inp, out, y_index, x_index):
@@ -335,8 +364,8 @@ if meta_use_cuda:
                 and nc.threadIdx.x < meta_wavefunction_size:
             for x_index_stride in range(meta_wavefunction_size):
                 _multiply_superoperator(
-                    time_evolutions[time_index, :, :, :],
                     time_evolutions[time_index + 1, :, :, :],
+                    time_evolutions[time_index, :, :, :],
                     scratch,
                     nc.threadIdx.y,
                     nc.threadIdx.x + x_index_stride*meta_wavefunction_size
@@ -606,23 +635,62 @@ def test_combination():
         transforms = superoperators_device.copy_to_host()
         density_operators = density_operators_device.copy_to_host()
 
-    transforms_true = transforms.copy()
-    transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
-
     density_operators = density_operators.reshape((density_operators.shape[0],
                                                    meta_wavefunction_size,
                                                    meta_wavefunction_size, 2))
 
-    # Visualise
+    visualise_time_evolution(density_operators, transforms)
+
+    print("Done!")
+
+
+def visualise_time_evolution(density_operators, time_evolution):
+    print("Creating animations...")
+
     frames = []
 
-    plt.figure()
+    # plt.figure()
+    for density_operator_index in range(density_operators.shape[0]):
+        # plt.subplot(6, 10, density_operator_index + 1)
+        coloured = _colour_complex_matrix(
+            density_operators[density_operator_index, :, :, :])
+        # plt.imshow(coloured)
+        # plt.axis("off")
+
+        scale = 100
+        frame = np.empty(
+            (scale*meta_wavefunction_size, scale*meta_wavefunction_size, 3),
+            dtype=np.uint8
+        )
+        for x_index in range(scale):
+            for y_index in range(scale):
+                frame[y_index::scale, x_index::scale] = coloured*255
+        frame = pli.fromarray(frame)
+        frames.append(frame)
+
+    frames[0].save(
+        "density_operator.gif",
+        save_all=True,
+        append_images=frames[1:],
+        duration=1e3/15,
+        loop=0
+    )
+
+    if time_evolution is None:
+        return
+
+    transforms_true = time_evolution.copy()
+    transforms_true[:, :, :, 0] += np.eye(meta_operator_size)
+
+    frames = []
+
+    # plt.figure()
     for transform_index in range(transforms_true.shape[0]):
-        plt.subplot(6, 10, transform_index + 1)
+        # plt.subplot(6, 10, transform_index + 1)
         coloured = _colour_complex_matrix(
             transforms_true[transform_index, :, :, :])
-        plt.imshow(coloured)
-        plt.axis("off")
+        # plt.imshow(coloured)
+        # plt.axis("off")
 
         scale = 10
         frame = np.empty(
@@ -643,48 +711,18 @@ def test_combination():
         loop=0
     )
 
-    frames = []
-
-    plt.figure()
-    for density_operator_index in range(density_operators.shape[0]):
-        plt.subplot(6, 10, density_operator_index + 1)
-        coloured = _colour_complex_matrix(
-            density_operators[density_operator_index, :, :, :])
-        plt.imshow(coloured)
-        plt.axis("off")
-
-        scale = 100
-        frame = np.empty(
-            (scale*meta_wavefunction_size, scale*meta_wavefunction_size, 3),
-            dtype=np.uint8
-        )
-        for x_index in range(scale):
-            for y_index in range(scale):
-                frame[y_index::scale, x_index::scale] = coloured*255
-        frame = pli.fromarray(frame)
-        frames.append(frame)
-
-    frames[0].save(
-        "density_operator.gif",
-        save_all=True,
-        append_images=frames[1:],
-        duration=1e3/15,
-        loop=0
-    )
-    print("Done!")
-
 
 def test_time_sample():
     print("Testing time sampling...")
 
-    number_of_samples = 128
+    number_of_samples = 512
     if meta_use_cuda:
         time_device = nc.device_array(number_of_samples, dtype=meta_datatype)
         time_sample_device = nc.device_array(
             number_of_samples, dtype=meta_datatype)
 
     time_start: meta_datatype = 0.0
-    time_step: meta_datatype = 1/128
+    time_step: meta_datatype = 1/512
     _calculate_time_basic_run(
         time_device, time_sample_device, time_start, time_step)
 
@@ -697,8 +735,33 @@ def test_time_sample():
         list(superperator_basis_dict.values()), dtype=meta_datatype
     )
 
+    decay_amp = 50
+
+    pulse_amp = 100
+    pulse_time_0 = 0.1
+
     def sampler(time, coefficient):
-        coefficient[0] = 1.0
+        coefficient[8] = decay_amp
+        coefficient[9] = 1.5*decay_amp
+        coefficient[10] = decay_amp/3
+        coefficient[11] = decay_amp/2
+
+        coefficient[3] = 80
+
+        if time < 0.1:
+            pass
+        elif time < 0.15:
+            coefficient[13] = pulse_amp
+        elif time < 0.2:
+            pass
+        elif time < 0.5:
+            coefficient[0] = 20
+        elif time < 0.85:
+            pass
+        elif time < 0.9:
+            coefficient[13] = pulse_amp
+        else:
+            pass
 
     sample_run = _generate_sampler(sampler)
 
@@ -725,9 +788,57 @@ def test_time_sample():
     )
 
     if meta_use_cuda:
+        # coefficients = coefficients_device.copy_to_host()
+        # print(coefficients)
         coefficients_device = None
+        generators_device = None
 
     # Exponentiate
+    _scale_differential_basic_run(superoperators_device)
+    _repeated_quartic_superoperator_run(superoperators_device)
+
+    # Integrate
+    _basic_combine_run(superoperators_device)
+
+    # Apply
+    density_operator_initial = np.zeros(
+        (meta_wavefunction_size, meta_wavefunction_size, 2),
+        dtype=meta_datatype
+    )
+    density_operator_initial[0, 0, 0] = 1/3
+    density_operator_initial[1, 1, 0] = 1/3
+    density_operator_initial[2, 2, 0] = 1/3
+
+    density_operator_initial_flat = density_operator_initial.reshape(
+        (meta_operator_size, 2))
+
+    if meta_use_cuda:
+        density_operator_initial_device = nc.to_device(
+                              density_operator_initial_flat)
+        density_operators_device = nc.device_array(
+            (superoperators_device.shape[0],
+             meta_operator_size, 2),
+            dtype=meta_datatype)
+
+    _apply_time_evolution_run(
+        superoperators_device,
+        density_operator_initial_device,
+        density_operators_device
+    )
+
+    if meta_use_cuda:
+        time_evolution = superoperators_device.copy_to_host()
+        superoperators_device = None
+        density_operators = density_operators_device.copy_to_host()
+        density_operators_device = None
+
+    density_operators = density_operators.reshape((density_operators.shape[0],
+                                                   meta_wavefunction_size,
+                                                   meta_wavefunction_size, 2))
+
+    visualise_time_evolution(density_operators, time_evolution)
+
+    print("Done")
 
 
 if __name__ == "__main__":
