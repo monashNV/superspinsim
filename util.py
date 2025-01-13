@@ -7,6 +7,13 @@ def colour_complex_matrix(inp):
         (inp.shape[0], inp.shape[1], 3),
         dtype=inp.dtype
     )
+    if len(inp.shape) == 2:
+        new_inp = np.zeros(
+            (inp.shape[0], inp.shape[1], 2),
+            dtype=inp.dtype
+        )
+        new_inp[:, :, 0] = inp
+        inp = new_inp
     out[:, :, 0] += (2/math.sqrt(6))*inp[:, :, 0]
     out[:, :, 1] += (-1/math.sqrt(6))*inp[:, :, 0] \
         + (1/math.sqrt(2))*inp[:, :, 1]

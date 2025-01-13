@@ -3,6 +3,9 @@
 from util import colour_complex_matrix as _colour_complex_matrix
 from generators import superoperators as superperator_basis_dict
 
+from quadratures import samples as samples_dict
+from quadratures import weights as weights_dict
+
 import math
 import numpy as np
 import numba as nb
@@ -31,16 +34,6 @@ else:
 
     def _fma(x, y, z):
         return x*y + z
-
-
-weights_cf_4_2 = np.array([
-        [(3 - 2*math.sqrt(3))/12, (3 + 2*math.sqrt(3))/12],
-        [(3 + 2*math.sqrt(3))/12, (3 - 2*math.sqrt(3))/12]
-])
-
-nodes_cf_4_2 = np.array(
-        [(3 - math.sqrt(3))/6, (3 - math.sqrt(3))/6]
-)
 
 
 def _calculate_time(time, time_index, time_start, time_step):
