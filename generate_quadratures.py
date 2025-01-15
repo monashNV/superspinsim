@@ -14,10 +14,7 @@ _sample_gl_1 = np.array([1/2], dtype=meta_datatype)
 _sample_gl_2 = np.array([1/2 - math.sqrt(3)/6, 1/2 + math.sqrt(3)/6],
                         dtype=meta_datatype)
 
-# _sample_gl_3 = np.array([1/2 - math.sqrt(3/20), 1/2, 1/2 + math.sqrt(3/20)],
-#                         dtype=meta_datatype)
-
-_sample_gl_3 = np.array([1/2 - math.sqrt(3/20), 1/2, 1/2 + math.sqrt(3/20)],
+_sample_gl_3 = np.array([1/2 - math.sqrt(3/5)/2, 1/2, 1/2 + math.sqrt(3/5)/2],
                         dtype=meta_datatype)
 
 _sample = {
@@ -33,6 +30,8 @@ print("\n")
 
 
 # Q matrices ------------------------------------------------------------------
+
+_Q_1_1_gl = np.array([[1]], dtype=meta_datatype)
 
 # Eq (22) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
 _Q_2_2_gl = np.array(
@@ -55,6 +54,8 @@ _Q_3_3_gl = np.array(
 
 
 # R matrices ------------------------------------------------------------------
+
+_R_1 = np.array([[1]], dtype=meta_datatype)
 
 # Eq (24) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
 _R_2 = np.array(
@@ -90,8 +91,10 @@ def _fill_symetric_X(x):
     for exponential_index in range(number_of_exponentials_fill):
         for sample_index in range(number_of_samples):
             x[number_of_exponentials - exponential_index - 1, sample_index] = \
-                ((-1)**sample_index)*x[exponential_index, sample_index]
+                ((-1)**(sample_index))*x[exponential_index, sample_index]
 
+
+_X_1_1 = np.array([[1]], dtype=meta_datatype)
 
 # Eq (37) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
 _X_4_2 = np.array(
@@ -129,6 +132,7 @@ _X_6_5[2, 0] = 1 - 2*(_X_6_5[0, 0] + _X_6_5[1, 0])
 _X_6_5[2, 2] = 1/12 - 2*(_X_6_5[0, 2] + _X_6_5[1, 2])
 _fill_symetric_X(_X_6_5)
 
+
 # Table 1 Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
 _X_6_6 = np.array(
     [
@@ -156,18 +160,57 @@ print("\n")
 # rho matrices ----------------------------------------------------------------
 
 # Eq (50) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
+_rho_1_1_gl = _X_1_1@_R_1@_Q_1_1_gl
 _rho_4_2_gl = _X_4_2@_R_2@_Q_2_2_gl
 _rho_4_3_gl = _X_4_3@_R_2@_Q_2_2_gl
-_rho_6_5_gl = _X_6_5@_R_3@_Q_3_3_gl
-_rho_6_6_gl = _X_6_6@_R_3@_Q_3_3_gl
+# _rho_6_5_gl = _X_6_5@_R_3@_Q_3_3_gl
+# _rho_6_6_gl = _X_6_6@_R_3@_Q_3_3_gl
+
+# Table 3 Alvermann and Fehske, Journal of Computational Physics
+#   230 (2011) 5930-5956
+_rho_6_5_gl = np.array(
+    [
+        [0.16,  0.14587456942714338561, 0.11762370828143015682],
+        [0.38752405202531186588, 0.15089113704380764664, -0.12805075909013044594],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0]
+    ],
+    dtype=meta_datatype
+)
+_rho_6_5_gl[2, 0] = 1 - 2*_rho_6_5_gl[1, 0] - 2*_rho_6_5_gl[0, 0]
+_rho_6_5_gl[2, 2] = -2*_rho_6_5_gl[1, 2] - 2*_rho_6_5_gl[0, 2]
+_fill_symetric_X(_rho_6_5_gl)
+
+# Table 3 Alvermann and Fehske, Journal of Computational Physics
+#   230 (2011) 5930-5956
+_rho_6_6_gl = np.array(
+    [
+        [0.16, 0.15101538937746543493, 0.13304616813239630479],
+        [-0.22738164742696330169, -0.087654259755115431662, 0.087654259755115431662],
+        [0, 0.21035154512209824847, 0],
+        [0, 0, 0],
+        [0, 0, 0],
+        [0, 0, 0]
+    ],
+    dtype=meta_datatype
+)
+_rho_6_6_gl[2, 0] = 1/2 - _rho_6_6_gl[1, 0] - _rho_6_6_gl[0, 0]
+_rho_6_6_gl[2, 2] = -_rho_6_6_gl[1, 2] - _rho_6_6_gl[0, 2]
+_fill_symetric_X(_rho_6_6_gl)
 
 _rho = {
+    "1_1_gl": _rho_1_1_gl,
     "4_2_gl": _rho_4_2_gl,
     "4_3_gl": _rho_4_3_gl,
     "6_5_gl": _rho_6_5_gl,
     "6_6_gl": _rho_6_6_gl
 }
 
+for rho in _rho.values():
+    print(np.sum(rho))
+
+print(f"rho42:\n{_rho_1_1_gl}")
 print(f"rho42:\n{_rho_4_2_gl}")
 print(f"rho43:\n{_rho_4_3_gl}")
 print(f"rho65:\n{_rho_6_5_gl}")
@@ -226,13 +269,15 @@ def _visualise(samples, weights):
     plt.suptitle("Commutator-free weights")
 
     for plot_index, (label, weight) in enumerate(weights.items()):
-        plt.subplot(2, 2, plot_index + 1)
+        if plot_index == 0:
+            continue
+        plt.subplot(2, 2, plot_index)
         coloured = _colour_complex_matrix(weight)
         plt.imshow(coloured)
         plt.title(label)
         plt.xticks(range(weight.shape[1]))
         plt.yticks(range(weight.shape[0]))
-        if plot_index == 2:
+        if plot_index == 3:
             plt.xlabel("GL sample")
             plt.ylabel("Exponential\n\n")
     plt.draw()
