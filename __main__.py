@@ -24,7 +24,7 @@ meta_wavefunction_size = 7
 meta_operator_size = meta_wavefunction_size**2
 meta_number_of_quartic_repeats = 23
 meta_scaling_for_quartics: meta_datatype = 4.0**meta_number_of_quartic_repeats
-meta_number_of_exponentials = 6
+meta_number_of_exponentials = 2
 
 if meta_number_of_exponentials == 2:
     sample_quadrature = samples_dict["2_gl"]
@@ -1125,7 +1125,7 @@ def test_time_sample_quadrature():
             dtype=meta_datatype)
 
     time_start: meta_datatype = 0.0
-    time_step: meta_datatype = 1/500
+    time_step: meta_datatype = 1/512
     _calculate_time_quadrature_run(
         time_device, time_sample_device, time_start,
         time_step, sample_quadrature_device)
@@ -1146,9 +1146,10 @@ def test_time_sample_quadrature():
     rabi = 2
 
     def sampler(time, coefficient):
-        coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
-        # coefficient[1] = 2*math.tau*rabi*math.sin(math.tau*resonance*time)
-        coefficient[2] = math.tau*resonance
+        # coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
+        # # coefficient[1] = 2*math.tau*rabi*math.sin(math.tau*resonance*time)
+        # coefficient[2] = math.tau*resonance
+        coefficient[1] = 2*math.tau
 
     sample_run = _generate_sampler(sampler)
 

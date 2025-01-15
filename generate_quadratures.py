@@ -14,6 +14,9 @@ _sample_gl_1 = np.array([1/2], dtype=meta_datatype)
 _sample_gl_2 = np.array([1/2 - math.sqrt(3)/6, 1/2 + math.sqrt(3)/6],
                         dtype=meta_datatype)
 
+# _sample_gl_3 = np.array([1/2 - math.sqrt(3/20), 1/2, 1/2 + math.sqrt(3/20)],
+#                         dtype=meta_datatype)
+
 _sample_gl_3 = np.array([1/2 - math.sqrt(3/20), 1/2, 1/2 + math.sqrt(3/20)],
                         dtype=meta_datatype)
 
