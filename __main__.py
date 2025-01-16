@@ -15,6 +15,7 @@ import scipy.linalg as sl
 
 import matplotlib.pyplot as plt
 from PIL import Image as pli
+from cmcrameri import cm
 
 
 meta_use_cuda = True
@@ -25,6 +26,7 @@ meta_operator_size = meta_wavefunction_size**2
 meta_number_of_quartic_repeats = 23
 meta_scaling_for_quartics: meta_datatype = 4.0**meta_number_of_quartic_repeats
 meta_number_of_exponentials = 1
+meta_use_cayley = True
 
 if meta_number_of_exponentials == 1:
     sample_quadrature = samples_dict["1_gl"]
@@ -221,8 +223,14 @@ def _calculate_differential_run(
 
 
 def _scale_differential_basic(differential, y_index, x_index):
-    differential[y_index, x_index, 0] /= 4**meta_number_of_quartic_repeats
-    differential[y_index, x_index, 1] /= 4**meta_number_of_quartic_repeats
+    if meta_use_cayley:
+        differential[y_index, x_index, 0] /= \
+            2*(4**meta_number_of_quartic_repeats)
+        differential[y_index, x_index, 1] /= \
+            2*(4**meta_number_of_quartic_repeats)
+    else:
+        differential[y_index, x_index, 0] /= 4**meta_number_of_quartic_repeats
+        differential[y_index, x_index, 1] /= 4**meta_number_of_quartic_repeats
 
 
 if meta_use_cuda:
@@ -246,6 +254,120 @@ def _scale_differential_basic_run(differential):
         grid_size = (differential.shape[0], 1)
         block_size = (meta_wavefunction_size, meta_operator_size)
         _scale_differential_basic_kernel[grid_size, block_size](differential)
+
+
+def _negate_superoperator(positive, negative, y_index, x_index):
+    negative[y_index, x_index, 0] = -positive[y_index, x_index, 0]
+    negative[y_index, x_index, 1] = -positive[y_index, x_index, 1]
+
+
+if meta_use_cuda:
+    _negate_superoperator = nc.jit(_negate_superoperator, device=True)
+
+    def _calculate_cayley_kernel(differential):
+        if nc.threadIdx.y < meta_operator_size \
+                and nc.threadIdx.x < meta_wavefunction_size:
+            scratch = nc.shared.array(
+                (meta_operator_size, meta_operator_size, 2),
+                dtype=meta_datatype
+            )
+
+            for x_index_stride in range(meta_wavefunction_size):
+                _negate_superoperator(
+                    differential[nc.blockIdx.x, :, :, :],
+                    scratch,
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + x_index_stride*meta_wavefunction_size
+                )
+            nc.syncthreads()
+
+            diff = differential[nc.blockIdx.x, :, :, :]
+
+            for node_index in range(meta_operator_size):
+                # Scale row
+                if nc.threadIdx.x == 1:
+
+                    node_real = scratch[node_index, node_index, 0]
+                    node_imag = scratch[node_index, node_index, 1]
+                    div_real = (1 + node_real) \
+                        / ((1 + node_real)**2 + node_imag**2)
+                    div_imag = -node_imag/((1 + node_real)**2 + node_imag**2)
+                    nc.syncthreads()
+
+                    eval_real = \
+                        div_real*scratch[node_index, nc.threadIdx.y, 0] \
+                        - div_imag*scratch[node_index, nc.threadIdx.y, 1]
+                    eval_imag = \
+                        div_real*scratch[node_index, nc.threadIdx.y, 1] \
+                        + div_imag*scratch[node_index, nc.threadIdx.y, 0]
+                    if nc.threadIdx.y == node_index:
+                        eval_real -= node_real*div_real - node_imag*div_imag
+                        eval_imag -= node_imag*div_real + node_real*div_imag
+                    scratch[node_index, nc.threadIdx.y, 0] = eval_real
+                    scratch[node_index, nc.threadIdx.y, 1] = eval_imag
+
+                    eval_real = \
+                        div_real*diff[node_index, nc.threadIdx.y, 0] \
+                        - div_imag*diff[node_index, nc.threadIdx.y, 1]
+                    eval_imag = \
+                        div_real*diff[node_index, nc.threadIdx.y, 1] \
+                        + div_imag*diff[node_index, nc.threadIdx.y, 0]
+                    if nc.threadIdx.y == node_index:
+                        eval_real -= node_real*div_real - node_imag*div_imag
+                        eval_imag -= node_imag*div_real + node_real*div_imag
+                    diff[node_index, nc.threadIdx.y, 0] = eval_real
+                    diff[node_index, nc.threadIdx.y, 1] = eval_imag
+
+                nc.syncthreads()
+
+                # Eliminate rows
+                for x_index_stride in range(meta_wavefunction_size):
+                    x_index = nc.threadIdx.x \
+                        + x_index_stride*meta_wavefunction_size
+
+                    if x_index != node_index:
+                        scale_real = -scratch[x_index, node_index, 0]
+                        scale_imag = -scratch[x_index, node_index, 1]
+                        nc.syncthreads()
+
+                        eval_real = scale_real \
+                            * scratch[x_index, nc.threadIdx.y, 0] \
+                            - scale_imag*scratch[x_index, nc.threadIdx.y, 1]
+                        eval_imag = scale_real \
+                            * scratch[x_index, nc.threadIdx.y, 1] \
+                            + scale_imag*scratch[x_index, nc.threadIdx.y, 0]
+                        if nc.threadIdx.y == node_index:
+                            eval_real += scale_real
+                            eval_imag += scale_imag
+                        nc.syncthreads()
+
+                        scratch[x_index, nc.threadIdx.y, 0] += eval_real
+                        scratch[x_index, nc.threadIdx.y, 1] += eval_imag
+                        nc.syncthreads()
+
+                        eval_real = scale_real \
+                            * diff[x_index, nc.threadIdx.y, 0] \
+                            - scale_imag*diff[x_index, nc.threadIdx.y, 1]
+                        eval_imag = scale_real \
+                            * diff[x_index, nc.threadIdx.y, 1] \
+                            + scale_imag*diff[x_index, nc.threadIdx.y, 0]
+                        if nc.threadIdx.y == node_index:
+                            eval_real += scale_real
+                            eval_imag += scale_imag
+                        nc.syncthreads()
+
+                        diff[x_index, nc.threadIdx.y, 0] += eval_real
+                        diff[x_index, nc.threadIdx.y, 1] += eval_imag
+                        nc.syncthreads()
+
+    _calculate_cayley_kernel = nc.jit(_calculate_cayley_kernel)
+
+
+def _calculate_cayley_run(differential):
+    if meta_use_cuda:
+        grid_size = (differential.shape[0], 1)
+        block_size = (meta_wavefunction_size, meta_operator_size)
+        _calculate_cayley_kernel[grid_size, block_size](differential)
 
 
 def _square_superoperator(inp, out, y_index, x_index):
@@ -924,6 +1046,26 @@ def test_combination():
     print("Done!")
 
 
+def plot_populations(time, density_operators):
+    print("Plotting populations...")
+    state_labels = ["+g", "0g", "-g", "+e", "0e", "-e", "s"]
+    plt.figure()
+    for state_index in range(density_operators.shape[1]):
+        plt.plot(
+            time,
+            100*density_operators[:, state_index, state_index, 0],
+            "-",
+            color=cm.hawaii(state_index/meta_wavefunction_size),
+            label=state_labels[state_index]
+        )
+    plt.xlabel("Time")
+    plt.ylabel("Population (%)")
+    plt.ylim(0, 100)
+    plt.legend()
+    plt.draw()
+    print("Done!")
+
+
 def visualise_time_evolution(density_operators, time_evolution):
     print("Creating animations...")
 
@@ -1126,7 +1268,7 @@ def test_time_sample():
 def test_time_sample_quadrature():
     print("Testing time sampling...")
 
-    number_of_samples = 1024
+    number_of_samples = 2
     if meta_use_cuda:
         sample_quadrature_device = nc.to_device(sample_quadrature)
         time_device = nc.device_array(number_of_samples, dtype=meta_datatype)
@@ -1211,6 +1353,10 @@ def test_time_sample_quadrature():
 
     # Exponentiate
     _scale_differential_basic_run(superoperators_device)
+
+    if meta_use_cayley:
+        _calculate_cayley_run(superoperators_device)
+
     _repeated_quartic_superoperator_run(superoperators_device)
 
     # Evaluate quadrature
@@ -1261,7 +1407,8 @@ def test_time_sample_quadrature():
                                                    meta_wavefunction_size,
                                                    meta_wavefunction_size, 2))
 
-    visualise_time_evolution(density_operators[::8,:, :, :], None)
+    # visualise_time_evolution(density_operators[::8, :, :, :], None)
+    # plot_populations(time, density_operators)
 
     print("Done")
 
