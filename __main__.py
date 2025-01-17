@@ -25,7 +25,7 @@ meta_wavefunction_size = 7
 meta_operator_size = meta_wavefunction_size**2
 meta_number_of_quartic_repeats = 23
 meta_scaling_for_quartics: meta_datatype = 4.0**meta_number_of_quartic_repeats
-meta_number_of_exponentials = 1
+meta_number_of_exponentials = 5
 meta_use_cayley = True
 
 if meta_number_of_exponentials == 1:
@@ -292,8 +292,9 @@ if meta_use_cuda:
                     div_real = (1 + node_real) \
                         / ((1 + node_real)**2 + node_imag**2)
                     div_imag = -node_imag/((1 + node_real)**2 + node_imag**2)
-                    nc.syncthreads()
+                nc.syncthreads()
 
+                if nc.threadIdx.x == 1:
                     eval_real = \
                         div_real*scratch[node_index, nc.threadIdx.y, 0] \
                         - div_imag*scratch[node_index, nc.threadIdx.y, 1]
@@ -328,8 +329,9 @@ if meta_use_cuda:
                     if x_index != node_index:
                         scale_real = -scratch[x_index, node_index, 0]
                         scale_imag = -scratch[x_index, node_index, 1]
-                        nc.syncthreads()
+                    nc.syncthreads()
 
+                    if x_index != node_index:
                         eval_real = scale_real \
                             * scratch[x_index, nc.threadIdx.y, 0] \
                             - scale_imag*scratch[x_index, nc.threadIdx.y, 1]
@@ -339,12 +341,14 @@ if meta_use_cuda:
                         if nc.threadIdx.y == node_index:
                             eval_real += scale_real
                             eval_imag += scale_imag
-                        nc.syncthreads()
+                    nc.syncthreads()
 
+                    if x_index != node_index:
                         scratch[x_index, nc.threadIdx.y, 0] += eval_real
                         scratch[x_index, nc.threadIdx.y, 1] += eval_imag
-                        nc.syncthreads()
+                    nc.syncthreads()
 
+                    if x_index != node_index:
                         eval_real = scale_real \
                             * diff[x_index, nc.threadIdx.y, 0] \
                             - scale_imag*diff[x_index, nc.threadIdx.y, 1]
@@ -354,11 +358,12 @@ if meta_use_cuda:
                         if nc.threadIdx.y == node_index:
                             eval_real += scale_real
                             eval_imag += scale_imag
-                        nc.syncthreads()
+                    nc.syncthreads()
 
+                    if x_index != node_index:
                         diff[x_index, nc.threadIdx.y, 0] += eval_real
                         diff[x_index, nc.threadIdx.y, 1] += eval_imag
-                        nc.syncthreads()
+                    nc.syncthreads()
 
     _calculate_cayley_kernel = nc.jit(_calculate_cayley_kernel)
 
@@ -1268,7 +1273,7 @@ def test_time_sample():
 def test_time_sample_quadrature():
     print("Testing time sampling...")
 
-    number_of_samples = 2
+    number_of_samples = 256
     if meta_use_cuda:
         sample_quadrature_device = nc.to_device(sample_quadrature)
         time_device = nc.device_array(number_of_samples, dtype=meta_datatype)
@@ -1407,8 +1412,8 @@ def test_time_sample_quadrature():
                                                    meta_wavefunction_size,
                                                    meta_wavefunction_size, 2))
 
-    # visualise_time_evolution(density_operators[::8, :, :, :], None)
-    # plot_populations(time, density_operators)
+    visualise_time_evolution(density_operators[::8, :, :, :], None)
+    plot_populations(time, density_operators)
 
     print("Done")
 
