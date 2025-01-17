@@ -26,6 +26,7 @@ meta_operator_size = meta_wavefunction_size**2
 meta_number_of_quartic_repeats = 23
 meta_scaling_for_quartics: meta_datatype = 4.0**meta_number_of_quartic_repeats
 meta_number_of_exponentials = 5
+meta_number_of_fine_divisions = 1
 meta_use_cayley = True
 
 if meta_number_of_exponentials == 1:
@@ -64,7 +65,8 @@ def _calculate_time_quadrature(
     time_step_start = time_start + time_step*time_index
     for sample_index in range(sample.size):
         time[time_index*sample.size + sample_index] = \
-            time_step_start + time_step*sample[sample_index]
+            time_step_start + time_step*sample[sample_index] \
+            / meta_number_of_fine_divisions
 
 
 if meta_use_cuda:
@@ -72,11 +74,10 @@ if meta_use_cuda:
     _calculate_time_quadrature = nc.jit(
         _calculate_time_quadrature, device=True)
 
-    def _calculate_time_basic_kernel(time, time_sample, time_start, time_step):
+    def _calculate_time_basic_kernel(time, time_start, time_step):
         time_index = nc.blockDim.x*nc.blockIdx.x + nc.threadIdx.x
         if time_index < time.size:
             _calculate_time(time, time_index, time_start, time_step)
-            _calculate_time(time_sample, time_index, time_start, time_step)
 
     _calculate_time_basic_kernel = nc.jit(_calculate_time_basic_kernel)
 
@@ -84,7 +85,6 @@ if meta_use_cuda:
             time, time_sample, time_start, time_step, sample):
         time_index = nc.blockDim.x*nc.blockIdx.x + nc.threadIdx.x
         if time_index < time.size:
-            _calculate_time(time, time_index, time_start, time_step)
             _calculate_time_quadrature(
                 time_sample, time_index, time_start, time_step, sample)
 
@@ -92,15 +92,16 @@ if meta_use_cuda:
         _calculate_time_quadrature_kernel)
 
 
-def _calculate_time_basic_run(time, time_sample, time_start, time_step):
+def _calculate_time_basic_run(time, time_start, time_step):
     if meta_use_cuda:
         grid_size = (int(math.ceil(time.size/32)), 1)
         block_size = (32, 1)
         _calculate_time_basic_kernel[grid_size, block_size] \
-            (time, time_sample, time_start, time_step)
+            (time, time_start, time_step)
 
 
-def _calculate_time_quadrature_run(time, time_sample, time_start, time_step, sample):
+def _calculate_time_quadrature_run(
+        time, time_sample, time_start, time_step, sample):
     if meta_use_cuda:
         grid_size = (int(math.ceil(time.size/32)), 1)
         block_size = (32, 1)
@@ -561,60 +562,74 @@ if meta_use_cuda:
     def _quadrature_combine_kernel(superoperators, time_evolutions):
         if nc.threadIdx.x < meta_wavefunction_size \
                 and nc.threadIdx.y < meta_operator_size:
-            if meta_number_of_exponentials == 1:
-                for x_index_stride in range(meta_wavefunction_size):
-                    _copy_superoperator(
-                        superoperators[nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
+            scratch = nc.shared.array(
+                (meta_operator_size, meta_operator_size, 2),
+                dtype=meta_datatype
+            )
 
-            elif meta_number_of_exponentials == 2:
+            for exponential_index in range(0, meta_number_of_exponentials, 2):
                 for x_index_stride in range(meta_wavefunction_size):
                     _multiply_superoperator(
-                        superoperators[2*nc.blockIdx.x + 1, :, :, :],
-                        superoperators[2*nc.blockIdx.x, :, :, :],
+                        superoperators[
+                            meta_number_of_exponentials*nc.blockIdx.x
+                            + exponential_index,
+                            :, :, :],
                         time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-
-            elif meta_number_of_exponentials == 3:
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[3*nc.blockIdx.x + 1, :, :, :],
-                        superoperators[3*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
+                        scratch,
                         nc.threadIdx.y,
                         nc.threadIdx.x + meta_wavefunction_size*x_index_stride
                     )
                 nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[3*nc.blockIdx.x + 2, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        superoperators[3*nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
+                if exponential_index + 1 < meta_number_of_exponentials:
+                    for x_index_stride in range(meta_wavefunction_size):
+                        _multiply_superoperator(
+                            superoperators[
+                                meta_number_of_exponentials*nc.blockIdx.x
+                                + exponential_index + 1,
+                                :, :, :],
+                            scratch,
+                            time_evolutions[nc.blockIdx.x, :, :, :],
+                            nc.threadIdx.y,
+                            nc.threadIdx.x
+                            + meta_wavefunction_size*x_index_stride
+                        )
+                else:
+                    for x_index_stride in range(meta_wavefunction_size):
+                        _copy_superoperator(
+                            scratch,
+                            time_evolutions[nc.blockIdx.x, :, :, :],
+                            nc.threadIdx.y,
+                            nc.threadIdx.x
+                            + meta_wavefunction_size*x_index_stride
+                        )
+
                 nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _copy_superoperator(
-                        superoperators[3*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            # if meta_number_of_exponentials == 1:
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _copy_superoperator(
+            #             superoperators[nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
 
-            # elif meta_number_of_exponentials == 5:
+            # elif meta_number_of_exponentials == 2:
             #     for x_index_stride in range(meta_wavefunction_size):
             #         _multiply_superoperator(
-            #             superoperators[5*nc.blockIdx.x + 1, :, :, :],
-            #             superoperators[5*nc.blockIdx.x, :, :, :],
+            #             superoperators[2*nc.blockIdx.x + 1, :, :, :],
+            #             superoperators[2*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+
+            # elif meta_number_of_exponentials == 3:
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[3*nc.blockIdx.x + 1, :, :, :],
+            #             superoperators[3*nc.blockIdx.x, :, :, :],
             #             time_evolutions[nc.blockIdx.x, :, :, :],
             #             nc.threadIdx.y,
             #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
@@ -623,9 +638,29 @@ if meta_use_cuda:
 
             #     for x_index_stride in range(meta_wavefunction_size):
             #         _multiply_superoperator(
-            #             superoperators[5*nc.blockIdx.x + 4, :, :, :],
-            #             superoperators[5*nc.blockIdx.x + 3, :, :, :],
+            #             superoperators[3*nc.blockIdx.x + 2, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             superoperators[3*nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
+
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _copy_superoperator(
+            #             superoperators[3*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
+
+            # elif meta_number_of_exponentials == 5:
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
             #             superoperators[5*nc.blockIdx.x + 1, :, :, :],
+            #             superoperators[5*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
             #             nc.threadIdx.y,
             #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
             #         )
@@ -643,7 +678,7 @@ if meta_use_cuda:
 
             #     for x_index_stride in range(meta_wavefunction_size):
             #         _multiply_superoperator(
-            #             superoperators[5*nc.blockIdx.x + 1, :, :, :],
+            #             superoperators[5*nc.blockIdx.x + 3, :, :, :],
             #             superoperators[5*nc.blockIdx.x, :, :, :],
             #             time_evolutions[nc.blockIdx.x, :, :, :],
             #             nc.threadIdx.y,
@@ -651,108 +686,95 @@ if meta_use_cuda:
             #         )
             #     nc.syncthreads()
 
-            elif meta_number_of_exponentials == 5:
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[5*nc.blockIdx.x + 1, :, :, :],
-                        superoperators[5*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[5*nc.blockIdx.x + 4, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             superoperators[5*nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[5*nc.blockIdx.x + 2, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        superoperators[5*nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _copy_superoperator(
+            #             superoperators[5*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[5*nc.blockIdx.x + 3, :, :, :],
-                        superoperators[5*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            # elif meta_number_of_exponentials == 6:
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[6*nc.blockIdx.x + 1, :, :, :],
+            #             superoperators[6*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[5*nc.blockIdx.x + 4, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        superoperators[5*nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[6*nc.blockIdx.x + 2, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             superoperators[6*nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _copy_superoperator(
-                        superoperators[5*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[6*nc.blockIdx.x + 3, :, :, :],
+            #             superoperators[6*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-            elif meta_number_of_exponentials == 6:
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[6*nc.blockIdx.x + 1, :, :, :],
-                        superoperators[6*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[6*nc.blockIdx.x + 4, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             superoperators[6*nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[6*nc.blockIdx.x + 2, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        superoperators[6*nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
-
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[6*nc.blockIdx.x + 3, :, :, :],
-                        superoperators[6*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
-
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[6*nc.blockIdx.x + 4, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        superoperators[6*nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
-
-                for x_index_stride in range(meta_wavefunction_size):
-                    _multiply_superoperator(
-                        superoperators[6*nc.blockIdx.x + 5, :, :, :],
-                        superoperators[6*nc.blockIdx.x, :, :, :],
-                        time_evolutions[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + meta_wavefunction_size*x_index_stride
-                    )
-                nc.syncthreads()
+            #     for x_index_stride in range(meta_wavefunction_size):
+            #         _multiply_superoperator(
+            #             superoperators[6*nc.blockIdx.x + 5, :, :, :],
+            #             superoperators[6*nc.blockIdx.x, :, :, :],
+            #             time_evolutions[nc.blockIdx.x, :, :, :],
+            #             nc.threadIdx.y,
+            #             nc.threadIdx.x + meta_wavefunction_size*x_index_stride
+            #         )
+            #     nc.syncthreads()
 
     _quadrature_combine_kernel = nc.jit(_quadrature_combine_kernel)
+
+    def _id_superoperator_kernel(time_evolutions):
+        if nc.threadIdx.y < meta_operator_size \
+                and nc.threadIdx.x < meta_wavefunction_size:
+            for x_index_stride in range(meta_wavefunction_size):
+                time_evolutions[
+                    nc.blockIdx.x,
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + meta_wavefunction_size*x_index_stride,
+                    0] = 0
+
+                time_evolutions[
+                    nc.blockIdx.x,
+                    nc.threadIdx.y,
+                    nc.threadIdx.x + meta_wavefunction_size*x_index_stride,
+                    1] = 0
+
+    _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
     def _basic_combine_kernel(time_evolutions, time_index):
         scratch = nc.shared.array(
@@ -791,7 +813,14 @@ def _quadrature_combine_run(exponentials, time_evolution):
             (exponentials, time_evolution)
 
 
-nb.jit(nopython=True, parallel=False)
+def _id_superoperator_run(time_evolution):
+    if meta_use_cuda:
+        grid_size = (time_evolution.shape[0], 1)
+        block_size = (meta_wavefunction_size, meta_operator_size)
+        _id_superoperator_kernel[grid_size, block_size] \
+            (time_evolution)
+
+
 def _basic_combine_run(time_evolutions):
     if meta_use_cuda:
         block_size = (meta_wavefunction_size, meta_operator_size)
@@ -1273,6 +1302,7 @@ def test_time_sample():
 def test_time_sample_quadrature():
     print("Testing time sampling...")
 
+    # Time
     number_of_samples = 256
     if meta_use_cuda:
         sample_quadrature_device = nc.to_device(sample_quadrature)
@@ -1283,22 +1313,9 @@ def test_time_sample_quadrature():
 
     time_start: meta_datatype = 0.0
     time_step: meta_datatype = 1/number_of_samples
-    _calculate_time_quadrature_run(
-        time_device, time_sample_device, time_start,
-        time_step, sample_quadrature_device)
+    _calculate_time_basic_run(time_device, time_start, time_step)
 
-    if meta_use_cuda:
-        time = time_device.copy_to_host()
-        # time_sample = time_sample_device.copy_to_host()
-        # print(time)
-        # print(time_sample)
-        time_device = None
-
-    # Sample coefficients
-    generators = np.array(
-        list(superperator_basis_dict.values()), dtype=meta_datatype
-    )
-
+    # Define sampler
     resonance = 20
     rabi = 2
 
@@ -1310,33 +1327,23 @@ def test_time_sample_quadrature():
 
     sample_run = _generate_sampler(sampler)
 
+    # Declare memory
+    generators = np.array(
+        list(superperator_basis_dict.values()), dtype=meta_datatype
+    )
+
     if meta_use_cuda:
         coefficients_device = nc.device_array(
             (time_sample_device.size, generators.shape[0]),
             dtype=meta_datatype
         )
 
-    sample_run(time_sample_device, coefficients_device)
-
-    # Calculate weights for quadrature
-    if meta_use_cuda:
         weights_device = nc.to_device(weights)
         weighted_coefficients_device = nc.device_array(
             (weights_device.shape[0]*number_of_samples, generators.shape[0]),
             dtype=meta_datatype
         )
 
-    _combine_coefficients_run(
-        coefficients_device, weighted_coefficients_device, weights_device)
-
-    if meta_use_cuda:
-        coefficients = coefficients_device.copy_to_host()
-        weighted_coefficients = weighted_coefficients_device.copy_to_host()
-        print(coefficients[:, 1])
-        print(np.mean(weighted_coefficients[:, 1]))
-
-    # Scale generators
-    if meta_use_cuda:
         generators_device = nc.to_device(generators)
         superoperators_device = nc.device_array(
             (
@@ -1344,34 +1351,48 @@ def test_time_sample_quadrature():
                 meta_operator_size, 2
             ), dtype=meta_datatype)
 
-    _calculate_differential_run(
-        time_step, generators_device,
-        weighted_coefficients_device, superoperators_device
-    )
-
-    if meta_use_cuda:
-        # coefficients = coefficients_device.copy_to_host()
-        # print(coefficients)
-        coefficients_device = None
-        weighted_coefficients_device = None
-        generators_device = None
-
-    # Exponentiate
-    _scale_differential_basic_run(superoperators_device)
-
-    if meta_use_cayley:
-        _calculate_cayley_run(superoperators_device)
-
-    _repeated_quartic_superoperator_run(superoperators_device)
-
-    # Evaluate quadrature
+    # Initialise time evolution
     if meta_use_cuda:
         time_evolution_device = nc.device_array(
-            (time.shape[0], meta_operator_size, meta_operator_size, 2),
+            (time_device.shape[0], meta_operator_size, meta_operator_size, 2),
             dtype=meta_datatype
         )
 
-    _quadrature_combine_run(superoperators_device, time_evolution_device)
+    _id_superoperator_run(time_evolution_device)
+
+    # Start fine loop
+    for repeat_index in range(meta_number_of_fine_divisions):
+        time_offset = repeat_index*time_step/meta_number_of_fine_divisions
+
+        _calculate_time_quadrature_run(
+            time_device, time_sample_device, time_start + time_offset,
+            time_step, sample_quadrature_device)
+
+        # Sample coefficients
+        sample_run(time_sample_device, coefficients_device)
+
+        # Calculate weights for quadrature
+        _combine_coefficients_run(
+            coefficients_device, weighted_coefficients_device, weights_device)
+
+        # Scale generators
+        _calculate_differential_run(
+            time_step/meta_number_of_fine_divisions, generators_device,
+            weighted_coefficients_device, superoperators_device
+        )
+
+        # Put in matrix form
+        _scale_differential_basic_run(superoperators_device)
+
+        # Cayley transform (Pade 1,1)
+        if meta_use_cayley:
+            _calculate_cayley_run(superoperators_device)
+
+        # Respeated squaring
+        _repeated_quartic_superoperator_run(superoperators_device)
+
+        # Apply to previous calculation
+        _quadrature_combine_run(superoperators_device, time_evolution_device)
 
     # Integrate
     _basic_combine_run(time_evolution_device)
@@ -1389,6 +1410,7 @@ def test_time_sample_quadrature():
         (meta_operator_size, 2))
 
     if meta_use_cuda:
+        time = time_device.copy_to_host()
         density_operator_initial_device = nc.to_device(
                               density_operator_initial_flat)
         density_operators_device = nc.device_array(
@@ -1403,7 +1425,7 @@ def test_time_sample_quadrature():
     )
 
     if meta_use_cuda:
-        time_evolution = time_evolution_device.copy_to_host()
+        # time_evolution = time_evolution_device.copy_to_host()
         time_evolution_device = None
         density_operators = density_operators_device.copy_to_host()
         density_operators_device = None
