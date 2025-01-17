@@ -1,7 +1,7 @@
 # https://doi.org/10.1016/j.apnum.2005.11.004
 
 from util import colour_complex_matrix as _colour_complex_matrix
-from generators import superoperators as superperator_basis_dict
+from generators import superoperators as superoperator_basis_dict
 
 from quadratures import samples as samples_dict
 from quadratures import weights as weights_dict
@@ -30,20 +30,24 @@ meta_number_of_fine_divisions = 1
 meta_use_cayley = True
 
 if meta_number_of_exponentials == 1:
-    sample_quadrature = samples_dict["1_gl"]
-    weights = weights_dict["1_1_gl"]
+    sample_quadrature = np.array(samples_dict["1_gl"], dtype=meta_datatype)
+    weights = np.array(weights_dict["1_1_gl"], dtype=meta_datatype)
 elif meta_number_of_exponentials == 2:
-    sample_quadrature = samples_dict["2_gl"]
-    weights = weights_dict["4_2_gl"]
+    sample_quadrature = np.array(samples_dict["2_gl"], dtype=meta_datatype)
+    weights = np.array(weights_dict["4_2_gl"], dtype=meta_datatype)
 elif meta_number_of_exponentials == 3:
-    sample_quadrature = samples_dict["2_gl"]
-    weights = weights_dict["4_3_gl"]
+    sample_quadrature = np.array(samples_dict["2_gl"], dtype=meta_datatype)
+    weights = np.array(weights_dict["4_3_gl"], dtype=meta_datatype)
 elif meta_number_of_exponentials == 5:
-    sample_quadrature = samples_dict["3_gl"]
-    weights = weights_dict["6_5_gl"]
+    sample_quadrature = np.array(samples_dict["3_gl"], dtype=meta_datatype)
+    weights = np.array(weights_dict["6_5_gl"], dtype=meta_datatype)
 elif meta_number_of_exponentials == 6:
-    sample_quadrature = samples_dict["3_gl"]
-    weights = weights_dict["6_6_gl"]
+    sample_quadrature = np.array(samples_dict["3_gl"], dtype=meta_datatype)
+    weights = np.array(weights_dict["6_6_gl"], dtype=meta_datatype)
+
+generators = np.array(
+    list(superoperator_basis_dict.values()), dtype=meta_datatype
+)
 
 if meta_use_cuda:
     _synchronise_block = nc.syncthreads
@@ -893,7 +897,7 @@ def _apply_time_evolution_run(time_evolutions,
 def test_generators():
     print("Testing generators...")
     superoperators = np.array(
-        list(superperator_basis_dict.values()), dtype=meta_datatype
+        list(superoperator_basis_dict.values()), dtype=meta_datatype
     )
 
     superoperators *= 100
@@ -1328,10 +1332,6 @@ def test_time_sample_quadrature():
     sample_run = _generate_sampler(sampler)
 
     # Declare memory
-    generators = np.array(
-        list(superperator_basis_dict.values()), dtype=meta_datatype
-    )
-
     if meta_use_cuda:
         coefficients_device = nc.device_array(
             (time_sample_device.size, generators.shape[0]),

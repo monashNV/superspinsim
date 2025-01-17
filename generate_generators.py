@@ -2,7 +2,7 @@ import math
 import numpy as np
 
 
-meta_datatype = np.float64
+meta_datatype = np.float128
 
 
 _operator_generators = {}
@@ -377,7 +377,7 @@ def _write_script(operators, superoperators):
                     file.write(f"[{operator[y_index, x_index, 0]}, ")
                     file.write(f"{operator[y_index, x_index, 1]}], ")
                 file.write("],\n")
-            file.write("], dtype=np.float64)\n\n")
+            file.write("], dtype=np.float128)\n\n")
 
         file.write("superoperators = {}\n\n")
 
@@ -389,7 +389,7 @@ def _write_script(operators, superoperators):
                     file.write(f"[{superoperator[y_index, x_index, 0]}, ")
                     file.write(f"{superoperator[y_index, x_index, 1]}], ")
                 file.write("],\n")
-            file.write("], dtype=np.float64)\n\n")
+            file.write("], dtype=np.float128)\n\n")
 
 
 def _visualise(operators, superoperators, superoperators_use):
@@ -406,7 +406,8 @@ def _visualise(operators, superoperators, superoperators_use):
             math.ceil(len(operators)/number_of_rows),
             1 + operator_index
         )
-        plt.imshow(_colour_complex_matrix(operator))
+        coloured = np.array(_colour_complex_matrix(operator), dtype=np.float64)
+        plt.imshow(coloured)
         plt.axis("off")
         plt.title(label)
 
@@ -420,7 +421,9 @@ def _visualise(operators, superoperators, superoperators_use):
             math.ceil(len(superoperators)/number_of_rows),
             1 + operator_index
         )
-        plt.imshow(_colour_complex_matrix(superoperator))
+        coloured = np.array(
+            _colour_complex_matrix(superoperator), dtype=np.float64)
+        plt.imshow(coloured)
         plt.axis("off")
         plt.title(label)
     plt.draw()
@@ -434,7 +437,9 @@ def _visualise(operators, superoperators, superoperators_use):
             math.ceil(len(superoperators_use)/number_of_rows),
             1 + operator_index
         )
-        plt.imshow(_colour_complex_matrix(superoperator))
+        coloured = np.array(
+            _colour_complex_matrix(superoperator), dtype=np.float64)
+        plt.imshow(coloured)
         plt.axis("off")
         plt.title(label)
     plt.draw()

@@ -2,7 +2,7 @@ import numpy as np
 import math
 
 
-meta_datatype = np.float64
+meta_datatype = np.float128
 
 # Gauss Legendre sampling -----------------------------------------------------
 
@@ -231,7 +231,7 @@ def _write_script(samples, weights):
             file.write(f"samples[\"{label}\"] = np.array([")
             for time in sample:
                 file.write(f"{time}, ")
-            file.write("], dtype=np.float64)\n\n")
+            file.write("], dtype=np.float128)\n\n")
 
         file.write("weights = {}\n\n")
 
@@ -242,7 +242,7 @@ def _write_script(samples, weights):
                 for x_index in range(weight.shape[1]):
                     file.write(f"{weight[y_index, x_index]}, ")
                 file.write("],\n")
-            file.write("], dtype=np.float64)\n\n")
+            file.write("], dtype=np.float128)\n\n")
 
 
 def _visualise(samples, weights):
@@ -272,7 +272,7 @@ def _visualise(samples, weights):
         if plot_index == 0:
             continue
         plt.subplot(2, 2, plot_index)
-        coloured = _colour_complex_matrix(weight)
+        coloured = np.array(_colour_complex_matrix(weight), dtype=np.float64)
         plt.imshow(coloured)
         plt.title(label)
         plt.xticks(range(weight.shape[1]))
