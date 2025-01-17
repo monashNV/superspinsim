@@ -1,4 +1,3 @@
-
 from superspinsim import generate_simulator
 
 import math

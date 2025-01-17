@@ -9,6 +9,8 @@ import numpy as np
 import numba as nb
 import numba.cuda as nc
 
+import warnings
+
 
 def generate_simulator(
         sampler,
@@ -117,6 +119,9 @@ def generate_simulator(
                 sample_kernel[grid_size, block_size](times, coefficients)
 
         return sample_run
+
+    # Make sampler GPU compatible
+    sample_run = _generate_sampler(sampler)
 
     def _combine_coefficients(
             coefficient, weighted_coefficient, weight,
@@ -718,8 +723,9 @@ def generate_simulator(
     def simulate(
             density_operator_initial,
             time_start, time_end, time_step):
-        # Make sampler GPU compatible
-        sample_run = _generate_sampler(sampler)
+
+        # Remove numba warnings
+        warnings.simplefilter("ignore", nb.core.errors.NumbaPerformanceWarning)
 
         # Time
         number_of_samples = int((time_end - time_start)/time_step)
@@ -851,6 +857,10 @@ def generate_simulator(
             (density_operators.shape[0],
              wavefunction_size,
              wavefunction_size, 2))
+
+        # Remove numba warnings
+        warnings.simplefilter(
+            "default", nb.core.errors.NumbaPerformanceWarning)
 
         return time, density_operators
 
