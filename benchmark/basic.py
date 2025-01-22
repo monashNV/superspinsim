@@ -2,6 +2,7 @@ from superspinsim import generate_simulator
 
 import math
 import numpy as np
+import numba.cuda as nc
 
 from matplotlib import pyplot as plt
 from cmcrameri import cm
@@ -33,23 +34,24 @@ if __name__ == "__main__":
     density_operator_initial[2, 2, 0] = 0
 
     # Simulate with different fidelity
-    print("Simulating")
-    density_operators_list = []
-    divisions = np.geomspace(1, 1000, 10)
-    for simulation_index, number_of_fine_divisions in enumerate(divisions):
-        number_of_fine_divisions = int(number_of_fine_divisions)
-        print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
-        simulate = generate_simulator(
-            sampler,
-            number_of_fine_divisions=number_of_fine_divisions,
-            number_of_exponentials=1
-        )
+    with nc.profiling():
+        print("Simulating")
+        density_operators_list = []
+        divisions = np.geomspace(1, 1000, 10)
+        for simulation_index, number_of_fine_divisions in enumerate(divisions):
+            number_of_fine_divisions = int(number_of_fine_divisions)
+            print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
+            simulate = generate_simulator(
+                sampler,
+                number_of_fine_divisions=number_of_fine_divisions,
+                number_of_exponentials=1
+            )
 
-        time, density_operators = simulate(
-            density_operator_initial, time_start, time_end, time_step)
+            time, density_operators = simulate(
+                density_operator_initial, time_start, time_end, time_step)
 
-        density_operators_list.append(density_operators)
-    print("Done!")
+            density_operators_list.append(density_operators)
+        print("Done!")
 
     print("Comparing")
     ground_truth = density_operators_list.pop()
