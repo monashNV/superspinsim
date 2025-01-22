@@ -37,7 +37,7 @@ if __name__ == "__main__":
     with nc.profiling():
         print("Simulating")
         density_operators_list = []
-        divisions = np.geomspace(1, 1000, 10)
+        divisions = np.geomspace(1, 10000, 15)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             number_of_fine_divisions = int(number_of_fine_divisions)
             print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
