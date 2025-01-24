@@ -7,6 +7,8 @@ import numba.cuda as nc
 from matplotlib import pyplot as plt
 from cmcrameri import cm
 
+import h5py
+
 if __name__ == "__main__":
     datatype = np.float64
     wavefunction_size = 7
@@ -34,24 +36,23 @@ if __name__ == "__main__":
     density_operator_initial[2, 2, 0] = 0
 
     # Simulate with different fidelity
-    with nc.profiling():
-        print("Simulating")
-        density_operators_list = []
-        divisions = np.geomspace(1, 10000, 15)
-        for simulation_index, number_of_fine_divisions in enumerate(divisions):
-            number_of_fine_divisions = int(number_of_fine_divisions)
-            print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
-            simulate = generate_simulator(
-                sampler,
-                number_of_fine_divisions=number_of_fine_divisions,
-                number_of_exponentials=1
-            )
+    print("Simulating")
+    density_operators_list = []
+    divisions = np.geomspace(1, 1000, 10)
+    for simulation_index, number_of_fine_divisions in enumerate(divisions):
+        number_of_fine_divisions = int(number_of_fine_divisions)
+        print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
+        simulate = generate_simulator(
+            sampler,
+            number_of_fine_divisions=number_of_fine_divisions,
+            number_of_exponentials=1
+        )
 
-            time, density_operators = simulate(
-                density_operator_initial, time_start, time_end, time_step)
+        time, density_operators = simulate(
+            density_operator_initial, time_start, time_end, time_step)
 
-            density_operators_list.append(density_operators)
-        print("Done!")
+        density_operators_list.append(density_operators)
+    print("Done!")
 
     print("Comparing")
     ground_truth = density_operators_list.pop()
@@ -63,9 +64,16 @@ if __name__ == "__main__":
         errors.append(error)
     print("Done!")
 
+    # Record to h5
+    with h5py.File("profile/benchmark.h5", "w") as h5_file:
+        h5_file["ground_truth"] = ground_truth
+        h5_file["number_of_time_steps"] = divisions
+        h5_file["error"] = errors
+
+    # Plot
     plt.figure()
     plt.loglog(divisions, errors, ".--", color=cm.hawaii(0))
     plt.xlabel("Number of time steps")
     plt.ylabel("Error (RMS)")
     plt.draw()
-    plt.show()
+

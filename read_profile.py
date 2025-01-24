@@ -5,6 +5,8 @@ import h5py
 from matplotlib import pyplot as plt
 from cmcrameri import cm
 
+from scipy import optimize as spo
+
 datatype = np.float64
 
 
@@ -205,6 +207,46 @@ if __name__ == "__main__":
     accumulate(trials, verbose=True)
     durations_total, durations_slice = generate_slices(trials)
     durations_important = combine_related(durations_slice)
-    plot(durations_total, durations_slice)
-    plot(durations_total, durations_important)
+    # plot(durations_total, durations_slice)
+    # plot(durations_total, durations_important)
+
+    durations_total = durations_total[:-1]
+    with h5py.File("profile/benchmark.h5") as h5_file:
+        error = np.asarray(h5_file["error"])
+
+    def hyperbolic_function(x, x0, y0, m, c):
+        return np.sqrt((m*(x - x0))**2 + y0**2) + c
+
+    error_log = np.log10(error)
+    durations_log = np.log10(durations_total)
+    hyperbolic_fit, hyperbolic_fit_cov = spo.curve_fit(
+        hyperbolic_function,
+        error_log,
+        durations_log,
+        [0, -2, 1, -4]
+    )
+
+    power = 1/hyperbolic_fit[2]
+    print(f"Power scaling: {power}")
+
+    error_span = np.geomspace(error[0], error[-1])
+    durations_fit = np.pow(
+        10,
+        hyperbolic_function(
+            np.log10(error_span),
+            hyperbolic_fit[0],
+            hyperbolic_fit[1],
+            hyperbolic_fit[2],
+            hyperbolic_fit[3]
+        )
+    )
+
+    plt.figure()
+    plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
+    plt.loglog(durations_fit*1e-9, error_span, "k--", label=f"Fit (Power = {power:.2f})")
+    plt.xlabel("GPU time (s)")
+    plt.ylabel("RMS error")
+    plt.legend()
+    plt.draw()
+
     plt.show()
