@@ -74,12 +74,23 @@ def clean_names(names):
 def split_into_trials(names, start_times, end_times):
     trials = []
     trial = {"names": [], "durations": []}
+    to_device_count = 0
+    first = True
     for name, duration in zip(names, durations):
         trial["names"].append(name)
         trial["durations"].append(duration)
-        if name == "Host-To-Device":
-            trials.append(trial)
-            trial = {"names": [], "durations": []}
+        if name == "Host-to-Device":
+            to_device_count += 1
+            if to_device_count == 4:
+                trial_new = {"names": trial["names"][-4:], "durations": trial["durations"][-4:]}
+                trial["names"] = trial["names"][:-4]
+                trial["durations"] = trial["durations"][:-4]
+                if not first:
+                    trials.append(trial)
+                first = False
+                trial = trial_new
+                to_device_count = 0
+    trials.append(trial)
     return trials
 
 
@@ -158,6 +169,8 @@ def combine_related(durations_slice):
     durations_important["Apply to state"] = \
         durations_slice["calculate_time_basic"] \
         + durations_slice["apply_time_evolution"]
+    durations_important["To VRAM"] = durations_slice["Host-to-Device"]
+    durations_important["From VRAM"] = durations_slice["Device-to-Host"]
 
     return durations_important
 
@@ -187,6 +200,7 @@ if __name__ == "__main__":
     names, start_times, end_times = read_h5()
     durations = calculate_durations(start_times, end_times)
     clean_names(names)
+    print(names[:10])
     trials = split_into_trials(names, start_times, end_times)
     accumulate(trials, verbose=True)
     durations_total, durations_slice = generate_slices(trials)
