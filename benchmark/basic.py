@@ -7,7 +7,59 @@ import numba.cuda as nc
 from matplotlib import pyplot as plt
 from cmcrameri import cm
 
-import h5py
+from pogger import Pogger
+
+pogger = Pogger("superspinsim-benchmarks")
+
+
+@pogger.record(("number_of_fine_divisions", "density_operators"))
+def simulate(
+        simulation_index,
+        number_of_fine_divisions,
+        sampler,
+        density_operator_initial,
+        time_start,
+        time_end,
+        time_step):
+    number_of_fine_divisions = int(number_of_fine_divisions)
+    print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
+    simulate = generate_simulator(
+        sampler,
+        number_of_fine_divisions=number_of_fine_divisions,
+        number_of_exponentials=1
+    )
+
+    time, density_operators = simulate(
+        density_operator_initial, time_start, time_end, time_step)
+
+    return number_of_fine_divisions, density_operators
+
+
+@pogger.record(("ground_truth", "divisions", "errors"))
+def calculate_error(density_operators_list, divisions):
+    print("Comparing")
+    ground_truth = density_operators_list.pop()
+    divisions = divisions[:-1]*number_of_samples
+    errors = []
+    for density_operators in density_operators_list:
+        difference = density_operators - ground_truth
+        error = np.sqrt(np.mean(difference**2))
+        errors.append(error)
+    print("Done!")
+
+    errors = np.array(errors)
+    return ground_truth, divisions, errors
+
+
+@pogger.record()
+def plot_errors(divisions, errors):
+    # Plot
+    plt.figure()
+    plt.loglog(divisions, errors, ".--", color=cm.hawaii(0))
+    plt.xlabel("Number of time steps")
+    plt.ylabel("Error (RMS)")
+    plt.draw()
+
 
 if __name__ == "__main__":
     datatype = np.float64
@@ -38,42 +90,22 @@ if __name__ == "__main__":
     # Simulate with different fidelity
     print("Simulating")
     density_operators_list = []
-    divisions = np.geomspace(1, 1000, 10)
+    divisions = np.geomspace(5, 500, 10)
     for simulation_index, number_of_fine_divisions in enumerate(divisions):
-        number_of_fine_divisions = int(number_of_fine_divisions)
-        print(f"| {simulation_index:8d} | {number_of_fine_divisions:8d} |")
-        simulate = generate_simulator(
+        pogger.set_context(f"density_matrices/{simulation_index}")
+        _, density_operators = simulate(
+            simulation_index,
+            number_of_fine_divisions,
             sampler,
-            number_of_fine_divisions=number_of_fine_divisions,
-            number_of_exponentials=1
+            density_operator_initial,
+            time_start,
+            time_end,
+            time_step
         )
-
-        time, density_operators = simulate(
-            density_operator_initial, time_start, time_end, time_step)
-
         density_operators_list.append(density_operators)
     print("Done!")
 
-    print("Comparing")
-    ground_truth = density_operators_list.pop()
-    divisions = divisions[:-1]*number_of_samples
-    errors = []
-    for density_operators in density_operators_list:
-        difference = density_operators - ground_truth
-        error = np.sqrt(np.mean(difference**2))
-        errors.append(error)
-    print("Done!")
-
-    # Record to h5
-    with h5py.File("profile/benchmark.h5", "w") as h5_file:
-        h5_file["ground_truth"] = ground_truth
-        h5_file["number_of_time_steps"] = divisions
-        h5_file["error"] = errors
-
-    # Plot
-    plt.figure()
-    plt.loglog(divisions, errors, ".--", color=cm.hawaii(0))
-    plt.xlabel("Number of time steps")
-    plt.ylabel("Error (RMS)")
-    plt.draw()
-
+    pogger.set_context("error_analysis")
+    ground_truth, divisions, errors = \
+        calculate_error(density_operators_list, divisions)
+    plot_errors(divisions, errors)
