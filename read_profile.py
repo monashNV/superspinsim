@@ -7,7 +7,11 @@ from cmcrameri import cm
 
 from scipy import optimize as spo
 
+from pogger import Pogger, Read
+
 datatype = np.float64
+
+pogger = Pogger("superspinsim-benchmarks")
 
 
 def read_h5():
@@ -177,10 +181,11 @@ def combine_related(durations_slice):
     return durations_important
 
 
-def plot(durations_total, durations_slice):
+@pogger.record()
+def plot_durations(durations_total, durations_slice):
     trial = np.arange(durations_total.shape[0])
 
-    plt.figure()
+    plt.figure(label="durations")
     plt.plot(trial, durations_total*1e-9, ".-k", label="Total")
     number_of_plots = len(durations_slice)
     for plot_index, (name, duration) in enumerate(durations_slice.items()):
@@ -198,22 +203,8 @@ def plot(durations_total, durations_slice):
     plt.draw()
 
 
-if __name__ == "__main__":
-    names, start_times, end_times = read_h5()
-    durations = calculate_durations(start_times, end_times)
-    clean_names(names)
-    print(names[:10])
-    trials = split_into_trials(names, start_times, end_times)
-    accumulate(trials, verbose=True)
-    durations_total, durations_slice = generate_slices(trials)
-    durations_important = combine_related(durations_slice)
-    # plot(durations_total, durations_slice)
-    # plot(durations_total, durations_important)
-
-    durations_total = durations_total[:-1]
-    with h5py.File("profile/benchmark.h5") as h5_file:
-        error = np.asarray(h5_file["error"])
-
+@pogger.record(("error", "durations", "power"), (None, "ns", None))
+def fit_errors(error, durations_total):
     def hyperbolic_function(x, x0, y0, m, c):
         return np.sqrt((m*(x - x0))**2 + y0**2) + c
 
@@ -241,12 +232,54 @@ if __name__ == "__main__":
         )
     )
 
-    plt.figure()
+    plt.figure(label="fit")
     plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
-    plt.loglog(durations_fit*1e-9, error_span, "k--", label=f"Fit (Power = {power:.2f})")
+    plt.loglog(
+        durations_fit*1e-9, error_span,
+        "k--", label=f"Fit (Power = {power:.2f})"
+    )
     plt.xlabel("GPU time (s)")
     plt.ylabel("RMS error")
     plt.legend()
     plt.draw()
+
+    return error, durations_total, power
+
+
+if __name__ == "__main__":
+    names, start_times, end_times = read_h5()
+    durations = calculate_durations(start_times, end_times)
+    clean_names(names)
+    print(names[:10])
+    trials = split_into_trials(names, start_times, end_times)
+    accumulate(trials, verbose=True)
+    durations_total, durations_slice = generate_slices(trials)
+    durations_important = combine_related(durations_slice)
+
+    pogger.set_context("durations_all")
+    for name, duration in durations_slice.items():
+        pogger.write_array(name, duration, "ns")
+
+    pogger.set_context("durations_important")
+    for name, duration in durations_important.items():
+        pogger.write_array(name, duration, "ns")
+
+    pogger.set_context("durations_all")
+    plot_durations(durations_total, durations_slice)
+    pogger.set_context("durations_important")
+    plot_durations(durations_total, durations_important)
+
+    durations_total = durations_total[:-1]
+
+    # previous_log = "2025-01-30T17-52-20"
+    with open("profile/datetime", "r") as file_previous_log:
+        previous_log = file_previous_log.readline().strip()
+    read = Read("superspinsim-benchmarks", previous_log)
+    error = read.read_array("errors", "error_analysis")
+
+    pogger.set_context()
+    pogger.write_value("previous_log", previous_log)
+    pogger.set_context("errors")
+    fit_errors(error, durations_total)
 
     plt.show()

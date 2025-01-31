@@ -109,3 +109,6 @@ if __name__ == "__main__":
     ground_truth, divisions, errors = \
         calculate_error(density_operators_list, divisions)
     plot_errors(divisions, errors)
+
+    with open("profile/datetime", "w") as file_datetime:
+        file_datetime.write(pogger.get_datetime())
