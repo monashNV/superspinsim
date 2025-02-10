@@ -102,6 +102,72 @@ def _generate_spin_z2_e_operator():
 _operator_generators["spin_z2_e"] = _generate_spin_z2_e_operator
 
 
+def _generate_relax_p_g_operator():
+    operator = _operator_generators["spin_x_g"]()
+    scratch = _operator_generators["spin_y_g"]()
+    operator[:, :, 0] -= scratch[:, :, 1]
+    operator[:, :, 1] += scratch[:, :, 0]
+    operator /= math.sqrt(6)
+    return operator
+
+
+_operator_generators["relax_p_g"] = _generate_relax_p_g_operator
+
+
+def _generate_relax_m_g_operator():
+    operator = _operator_generators["spin_x_g"]()
+    scratch = _operator_generators["spin_y_g"]()
+    operator[:, :, 0] += scratch[:, :, 1]
+    operator[:, :, 1] -= scratch[:, :, 0]
+    operator /= math.sqrt(6)
+    return operator
+
+
+_operator_generators["relax_m_g"] = _generate_relax_m_g_operator
+
+
+def _generate_relax_l_g_operator():
+    operator = _operator_generators["spin_z_g"]()
+    operator *= math.sqrt(2)
+    return operator
+
+
+_operator_generators["relax_l_g"] = _generate_relax_l_g_operator
+
+
+def _generate_relax_p_e_operator():
+    operator = _operator_generators["spin_x_e"]()
+    scratch = _operator_generators["spin_y_e"]()
+    operator[:, :, 0] -= scratch[:, :, 1]
+    operator[:, :, 1] += scratch[:, :, 0]
+    operator /= math.sqrt(6)
+    return operator
+
+
+_operator_generators["relax_p_e"] = _generate_relax_p_e_operator
+
+
+def _generate_relax_m_e_operator():
+    operator = _operator_generators["spin_x_e"]()
+    scratch = _operator_generators["spin_y_e"]()
+    operator[:, :, 0] += scratch[:, :, 1]
+    operator[:, :, 1] -= scratch[:, :, 0]
+    operator /= math.sqrt(6)
+    return operator
+
+
+_operator_generators["relax_m_e"] = _generate_relax_m_e_operator
+
+
+def _generate_relax_l_e_operator():
+    operator = _operator_generators["spin_z_e"]()
+    operator *= math.sqrt(2)
+    return operator
+
+
+_operator_generators["relax_l_e"] = _generate_relax_l_e_operator
+
+
 def _generate_raise_p_p_operator():
     operator = np.zeros((7, 7, 2), dtype=meta_datatype)
     operator[3, 0, 0] = 1
@@ -294,7 +360,7 @@ def _generate_von_neumann(operator):
     return superoperator
 
 
-def _generate_jump(operator):
+def _generate_dissipator(operator):
     superoperator = np.empty((49, 49, 2), dtype=meta_datatype)
     for x_sample in range(7):
         for y_sample in range(7):
@@ -330,7 +396,7 @@ def _generate_superoperators(operators):
         if "spin" in label:
             superoperators[label] = _generate_von_neumann(operator)
         else:
-            superoperators[label] = _generate_jump(operator)
+            superoperators[label] = _generate_dissipator(operator)
 
     superoperators_use = {}
 
@@ -340,6 +406,15 @@ def _generate_superoperators(operators):
             "decay_z_s", "decay_s_z"
             ]:
         superoperators_use[label] = superoperators[label]
+
+    superoperators_use["relax_t_g"] = superoperators["relax_p_g"] \
+        + superoperators["relax_m_g"]
+
+    superoperators_use["relax_t_e"] = superoperators["relax_p_e"] \
+        + superoperators["relax_m_e"]
+
+    superoperators_use["relax_l"] = superoperators["relax_l_g"] \
+        + superoperators["relax_l_e"]
 
     superoperators_use["decay_pm_s"] = superoperators["decay_p_s"] \
         + superoperators["decay_m_s"]
