@@ -261,7 +261,7 @@ nv_parameters["spin_conserving_decay_rate"] = {
     "value": spin_conserving_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez,"
+        "Table 1.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
@@ -283,7 +283,7 @@ nv_parameters["radiative_mixing_angle"] = {
     "value": radiative_mixing_angle,
     "units": "Radians",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez,"
+        "Table 1.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
@@ -306,7 +306,7 @@ nv_parameters["spin_nonconserving_decay_rate"] = {
     "value": spin_nonconserving_decay_rate,
     "units": "Per second",
     "references": [
-        "Section 1.4.1, Santiago Hernandez Gomez,"
+        "Section 1.4.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
@@ -328,7 +328,7 @@ nv_parameters["pm_to_singlet_decay_rate"] = {
     "value": pm_to_singlet_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez,"
+        "Table 1.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
@@ -350,7 +350,7 @@ nv_parameters["z_to_singlet_decay_rate"] = {
     "value": z_to_singlet_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez,"
+        "Table 1.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
@@ -372,7 +372,7 @@ nv_parameters["singlet_to_z_decay_rate"] = {
     "value": singlet_to_z_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez,"
+        "Table 1.1, Santiago Hernandez Gomez, "
         "PhD Thesis, Universita di Firenze"
     ]
 }
