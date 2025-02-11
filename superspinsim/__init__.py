@@ -3,6 +3,8 @@ from superspinsim.generators import superoperators as superoperator_basis_dict
 from superspinsim.quadratures import samples as samples_dict
 from superspinsim.quadratures import weights as weights_dict
 
+import superspinsim.nv
+
 import math
 import numpy as np
 
