@@ -21,18 +21,18 @@ if __name__ == "__main__":
         simulator = s3.generate_simulator(
             lindbladian,
             number_of_exponentials=1,
-            number_of_fine_divisions=10,
+            number_of_fine_divisions=100,
             use_cayley=False
         )
 
         density_operator_initial = np.zeros((7, 7, 2), dtype=np.float64)
-        density_operator_initial[0, 0, 0] = 1/3
-        density_operator_initial[1, 1, 0] = 1/3
-        density_operator_initial[2, 2, 0] = 1/3
+        # density_operator_initial[0, 0, 0] = 1
+        density_operator_initial[1, 1, 0] = 1
+        # density_operator_initial[2, 2, 0] = 1
 
-        time_step_coarse = 1e-6
+        time_step_coarse = 10e-9
         time, density_operator = simulator(
-            density_operator_initial, 0, 1e-3, time_step_coarse)
+            density_operator_initial, 0, 100e-6, time_step_coarse)
 
         fluorescence = density_operator[:, 3, 3, 0] + \
             density_operator[:, 4, 4, 0] + density_operator[:, 5, 5, 0]
@@ -57,7 +57,7 @@ if __name__ == "__main__":
             fluorescence /= fluorescence_max
 
         try:
-            plot_window = np.logical_and(time > 100e-6, time < 900e-6)
+            plot_window = np.logical_and(time > 10e-6, time < 90e-6)
             plt.figure(label="fluorescence")
             plt.plot(
                 time[plot_window]/1e-6, fluorescence[plot_window]*100, "k-")
@@ -65,8 +65,8 @@ if __name__ == "__main__":
             plt.ylabel("Fluorescence (%)")
             plt.draw()
 
-            plot_window = np.logical_and(time > 100e-6, time < 900e-6)
-            mw_frequency = 2.78e9*(1 + 0.9*(time - 500e-6)/1e-3)
+            # mw_frequency = 2.87e9*(1 + 0.5*(time - 5e-3)/10e-3)
+            mw_frequency = 2.8e9 + 100e6*time/100e-6
             plt.figure(label="odmr")
             plt.plot(
                 mw_frequency[plot_window]/1e9, fluorescence[plot_window]*100, "k-")

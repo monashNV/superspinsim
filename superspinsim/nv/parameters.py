@@ -26,7 +26,7 @@ nv_parameters["bohr_magneton_gyro"] = {
 
 # Ground state ----------------------------------------------------------------
 
-zero_field_splitting_ground = math.tau*2.872e6
+zero_field_splitting_ground = math.tau*2.872e9
 r"""
 D_g
 
@@ -163,7 +163,7 @@ nv_parameters["spin_spin_relaxation_time_ground"] = {
 
 # Excited state ---------------------------------------------------------------
 
-zero_field_splitting_excited = math.tau*1.42e6
+zero_field_splitting_excited = math.tau*1.42e9
 r"""
 D_e
 
