@@ -65,6 +65,14 @@ if __name__ == "__main__":
             plt.ylabel("Fluorescence (%)")
             plt.draw()
 
+            plot_window = np.logical_and(time > 100e-6, time < 900e-6)
+            mw_frequency = 2.78e9*(1 + 0.9*(time - 500e-6)/1e-3)
+            plt.figure(label="odmr")
+            plt.plot(
+                mw_frequency[plot_window]/1e9, fluorescence[plot_window]*100, "k-")
+            plt.xlabel("MW frequency (GHz)")
+            plt.ylabel("Fluorescence (%)")
+            plt.draw()
         finally:
             return time, density_operator, fluorescence
 

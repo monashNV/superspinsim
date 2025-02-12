@@ -50,6 +50,7 @@ def odmr_block(time, coefficient):
         coefficient[16] = 0.01*parameters.spin_conserving_decay_rate
         coefficient[17] = 0.01*parameters.spin_nonconserving_decay_rate
 
+
 def odmr(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
@@ -62,6 +63,9 @@ def odmr(time, coefficient):
     coefficient[13] = parameters.pm_to_singlet_decay_rate
     coefficient[14] = parameters.spin_conserving_decay_rate
     coefficient[15] = parameters.spin_nonconserving_decay_rate
+
+    coefficient[2] = 0.01*parameters.longitudinal_gyromagnetic_ratio_ground
+    coefficient[6] = 0.01*parameters.gyromagnetic_ratio_excited
 
     if time > 40e-6:
         phase = parameters.zero_field_splitting_ground \
