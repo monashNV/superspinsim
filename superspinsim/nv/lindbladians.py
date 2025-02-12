@@ -38,16 +38,17 @@ def odmr_block(time, coefficient):
 
     # Microwaves
     if time > 200e-6 and time < 400e-6:
-        coefficient[0] = 1000e3*math.tau*math.cos(parameters.zero_field_splitting_ground/2*time)
+        coefficient[0] = 10e3*math.tau*math.cos(parameters.zero_field_splitting_ground/2*time)
     elif time < 600e-6:
-        coefficient[0] = 1000e3*math.tau*math.cos(parameters.zero_field_splitting_ground*time)
+        coefficient[0] = 10e3*math.tau*math.cos(parameters.zero_field_splitting_ground*time)
     elif time < 800e-6:
-        coefficient[0] = 1000e3*math.tau*math.cos(3/2*parameters.zero_field_splitting_ground*time)
+        coefficient[0] = 10e3*math.tau*math.cos(3/2*parameters.zero_field_splitting_ground*time)
+    coefficient[4] = coefficient[0]
 
     # Laser
     if time > 25e-6:
-        coefficient[16] = 0.5*parameters.spin_conserving_decay_rate
-        coefficient[17] = 0.5*parameters.spin_nonconserving_decay_rate
+        coefficient[16] = 0.01*parameters.spin_conserving_decay_rate
+        coefficient[17] = 0.01*parameters.spin_nonconserving_decay_rate
 
 def odmr(time, coefficient):
     # Default
@@ -64,10 +65,10 @@ def odmr(time, coefficient):
 
     if time > 40e-6:
         phase = parameters.zero_field_splitting_ground \
-            * (500*((time)/1e-3)/2)*time
-        coefficient[0] = 1000e3*math.tau*math.cos(phase)
-        coefficient[4] = 1000e3*math.tau*math.cos(phase)
+            * (1 + 0.9*((time - 500e-6)/1e-3)/2)*(time - 500e-6)
+        coefficient[0] = 50e3*math.tau*math.cos(phase)
+        coefficient[4] = 50e3*math.tau*math.cos(phase)
 
     if time > 25e-6:
-        coefficient[16] = 0.5*parameters.spin_conserving_decay_rate
-        coefficient[17] = 0.5*parameters.spin_nonconserving_decay_rate
+        coefficient[16] = 0.001*parameters.spin_conserving_decay_rate
+        coefficient[17] = 0.001*parameters.spin_nonconserving_decay_rate
