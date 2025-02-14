@@ -68,7 +68,7 @@ def main():
             coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
             coefficient[2] = math.tau*resonance
 
-        number_of_samples = 256
+        number_of_samples = int(2**16)
         time_start: datatype = 0.0
         time_step: datatype = 1/number_of_samples
         time_end: datatype = 1.0
@@ -85,7 +85,7 @@ def main():
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        divisions = np.geomspace(5, 50, 10)
+        divisions = np.arange(1, 10, 2)  # np.geomspace(1, 10, 10)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(

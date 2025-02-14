@@ -11,6 +11,11 @@ from pogger import Pogger, Read
 
 datatype = np.float64
 
+START_TIME_HEADING = "start"
+END_TIME_HEADING = "end"
+KERNEL_NAME_ID_HEADING = "demangledName"
+MEMORY_NAME_ID_HEADING = "copyKind"
+
 pogger = Pogger("superspinsim-benchmarks")
 
 
@@ -21,9 +26,9 @@ def read_h5():
         kernel_end_times = []
         kernel_trace_h5 = h5_file["CUPTI_ACTIVITY_KIND_KERNEL"]
         for entry_h5 in kernel_trace_h5:
-            kernel_start_times.append(entry_h5[0])
-            kernel_end_times.append(entry_h5[1])
-            kernel_name_ids.append(entry_h5[9])
+            kernel_start_times.append(entry_h5[START_TIME_HEADING])
+            kernel_end_times.append(entry_h5[END_TIME_HEADING])
+            kernel_name_ids.append(entry_h5[KERNEL_NAME_ID_HEADING])
 
         kernel_names = []
         id_map_h5 = h5_file["StringIds"]
@@ -36,9 +41,9 @@ def read_h5():
         memory_end_times = []
         memory_trace_h5 = h5_file["CUPTI_ACTIVITY_KIND_MEMCPY"]
         for entry_h5 in memory_trace_h5:
-            memory_start_times.append(entry_h5[0])
-            memory_end_times.append(entry_h5[1])
-            memory_name_ids.append(entry_h5[9])
+            memory_start_times.append(entry_h5[START_TIME_HEADING])
+            memory_end_times.append(entry_h5[END_TIME_HEADING])
+            memory_name_ids.append(entry_h5[MEMORY_NAME_ID_HEADING])
 
         memory_names = []
         id_map_h5 = h5_file["ENUM_CUDA_MEMCPY_OPER"]
@@ -74,7 +79,8 @@ def calculate_durations(start_times, end_times):
 
 def clean_names(names):
     for name_index, name in enumerate(names):
-        names[name_index] = name.partition("kernel")[0].strip("_")
+        name = name.partition("kernel")[0].strip("_")
+        names[name_index] = name.split("::")[-1].strip("_")
 
 
 def split_into_trials(names, start_times, end_times):
@@ -221,16 +227,13 @@ def fit_errors(error, durations_total):
     print(f"Power scaling: {power}")
 
     error_span = np.geomspace(error[0], error[-1])
-    durations_fit = np.pow(
-        10,
-        hyperbolic_function(
+    durations_fit = 10**hyperbolic_function(
             np.log10(error_span),
             hyperbolic_fit[0],
             hyperbolic_fit[1],
             hyperbolic_fit[2],
             hyperbolic_fit[3]
         )
-    )
 
     plt.figure(label="fit")
     plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
