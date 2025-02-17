@@ -68,7 +68,7 @@ def main():
             coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
             coefficient[2] = math.tau*resonance
 
-        number_of_samples = int(2**14)
+        number_of_samples = int(2**16)
         time_start: datatype = 0.0
         time_step: datatype = 1/number_of_samples
         time_end: datatype = 1.0

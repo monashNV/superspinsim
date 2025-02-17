@@ -2,6 +2,24 @@ import math
 import superspinsim.nv.parameters as parameters
 
 
+def laser(time, coefficient):
+    # Default
+    coefficient[3] = parameters.zero_field_splitting_ground
+    coefficient[7] = parameters.zero_field_splitting_excited
+    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[11] = parameters.z_to_singlet_decay_rate
+    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[13] = parameters.pm_to_singlet_decay_rate
+    coefficient[14] = parameters.spin_conserving_decay_rate
+    coefficient[15] = parameters.spin_nonconserving_decay_rate
+
+    # Laser
+    coefficient[16] = 0.5*parameters.spin_conserving_decay_rate
+    coefficient[17] = 0.5*parameters.spin_nonconserving_decay_rate
+
+
 def continuous_rabi(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
@@ -81,3 +99,66 @@ def odmr(time, coefficient):
     if time > 2.5e-6:
         coefficient[16] = 0.001*parameters.spin_conserving_decay_rate
         coefficient[17] = 0.001*parameters.spin_nonconserving_decay_rate
+
+
+def rabi(time, coefficient):
+    # Default
+    coefficient[3] = parameters.zero_field_splitting_ground
+    coefficient[7] = parameters.zero_field_splitting_excited
+    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[11] = parameters.z_to_singlet_decay_rate
+    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[13] = parameters.pm_to_singlet_decay_rate
+    coefficient[14] = parameters.spin_conserving_decay_rate
+    coefficient[15] = parameters.spin_nonconserving_decay_rate
+
+    # Bias
+    coefficient[2] = 0.1*parameters.longitudinal_gyromagnetic_ratio_ground
+    coefficient[6] = 0.1*parameters.gyromagnetic_ratio_excited
+
+    # Pulse sequence
+    if time < 1e-6:
+        # polarise
+        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
+
+    elif time < 1.5e-6:
+        # Settle
+        pass
+    
+    elif time < 1.5e-6 + 1e-6/4:
+        pass
+        # # MWs
+        # coefficient[0] = 1e6*math.tau*math.cos(
+        #     parameters.zero_field_splitting_ground*time)
+        # coefficient[4] = 1e6*math.tau*math.cos(
+        #     parameters.zero_field_splitting_ground*time)
+
+    elif time < 2.5e-6:
+        # Wait
+        pass
+    elif time < 3.5e-6:
+        # polarise
+        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
+
+    elif time < 4e-6:
+        # Settle
+        pass
+    
+    elif time < 4e-6 + 1e-6/2:
+        # MWs
+        coefficient[0] = 1e6*math.tau*math.cos(
+            (parameters.zero_field_splitting_ground + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+        coefficient[4] = 1e6*math.tau*math.cos(
+            (parameters.zero_field_splitting_ground + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+
+    elif time < 5e-6:
+        # Wait
+        pass
+    elif time < 6e-6:
+        # polarise
+        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
