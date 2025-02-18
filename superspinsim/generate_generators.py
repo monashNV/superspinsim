@@ -109,7 +109,7 @@ def _generate_relax_p_g_operator():
     scratch = _operator_generators["spin_y_g"]()
     operator[:, :, 0] -= scratch[:, :, 1]
     operator[:, :, 1] += scratch[:, :, 0]
-    operator /= math.sqrt(6)
+    operator /= math.sqrt(2)
     return operator
 
 
@@ -121,20 +121,20 @@ def _generate_relax_m_g_operator():
     scratch = _operator_generators["spin_y_g"]()
     operator[:, :, 0] += scratch[:, :, 1]
     operator[:, :, 1] -= scratch[:, :, 0]
-    operator /= math.sqrt(6)
+    operator /= math.sqrt(2)
     return operator
 
 
 _operator_generators["relax_m_g"] = _generate_relax_m_g_operator
 
 
-def _generate_relax_l_g_operator():
+def _generate_relax_t_g_operator():
     operator = _operator_generators["spin_z_g"]()
-    operator *= math.sqrt(2)
+    # operator *= math.sqrt(2)
     return operator
 
 
-_operator_generators["relax_l_g"] = _generate_relax_l_g_operator
+_operator_generators["relax_t_g"] = _generate_relax_t_g_operator
 
 
 def _generate_relax_p_e_operator():
@@ -142,7 +142,7 @@ def _generate_relax_p_e_operator():
     scratch = _operator_generators["spin_y_e"]()
     operator[:, :, 0] -= scratch[:, :, 1]
     operator[:, :, 1] += scratch[:, :, 0]
-    operator /= math.sqrt(6)
+    operator /= math.sqrt(2)
     return operator
 
 
@@ -154,20 +154,20 @@ def _generate_relax_m_e_operator():
     scratch = _operator_generators["spin_y_e"]()
     operator[:, :, 0] += scratch[:, :, 1]
     operator[:, :, 1] -= scratch[:, :, 0]
-    operator /= math.sqrt(6)
+    operator /= math.sqrt(2)
     return operator
 
 
 _operator_generators["relax_m_e"] = _generate_relax_m_e_operator
 
 
-def _generate_relax_l_e_operator():
+def _generate_relax_t_e_operator():
     operator = _operator_generators["spin_z_e"]()
-    operator *= math.sqrt(2)
+    # operator *= math.sqrt(2)
     return operator
 
 
-_operator_generators["relax_l_e"] = _generate_relax_l_e_operator
+_operator_generators["relax_t_e"] = _generate_relax_t_e_operator
 
 
 def _generate_raise_p_p_operator():
@@ -323,6 +323,15 @@ def _generate_decay_m_s_operator():
 _operator_generators["decay_m_s"] = _generate_decay_m_s_operator
 
 
+def _generate_decay_s_p_operator():
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[0, 6, 0] = 1
+    return operator
+
+
+_operator_generators["decay_s_p"] = _generate_decay_s_p_operator
+
+
 def _generate_decay_s_z_operator():
     operator = np.zeros((7, 7, 2), dtype=meta_datatype)
     operator[1, 6, 0] = 1
@@ -330,6 +339,15 @@ def _generate_decay_s_z_operator():
 
 
 _operator_generators["decay_s_z"] = _generate_decay_s_z_operator
+
+
+def _generate_decay_s_m_operator():
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[2, 6, 0] = 1
+    return operator
+
+
+_operator_generators["decay_s_m"] = _generate_decay_s_m_operator
 
 
 def _mult(operator_a, operator_b):
@@ -410,20 +428,25 @@ with Pogger(project_name="superspinsim-generate") as logger:
                 ]:
             superoperators_use[label] = superoperators[label]
 
-        superoperators_use["relax_t_g"] = superoperators["relax_p_g"] \
+        superoperators_use["relax_l_g"] = superoperators["relax_p_g"] \
             + superoperators["relax_m_g"]
 
-        superoperators_use["relax_t_e"] = superoperators["relax_p_e"] \
+        superoperators_use["relax_t_g"] = superoperators["relax_t_g"]
+
+        superoperators_use["relax_l_e"] = superoperators["relax_p_e"] \
             + superoperators["relax_m_e"]
 
-        superoperators_use["relax_l"] = superoperators["relax_l_g"] \
-            + superoperators["relax_l_e"]
+        superoperators_use["relax_t_e"] = superoperators["relax_t_e"]
 
-        for label in ["decay_z_s", "decay_s_z"]:
-            superoperators_use[label] = superoperators[label]
+        superoperators_use["decay_z_s"] = superoperators["decay_z_s"]
 
         superoperators_use["decay_pm_s"] = superoperators["decay_p_s"] \
             + superoperators["decay_m_s"]
+
+        superoperators_use["decay_s_z"] = superoperators["decay_s_z"]
+
+        superoperators_use["decay_s_pm"] = superoperators["decay_s_p"] \
+            + superoperators["decay_s_m"]
 
         superoperators_use["decay_conserve"] = superoperators["decay_p_p"] \
             + superoperators["decay_z_z"] + superoperators["decay_m_m"]
@@ -481,7 +504,7 @@ with Pogger(project_name="superspinsim-generate") as logger:
             figsize=(10, 8)
         )
 
-        number_of_rows = 4
+        number_of_rows = 5
         for operator_index, (label, operator) in enumerate(
                 operators.items()):
             plt.subplot(
@@ -496,10 +519,10 @@ with Pogger(project_name="superspinsim-generate") as logger:
 
         plt.draw()
 
-        number_of_rows = 4
+        number_of_rows = 5
         plt.figure(
             label="superoperators_all",
-            figsize=(10, 7)
+            figsize=(10, 8)
         )
 
         for operator_index, (label, superoperator) in enumerate(
@@ -516,10 +539,10 @@ with Pogger(project_name="superspinsim-generate") as logger:
             plt.title(label)
         plt.draw()
 
-        number_of_rows = 3
+        number_of_rows = 5
         plt.figure(
             label="superoperators",
-            figsize=(12, 6)
+            figsize=(10, 10)
         )
 
         for operator_index, (label, superoperator) in enumerate(
@@ -532,8 +555,21 @@ with Pogger(project_name="superspinsim-generate") as logger:
             coloured = np.array(
                 _colour_complex_matrix(superoperator), dtype=np.float64)
             plt.imshow(coloured)
-            plt.axis("off")
-            plt.title(label)
+            # plt.axis("off")
+            plt.xticks([])
+            plt.yticks([])
+            plt.title(f"{operator_index:2d}:{label}")
+            if operator_index == 0:
+                plt.ylabel("Ground-state\ncoherent\n\n")
+            elif operator_index == 4:
+                plt.ylabel("Excited-state\ncoherent\n\n")
+            elif operator_index == 8:
+                plt.ylabel("Spin relaxation\n\n")
+            elif operator_index == 12:
+                plt.ylabel("Intersystem\n\n")
+            elif operator_index == 16:
+                plt.ylabel("Optical\n\n")
+
         plt.draw()
 
     logger.set_context("superoperators")

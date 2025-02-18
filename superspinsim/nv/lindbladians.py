@@ -6,32 +6,36 @@ def laser(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
     coefficient[7] = parameters.zero_field_splitting_excited
-    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
     coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
-    coefficient[11] = parameters.z_to_singlet_decay_rate
-    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
-    coefficient[14] = parameters.spin_conserving_decay_rate
-    coefficient[15] = parameters.spin_nonconserving_decay_rate
+    coefficient[14] = parameters.singlet_to_z_decay_rate
+    coefficient[15] = parameters.singlet_to_pm_decay_rate
+    coefficient[16] = parameters.spin_conserving_decay_rate
+    coefficient[17] = parameters.spin_nonconserving_decay_rate
 
     # Laser
-    coefficient[16] = 0.5*parameters.spin_conserving_decay_rate
-    coefficient[17] = 0.5*parameters.spin_nonconserving_decay_rate
+    coefficient[18] = 0.5*parameters.spin_conserving_decay_rate
+    coefficient[19] = 0.5*parameters.spin_nonconserving_decay_rate
 
 
 def continuous_rabi(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
     coefficient[7] = parameters.zero_field_splitting_excited
-    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
     coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
-    coefficient[11] = parameters.z_to_singlet_decay_rate
-    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
-    coefficient[14] = parameters.spin_conserving_decay_rate
-    coefficient[15] = parameters.spin_nonconserving_decay_rate
+    coefficient[14] = parameters.singlet_to_z_decay_rate
+    coefficient[15] = parameters.singlet_to_pm_decay_rate
+    coefficient[16] = parameters.spin_conserving_decay_rate
+    coefficient[17] = parameters.spin_nonconserving_decay_rate
 
     # Microwaves
     if time > 200e-6 and time < 900e-6:
@@ -47,14 +51,16 @@ def odmr_block(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
     coefficient[7] = parameters.zero_field_splitting_excited
-    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
     coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
-    coefficient[11] = parameters.z_to_singlet_decay_rate
-    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
-    coefficient[14] = parameters.spin_conserving_decay_rate
-    coefficient[15] = parameters.spin_nonconserving_decay_rate
+    coefficient[14] = parameters.singlet_to_z_decay_rate
+    coefficient[15] = parameters.singlet_to_pm_decay_rate
+    coefficient[16] = parameters.spin_conserving_decay_rate
+    coefficient[17] = parameters.spin_nonconserving_decay_rate
 
     # Microwaves
     if time > 200e-6 and time < 400e-6:
@@ -75,16 +81,16 @@ def odmr(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
     coefficient[7] = parameters.zero_field_splitting_excited
-    # coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
-    # coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
-    coefficient[8] = 1/600e-6
-    coefficient[9] = 1/600e-6
+    coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
     coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
-    coefficient[11] = parameters.z_to_singlet_decay_rate
-    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
-    coefficient[14] = parameters.spin_conserving_decay_rate
-    coefficient[15] = parameters.spin_nonconserving_decay_rate
+    coefficient[14] = parameters.singlet_to_z_decay_rate
+    coefficient[15] = parameters.singlet_to_pm_decay_rate
+    coefficient[16] = parameters.spin_conserving_decay_rate
+    coefficient[17] = parameters.spin_nonconserving_decay_rate
 
     # coefficient[2] = 0.001*parameters.longitudinal_gyromagnetic_ratio_ground
     # coefficient[6] = 0.001*parameters.gyromagnetic_ratio_excited
@@ -105,14 +111,16 @@ def rabi(time, coefficient):
     # Default
     coefficient[3] = parameters.zero_field_splitting_ground
     coefficient[7] = parameters.zero_field_splitting_excited
-    coefficient[8] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[9] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
     coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
-    coefficient[11] = parameters.z_to_singlet_decay_rate
-    coefficient[12] = parameters.singlet_to_z_decay_rate
+    coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
+    coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
-    coefficient[14] = parameters.spin_conserving_decay_rate
-    coefficient[15] = parameters.spin_nonconserving_decay_rate
+    coefficient[14] = parameters.singlet_to_z_decay_rate
+    coefficient[15] = parameters.singlet_to_pm_decay_rate
+    coefficient[16] = parameters.spin_conserving_decay_rate
+    coefficient[17] = parameters.spin_nonconserving_decay_rate
 
     # Bias
     coefficient[2] = 0.1*parameters.longitudinal_gyromagnetic_ratio_ground
@@ -121,8 +129,8 @@ def rabi(time, coefficient):
     # Pulse sequence
     if time < 1e-6:
         # polarise
-        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
 
     elif time < 1.5e-6:
         # Settle
@@ -141,8 +149,8 @@ def rabi(time, coefficient):
         pass
     elif time < 3.5e-6:
         # polarise
-        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
 
     elif time < 4e-6:
         # Settle
@@ -160,5 +168,5 @@ def rabi(time, coefficient):
         pass
     elif time < 6e-6:
         # polarise
-        coefficient[16] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[17] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
