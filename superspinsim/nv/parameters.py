@@ -291,7 +291,7 @@ nv_parameters["radiative_mixing_angle"] = {
 spin_nonconserving_decay_rate = \
     spin_conserving_decay_rate*math.tan(radiative_mixing_angle)**2
 r"""
-\Gamma_{gX\gets eX}
+\Gamma_{gY\gets eX}
 
 Units
 -----
@@ -311,7 +311,7 @@ nv_parameters["spin_nonconserving_decay_rate"] = {
     ]
 }
 
-pm_to_singlet_decay_rate = 60.4e6
+pm_to_singlet_decay_rate = 91.6e6
 r"""
 \Gamma_{s\gets\pm}
 
@@ -321,19 +321,18 @@ Per second
 
 Reference
 ---------
-Table 1.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
+Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
 nv_parameters["pm_to_singlet_decay_rate"] = {
     "value": pm_to_singlet_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez, "
-        "PhD Thesis, Universita di Firenze"
+        "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
-z_to_singlet_decay_rate = 9.39e6
+z_to_singlet_decay_rate = 9.9e6
 r"""
 \Gamma_{s\gets0}
 
@@ -343,19 +342,18 @@ Per second
 
 Reference
 ---------
-Table 1.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
+Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
 nv_parameters["z_to_singlet_decay_rate"] = {
     "value": z_to_singlet_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez, "
-        "PhD Thesis, Universita di Firenze"
+        "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
-singlet_to_z_decay_rate = 9.6e6
+singlet_to_pm_decay_rate = 2.11e6
 r"""
 \Gamma_{0\gets s}
 
@@ -365,15 +363,35 @@ Per second
 
 Reference
 ---------
-Table 1.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
+Table 1, Journal of the Optical Society of America B 33 B28-B34
+"""
+
+nv_parameters["singlet_to_pm_decay_rate"] = {
+    "value": singlet_to_pm_decay_rate,
+    "units": "Per second",
+    "references": [
+        "Table 1, Journal of the Optical Society of America B 33 B28-B34"
+    ]
+}
+
+singlet_to_z_decay_rate = 4.83e6
+r"""
+\Gamma_{0\gets s}
+
+Units
+-----
+Per second
+
+Reference
+---------
+Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
 nv_parameters["singlet_to_z_decay_rate"] = {
     "value": singlet_to_z_decay_rate,
     "units": "Per second",
     "references": [
-        "Table 1.1, Santiago Hernandez Gomez, "
-        "PhD Thesis, Universita di Firenze"
+        "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
