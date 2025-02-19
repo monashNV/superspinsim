@@ -133,8 +133,8 @@ def rabi(time, coefficient):
     # Pulse sequence
     if time < 2e-6:
         # polarise
-        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.5*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.5*parameters.spin_nonconserving_decay_rate
 
     elif time < 2.5e-6:
         # Settle
@@ -154,8 +154,8 @@ def rabi(time, coefficient):
 
     elif time < 5.5e-6:
         # polarise
-        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.5*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.5*parameters.spin_nonconserving_decay_rate
 
     elif time < 6e-6:
         # Settle
@@ -163,12 +163,19 @@ def rabi(time, coefficient):
 
     elif time < 6e-6 + 1e-6/2:
         # MWs
-        coefficient[0] = 1e6*math.tau*math.cos(
-            (parameters.zero_field_splitting_ground
-                + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
-        coefficient[4] = 1e6*math.tau*math.cos(
-            (parameters.zero_field_splitting_ground
-                + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+        coefficient[0] = \
+            1e6*math.tau \
+            * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
+            * math.cos(
+                (parameters.zero_field_splitting_ground
+                 + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+
+        coefficient[4] = \
+            1e6*math.tau \
+            * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
+            * math.cos(
+                (parameters.zero_field_splitting_ground
+                 + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
 
     elif time < 7e-6:
         # Wait
@@ -176,5 +183,5 @@ def rabi(time, coefficient):
 
     elif time < 9e-6:
         # polarise
-        coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
-        coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
+        coefficient[18] = 0.5*parameters.spin_conserving_decay_rate
+        coefficient[19] = 0.5*parameters.spin_nonconserving_decay_rate
