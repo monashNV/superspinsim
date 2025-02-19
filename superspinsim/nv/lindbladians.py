@@ -163,19 +163,33 @@ def rabi(time, coefficient):
 
     elif time < 6e-6 + 1e-6/2:
         # MWs
+        b1_field = 1e6*math.tau/parameters.transverse_gyromagnetic_ratio_ground
+        b1_frequency = parameters.zero_field_splitting_ground \
+            + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground
+
         coefficient[0] = \
-            1e6*math.tau \
+            1/math.sqrt(2) \
+            * b1_field*parameters.transverse_gyromagnetic_ratio_ground \
             * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
-            * math.cos(
-                (parameters.zero_field_splitting_ground
-                 + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+            * math.cos(b1_frequency*time)
+
+        coefficient[1] = \
+            1/math.sqrt(2) \
+            * b1_field*parameters.transverse_gyromagnetic_ratio_ground \
+            * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
+            * math.cos(b1_frequency*time)
 
         coefficient[4] = \
-            1e6*math.tau \
+            1/math.sqrt(2) \
+            * b1_field*parameters.gyromagnetic_ratio_excited \
             * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
-            * math.cos(
-                (parameters.zero_field_splitting_ground
-                 + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+            * math.cos(b1_frequency*time)
+
+        coefficient[5] = \
+            1/math.sqrt(2) \
+            * b1_field*parameters.gyromagnetic_ratio_excited \
+            * (1 - math.cos(math.tau*(time - 6e-6)/(1e-6/2))) \
+            * math.cos(b1_frequency*time)
 
     elif time < 7e-6:
         # Wait
