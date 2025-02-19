@@ -105,11 +105,8 @@ _operator_generators["spin_z2_e"] = _generate_spin_z2_e_operator
 
 
 def _generate_relax_p_g_operator():
-    operator = _operator_generators["spin_x_g"]()
-    scratch = _operator_generators["spin_y_g"]()
-    operator[:, :, 0] -= scratch[:, :, 1]
-    operator[:, :, 1] += scratch[:, :, 0]
-    operator /= math.sqrt(2)
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[1, 0, 0] = 1
     return operator
 
 
@@ -117,11 +114,8 @@ _operator_generators["relax_p_g"] = _generate_relax_p_g_operator
 
 
 def _generate_relax_m_g_operator():
-    operator = _operator_generators["spin_x_g"]()
-    scratch = _operator_generators["spin_y_g"]()
-    operator[:, :, 0] += scratch[:, :, 1]
-    operator[:, :, 1] -= scratch[:, :, 0]
-    operator /= math.sqrt(2)
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[1, 2, 0] = 1
     return operator
 
 
@@ -138,11 +132,8 @@ _operator_generators["relax_t_g"] = _generate_relax_t_g_operator
 
 
 def _generate_relax_p_e_operator():
-    operator = _operator_generators["spin_x_e"]()
-    scratch = _operator_generators["spin_y_e"]()
-    operator[:, :, 0] -= scratch[:, :, 1]
-    operator[:, :, 1] += scratch[:, :, 0]
-    operator /= math.sqrt(2)
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[4, 3, 0] = 1
     return operator
 
 
@@ -150,11 +141,8 @@ _operator_generators["relax_p_e"] = _generate_relax_p_e_operator
 
 
 def _generate_relax_m_e_operator():
-    operator = _operator_generators["spin_x_e"]()
-    scratch = _operator_generators["spin_y_e"]()
-    operator[:, :, 0] += scratch[:, :, 1]
-    operator[:, :, 1] -= scratch[:, :, 0]
-    operator /= math.sqrt(2)
+    operator = np.zeros((7, 7, 2), dtype=meta_datatype)
+    operator[4, 5, 0] = 1
     return operator
 
 

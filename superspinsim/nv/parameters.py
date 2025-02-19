@@ -219,6 +219,29 @@ nv_parameters["gyromagnetic_ratio_excited"] = {
     "units": "Radians per second"
 }
 
+spin_lattice_relaxation_time_excited = 1e-3
+r"""
+T_{1, e}
+
+Units
+-----
+Seconds
+
+References
+----------
+Table I, Phys. Rev. B 102, 224101
+Table S2, Supp. Mat. of Optics Express, 32, 22352-22361
+"""
+
+nv_parameters["spin_lattice_relaxation_time_excited"] = {
+    "value": spin_lattice_relaxation_time_excited,
+    "units": "Seconds",
+    "references": [
+        "Table I, Phys. Rev. B 102, 224101",
+        "Table S2, Supp. Mat. of Optics Express, 32, 22352-22361"
+    ]
+}
+
 spin_spin_relaxation_time_excited = 10.9e-9
 r"""
 T_{2, e}

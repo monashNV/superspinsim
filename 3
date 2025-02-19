@@ -31,7 +31,7 @@ def main():
 
         time_step_coarse = 100e-12
         time, density_operator = simulator(
-            density_operator_initial, 0, 9e-6, time_step_coarse)
+            density_operator_initial, 0, 7e-6, time_step_coarse)
 
         fluorescence = density_operator[:, 3, 3, 0] + \
             density_operator[:, 4, 4, 0] + density_operator[:, 5, 5, 0]
@@ -51,7 +51,7 @@ def main():
         #         lowpass_filter /= np.sum(lowpass_filter)
         #     fluorescence = np.convolve(fluorescence, lowpass_filter, "same")
 
-        fluorescence_max = np.max(fluorescence[time > 3.5e-6])
+        fluorescence_max = np.max(fluorescence[time > 2.5e-6])
         if fluorescence_max > 0:
             fluorescence /= fluorescence_max
 
@@ -70,7 +70,7 @@ def main():
             plt.plot(
                 time[plot_window]/1e-6,
                 density_operator[plot_window, 0, 0, 0]*100,
-                "-", color=cm.hawaii(0/3), label="+"
+                "-", color=cm.hawaii(0/3), label="-"
             )
             plt.plot(
                 time[plot_window]/1e-6,
@@ -80,7 +80,7 @@ def main():
             plt.plot(
                 time[plot_window]/1e-6,
                 density_operator[plot_window, 2, 2, 0]*100,
-                "-", color=cm.hawaii(2/3), label="-"
+                "-", color=cm.hawaii(2/3), label="+"
             )
 
             plt.xlabel("Time (us)")
@@ -90,16 +90,16 @@ def main():
 
             plt.figure(label="contrast")
 
-            plot_window = np.logical_and(time > 3.5e-6, time < 5.5e-6)
+            plot_window = np.logical_and(time > 2.5e-6, time < 3.5e-6)
             plt.plot(
-                time[plot_window]/1e-6 - 3.5,
+                time[plot_window]/1e-6 - 2.5,
                 fluorescence[plot_window]*100,
                 "-", color=cm.hawaii(0/2), label="polarised"
             )
 
-            plot_window = np.logical_and(time > 7e-6, time < 9e-6)
+            plot_window = np.logical_and(time > 5e-6, time < 6e-6)
             plt.plot(
-                time[plot_window]/1e-6 - 7,
+                time[plot_window]/1e-6 - 5,
                 fluorescence[plot_window]*100,
                 "-", color=cm.hawaii(1/2), label="pi pulse"
             )

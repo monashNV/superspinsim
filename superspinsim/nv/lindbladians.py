@@ -8,7 +8,7 @@ def laser(time, coefficient):
     coefficient[7] = parameters.zero_field_splitting_excited
     coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
     coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_excited
     coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
     coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
@@ -28,7 +28,7 @@ def continuous_rabi(time, coefficient):
     coefficient[7] = parameters.zero_field_splitting_excited
     coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
     coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_excited
     coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
     coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
@@ -39,7 +39,8 @@ def continuous_rabi(time, coefficient):
 
     # Microwaves
     if time > 200e-6 and time < 900e-6:
-        coefficient[0] = 1000e3*math.tau*math.cos(parameters.zero_field_splitting_ground*time)
+        coefficient[0] = 1000e3*math.tau*math.cos(
+            parameters.zero_field_splitting_ground*time)
 
     # Laser
     if time > 100e-6:
@@ -53,7 +54,7 @@ def odmr_block(time, coefficient):
     coefficient[7] = parameters.zero_field_splitting_excited
     coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
     coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_excited
     coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
     coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
@@ -64,11 +65,14 @@ def odmr_block(time, coefficient):
 
     # Microwaves
     if time > 200e-6 and time < 400e-6:
-        coefficient[0] = 10e3*math.tau*math.cos(parameters.zero_field_splitting_ground/2*time)
+        coefficient[0] = 10e3*math.tau*math.cos(
+            parameters.zero_field_splitting_ground/2*time)
     elif time < 600e-6:
-        coefficient[0] = 10e3*math.tau*math.cos(parameters.zero_field_splitting_ground*time)
+        coefficient[0] = 10e3*math.tau*math.cos(
+            parameters.zero_field_splitting_ground*time)
     elif time < 800e-6:
-        coefficient[0] = 10e3*math.tau*math.cos(3/2*parameters.zero_field_splitting_ground*time)
+        coefficient[0] = 10e3*math.tau*math.cos(
+            3/2*parameters.zero_field_splitting_ground*time)
     coefficient[4] = coefficient[0]
 
     # Laser
@@ -83,7 +87,7 @@ def odmr(time, coefficient):
     coefficient[7] = parameters.zero_field_splitting_excited
     coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
     coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_excited
     coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
     coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
@@ -113,7 +117,7 @@ def rabi(time, coefficient):
     coefficient[7] = parameters.zero_field_splitting_excited
     coefficient[8] = 1/parameters.spin_lattice_relaxation_time_ground
     coefficient[9] = 1/parameters.spin_spin_relaxation_time_ground
-    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_ground
+    coefficient[10] = 1/parameters.spin_lattice_relaxation_time_excited
     coefficient[11] = 1/parameters.spin_spin_relaxation_time_excited
     coefficient[12] = parameters.z_to_singlet_decay_rate
     coefficient[13] = parameters.pm_to_singlet_decay_rate
@@ -127,16 +131,16 @@ def rabi(time, coefficient):
     coefficient[6] = 0.1*parameters.gyromagnetic_ratio_excited
 
     # Pulse sequence
-    if time < 1e-6:
+    if time < 2e-6:
         # polarise
         coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
         coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
 
-    elif time < 1.5e-6:
+    elif time < 2.5e-6:
         # Settle
         pass
-    
-    elif time < 1.5e-6 + 1e-6/4:
+
+    elif time < 2.5e-6 + 1e-6/4:
         pass
         # # MWs
         # coefficient[0] = 1e6*math.tau*math.cos(
@@ -144,29 +148,33 @@ def rabi(time, coefficient):
         # coefficient[4] = 1e6*math.tau*math.cos(
         #     parameters.zero_field_splitting_ground*time)
 
-    elif time < 2.5e-6:
+    elif time < 3.5e-6:
         # Wait
         pass
-    elif time < 3.5e-6:
+
+    elif time < 5.5e-6:
         # polarise
         coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
         coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
 
-    elif time < 4e-6:
+    elif time < 6e-6:
         # Settle
         pass
-    
-    elif time < 4e-6 + 1e-6/2:
+
+    elif time < 6e-6 + 1e-6/2:
         # MWs
         coefficient[0] = 1e6*math.tau*math.cos(
-            (parameters.zero_field_splitting_ground + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+            (parameters.zero_field_splitting_ground
+                + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
         coefficient[4] = 1e6*math.tau*math.cos(
-            (parameters.zero_field_splitting_ground + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
+            (parameters.zero_field_splitting_ground
+                + 0.1*parameters.longitudinal_gyromagnetic_ratio_ground)*time)
 
-    elif time < 5e-6:
+    elif time < 7e-6:
         # Wait
         pass
-    elif time < 6e-6:
+
+    elif time < 9e-6:
         # polarise
         coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
         coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
