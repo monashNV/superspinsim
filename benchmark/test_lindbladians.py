@@ -29,9 +29,12 @@ def main():
         # density_operator_initial[2, 2, 0] = 1
         density_operator_initial[6, 6, 0] = 1
 
+        # time_step_coarse = 1e-9
         time_step_coarse = 100e-12
         time, density_operator = simulator(
-            density_operator_initial, 0, 9e-6, time_step_coarse)
+             # density_operator_initial, 0, 102e-6, time_step_coarse)
+             # density_operator_initial, 0, 9e-6, time_step_coarse)
+             density_operator_initial, 0, 12e-6, time_step_coarse)
 
         fluorescence = density_operator[:, 3, 3, 0] + \
             density_operator[:, 4, 4, 0] + density_operator[:, 5, 5, 0]
@@ -70,57 +73,95 @@ def main():
             plt.plot(
                 time[plot_window]/1e-6,
                 density_operator[plot_window, 0, 0, 0]*100,
-                "-", color=cm.hawaii(0/3), label="+"
+                "-", color=cm.hawaii(0/3), label="g+"
             )
             plt.plot(
                 time[plot_window]/1e-6,
                 density_operator[plot_window, 1, 1, 0]*100,
-                "-", color=cm.hawaii(1/3), label="0"
+                "-", color=cm.hawaii(1/3), label="g0"
             )
             plt.plot(
                 time[plot_window]/1e-6,
                 density_operator[plot_window, 2, 2, 0]*100,
-                "-", color=cm.hawaii(2/3), label="-"
+                "-", color=cm.hawaii(2/3), label="g-"
+            )
+
+            plt.plot(
+                time[plot_window]/1e-6,
+                density_operator[plot_window, 3, 3, 0]*100,
+                "--", color=cm.hawaii(0/3), label="e+"
+            )
+            plt.plot(
+                time[plot_window]/1e-6,
+                density_operator[plot_window, 4, 4, 0]*100,
+                "--", color=cm.hawaii(1/3), label="e0"
+            )
+            plt.plot(
+                time[plot_window]/1e-6,
+                density_operator[plot_window, 5, 5, 0]*100,
+                "--", color=cm.hawaii(2/3), label="e-"
+            )
+
+            plt.plot(
+                time[plot_window]/1e-6,
+                density_operator[plot_window, 6, 6, 0]*100,
+                "-", color=cm.hawaii(0.999), label="s"
             )
 
             plt.xlabel("Time (us)")
             plt.ylabel("Population (%)")
+            plt.ylim(top=80)
             plt.legend()
             plt.draw()
 
-            plt.figure(label="contrast")
+            if lindbladian in [nvl.rabi, nvl.rabi_excited, nvl.rabi_extended]:
+                plt.figure(label="contrast")
+                if lindbladian in [nvl.rabi, nvl.rabi_extended]:
+                    window_polarised = [3.5e-6, 5.5e-6]
+                    window_pi = [7e-6, 9e-6]
+                elif lindbladian == nvl.rabi_excited:
+                    window_polarised = [2.5e-6, 2.6e-6]
+                    window_pi = [5.5e-6, 5.6e-6]
 
-            plot_window = np.logical_and(time > 3.5e-6, time < 5.5e-6)
-            plt.plot(
-                time[plot_window]/1e-6 - 3.5,
-                fluorescence[plot_window]*100,
-                "-", color=cm.hawaii(0/2), label="polarised"
-            )
+                plot_window = np.logical_and(
+                    time > window_polarised[0], time < window_polarised[1])
+                plt.plot(
+                    (time[plot_window] - window_polarised[0])/1e-6,
+                    fluorescence[plot_window]*100,
+                    "-", color=cm.hawaii(0/2), label="polarised"
+                )
 
-            plot_window = np.logical_and(time > 7e-6, time < 9e-6)
-            plt.plot(
-                time[plot_window]/1e-6 - 7,
-                fluorescence[plot_window]*100,
-                "-", color=cm.hawaii(1/2), label="pi pulse"
-            )
+                plot_window = np.logical_and(
+                    time > window_pi[0], time < window_pi[1])
+                plt.plot(
+                    (time[plot_window] - window_pi[0])/1e-6,
+                    fluorescence[plot_window]*100,
+                    "-", color=cm.hawaii(1/2), label="pi pulse"
+                )
 
-            plt.legend()
-            plt.xlabel("Time (us)")
-            plt.ylabel("Fluorescence (%)")
-            plt.draw()
+                plt.legend()
+                plt.xlabel("Time (us)")
+                plt.ylabel("Fluorescence (%)")
+                plt.draw()
 
-            # # mw_frequency = 2.87e9*(1 + 0.5*(time - 5e-3)/10e-3)
-            # mw_frequency = 2.8e9 + 100e6*time/100e-6
-            # plt.figure(label="odmr")
-            # plt.plot(
-            #     mw_frequency[plot_window]/1e9, fluorescence[plot_window]*100, "k-")
-            # plt.xlabel("MW frequency (GHz)")
-            # plt.ylabel("Fluorescence (%)")
-            # plt.draw()
+            if lindbladian == nvl.odmr:
+                # mw_frequency = 2.87e9*(1 + 0.5*(time - 5e-3)/10e-3)
+                mw_frequency = 2.8e9 + 100e6*(time - 2e-6)/100e-6
+                plt.figure(label="odmr")
+                plt.plot(
+                    mw_frequency[plot_window]/1e9,
+                    fluorescence[plot_window]*100, "k-"
+                )
+                plt.xlabel("MW frequency (GHz)")
+                plt.ylabel("Fluorescence (%)")
+                plt.draw()
         finally:
             return time, density_operator, fluorescence
 
-    logger.set_context("rabi")
-    simulate_continuous_rabi(nvl.rabi)
+    # logger.set_context("odmr")
+    # simulate_continuous_rabi(nvl.odmr)
+
+    logger.set_context("rabi_extended")
+    simulate_continuous_rabi(nvl.rabi_extended)
 
     plt.show()
