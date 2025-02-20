@@ -1,4 +1,5 @@
 from superspinsim import generate_simulator
+from superspinsim.nv import lindbladians as nvl
 
 import math
 import numpy as np
@@ -37,7 +38,7 @@ def main():
         def calculate_error(density_operators_list, divisions):
             print("Comparing")
             ground_truth = density_operators_list.pop()
-            divisions = divisions[:-1]*number_of_samples
+            divisions = divisions[:-1]*ground_truth.shape[0]
             errors = []
             for density_operators in density_operators_list:
                 difference = density_operators - ground_truth
@@ -60,32 +61,43 @@ def main():
         datatype = np.float64
         wavefunction_size = 7
 
-        # Define sampler
-        resonance = 20
-        rabi = 2
+        # # Define sampler
+        # resonance = 20
+        # rabi = 2
 
-        def sampler(time, coefficient):
-            coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
-            coefficient[2] = math.tau*resonance
+        # def sampler(time, coefficient):
+        #     coefficient[0] = 2*math.tau*rabi*math.cos(math.tau*resonance*time)
+        #     coefficient[2] = math.tau*resonance
 
-        number_of_samples = int(2**16)
+        # number_of_samples = int(2**16)
+        # time_start: datatype = 0.0
+        # time_step: datatype = 1/number_of_samples
+        # time_end: datatype = 1.0
+
+        # # Define initial condition
+        # density_operator_initial = np.zeros(
+        #     (wavefunction_size, wavefunction_size, 2),
+        #     dtype=datatype
+        # )
+        # density_operator_initial[0, 0, 0] = 1
+        # density_operator_initial[1, 1, 0] = 0
+        # density_operator_initial[2, 2, 0] = 0
+
+        sampler = nvl.rabi_excited
         time_start: datatype = 0.0
-        time_step: datatype = 1/number_of_samples
-        time_end: datatype = 1.0
+        time_step: datatype = 100e-12
+        time_end: datatype = 12e-6
 
-        # Define initial condition
         density_operator_initial = np.zeros(
             (wavefunction_size, wavefunction_size, 2),
             dtype=datatype
         )
-        density_operator_initial[0, 0, 0] = 1
-        density_operator_initial[1, 1, 0] = 0
-        density_operator_initial[2, 2, 0] = 0
+        density_operator_initial[6, 6, 0] = 1
 
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        divisions = np.arange(1, 10, 2)  # np.geomspace(1, 10, 10)
+        divisions = np.arange(1, 20, 4)  # np.geomspace(1, 10, 10)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(

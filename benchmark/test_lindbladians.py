@@ -2,11 +2,14 @@ import superspinsim as s3
 import superspinsim.nv.lindbladians as nvl
 
 import numpy as np
+import matplotlib as mpl
 import matplotlib.pyplot as plt
 from cmcrameri import cm
 
 
 def main():
+    mpl.use("tkagg")
+
     from pogger import Pogger as Logger
 
     logger = Logger("superspinsim-benchmarks")
