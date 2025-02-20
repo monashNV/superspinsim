@@ -187,69 +187,67 @@ def combine_related(durations_slice):
     return durations_important
 
 
-@pogger.record()
-def plot_durations(durations_total, durations_slice):
-    trial = np.arange(durations_total.shape[0])
-
-    plt.figure(label="durations")
-    plt.plot(trial, durations_total*1e-9, ".-k", label="Total")
-    number_of_plots = len(durations_slice)
-    for plot_index, (name, duration) in enumerate(durations_slice.items()):
-        plt.plot(
-            trial,
-            duration*1e-9,
-            ".--",
-            color=cm.hawaii(plot_index/number_of_plots),
-            label=name
-        )
-    plt.xlabel("Trial index")
-    plt.yscale("log")
-    plt.ylabel("Time (s)")
-    plt.legend()
-    plt.draw()
-
-
-@pogger.record(("error", "durations", "power"), (None, "ns", None))
-def fit_errors(error, durations_total):
-    def hyperbolic_function(x, x0, y0, m, c):
-        return np.sqrt((m*(x - x0))**2 + y0**2) + c
-
-    error_log = np.log10(error)
-    durations_log = np.log10(durations_total)
-    hyperbolic_fit, hyperbolic_fit_cov = spo.curve_fit(
-        hyperbolic_function,
-        error_log,
-        durations_log,
-        [0, -2, 1, -4]
-    )
-
-    power = 1/hyperbolic_fit[2]
-    print(f"Power scaling: {power}")
-
-    error_span = np.geomspace(error[0], error[-1])
-    durations_fit = 10**hyperbolic_function(
-            np.log10(error_span),
-            hyperbolic_fit[0],
-            hyperbolic_fit[1],
-            hyperbolic_fit[2],
-            hyperbolic_fit[3]
-        )
-
-    plt.figure(label="fit")
-    plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
-    plt.loglog(
-        durations_fit*1e-9, error_span,
-        "k--", label=f"Fit (Power = {power:.2f})"
-    )
-    plt.xlabel("GPU time (s)")
-    plt.ylabel("RMS error")
-    plt.legend()
-    plt.draw()
-
-    return error, durations_total, power
-
-
 if __name__ == "__main__":
+    @pogger.record()
+    def plot_durations(durations_total, durations_slice):
+        trial = np.arange(durations_total.shape[0])
+
+        plt.figure(label="durations")
+        plt.plot(trial, durations_total*1e-9, ".-k", label="Total")
+        number_of_plots = len(durations_slice)
+        for plot_index, (name, duration) in enumerate(durations_slice.items()):
+            plt.plot(
+                trial,
+                duration*1e-9,
+                ".--",
+                color=cm.hawaii(plot_index/number_of_plots),
+                label=name
+            )
+        plt.xlabel("Trial index")
+        plt.yscale("log")
+        plt.ylabel("Time (s)")
+        plt.legend()
+        plt.draw()
+
+    @pogger.record(("error", "durations", "power"), (None, "ns", None))
+    def fit_errors(error, durations_total):
+        def hyperbolic_function(x, x0, y0, m, c):
+            return np.sqrt((m*(x - x0))**2 + y0**2) + c
+
+        error_log = np.log10(error)
+        durations_log = np.log10(durations_total)
+        hyperbolic_fit, hyperbolic_fit_cov = spo.curve_fit(
+            hyperbolic_function,
+            error_log,
+            durations_log,
+            [0, -2, 1, -4]
+        )
+
+        power = 1/hyperbolic_fit[2]
+        print(f"Power scaling: {power}")
+
+        error_span = np.geomspace(error[0], error[-1])
+        durations_fit = 10**hyperbolic_function(
+                np.log10(error_span),
+                hyperbolic_fit[0],
+                hyperbolic_fit[1],
+                hyperbolic_fit[2],
+                hyperbolic_fit[3]
+            )
+
+        plt.figure(label="fit")
+        plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
+        plt.loglog(
+            durations_fit*1e-9, error_span,
+            "k--", label=f"Fit (Power = {power:.2f})"
+        )
+        plt.xlabel("GPU time (s)")
+        plt.ylabel("RMS error")
+        plt.legend()
+        plt.draw()
+
+        return error, durations_total, power
+
     names, start_times, end_times = read_h5()
     durations = calculate_durations(start_times, end_times)
     clean_names(names)
@@ -274,7 +272,6 @@ if __name__ == "__main__":
 
     durations_total = durations_total[:-1]
 
-    # previous_log = "2025-01-30T17-52-20"
     with open("profile/datetime", "r") as file_previous_log:
         previous_log = file_previous_log.readline().strip()
     read = Read("superspinsim-benchmarks", previous_log)

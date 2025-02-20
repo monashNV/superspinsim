@@ -20,10 +20,10 @@ def generate_simulator(
         use_cuda=True,
         datatype=np.float64,
         use_residual=True,
-        number_of_quartic_repeats=23,
-        number_of_exponentials=5,
+        number_of_quartic_repeats=35,
+        number_of_exponentials=2,
         number_of_fine_divisions=1,
-        use_cayley=True
+        use_cayley=False
         ):
 
     if generators is None:
