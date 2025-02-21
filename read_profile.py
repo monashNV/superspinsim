@@ -171,8 +171,9 @@ def combine_related(durations_slice):
     durations_important["Lie algebra to matrix"] = \
         durations_slice["calculate_differential"] \
         + durations_slice["scale_differential_basic"]
-    durations_important["Cayley transform"] = \
-        durations_slice["calculate_cayley"]
+    if "calculate_cayley" in durations_slice:
+        durations_important["Cayley transform"] = \
+            durations_slice["calculate_cayley"]
     durations_important["Squaring"] = \
         durations_slice["repeated_quartic_superoperator"]
     durations_important["Accumulate time evolution"] = \
@@ -275,11 +276,13 @@ if __name__ == "__main__":
     with open("profile/datetime", "r") as file_previous_log:
         previous_log = file_previous_log.readline().strip()
     read = Read("superspinsim-benchmarks", previous_log)
-    error = read.read_array("errors", "error_analysis")
+    # error = read.read_array("errors", "error_analysis")
+    # error = read.read_array("errors", "quartics")
 
     pogger.set_context()
     pogger.write_value("previous_log", previous_log)
-    pogger.set_context("errors")
-    fit_errors(error, durations_total)
+
+    # pogger.set_context("errors")
+    # fit_errors(error, durations_total)
 
     plt.show()

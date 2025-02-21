@@ -2,9 +2,9 @@ from superspinsim import generate_simulator
 from superspinsim.nv import lindbladians as nvl
 
 import numpy as np
+import math
 
 from matplotlib import pyplot as plt
-from cmcrameri import cm
 
 from pogger import Pogger
 
@@ -49,20 +49,34 @@ def main():
             errors = np.array(errors)
             return ground_truth, squares[:-1], errors
 
-        @pogger.record()
+        @pogger.record(("decay_fit", "scaling_fit"))
         def plot_errors(squares, errors):
+            # Fit
+            log10_errors = np.log10(errors)
+            linear_fit = np.polyfit(squares, log10_errors, 1)
+            decay_fit = -linear_fit[0]
+            scaling_fit = math.pow(10, linear_fit[1])
+
+            squares_fine = np.linspace(squares[0], squares[-1], 200)
+            errors_fit = scaling_fit*np.power(10, -decay_fit*squares_fine)
+
             # Plot
             plt.figure(label="errors")
-            plt.plot(squares, errors, "k.--")
+            plt.plot(
+                squares, errors, "k.",
+                label="Calculated"
+            )
+            plt.plot(
+                squares_fine, errors_fit, "k--",
+                label=f"Fit: Decay = {decay_fit:.2f}"
+            )
             plt.yscale("log")
             plt.xlabel("Number of squares")
             plt.ylabel("Error (RMS)")
-            # labels = [
-            #     f"{float(item.get_text()):0.0f}"
-            #     for item in plt.get_xticklabels()
-            # ]
-            # plt.xticks(labels=labels)
+            plt.legend()
             plt.draw()
+
+            return decay_fit, scaling_fit
 
         datatype = np.float64
         wavefunction_size = 7
@@ -81,7 +95,8 @@ def main():
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        number_of_quartics = np.arange(25, 42, 1)  # np.geomspace(1, 10, 10)
+        number_of_quartics = np.arange(5, 30, 1)  # np.geomspace(1, 10, 10)
+        # number_of_quartics = np.arange(25, 42, 1)  # np.geomspace(1, 10, 10)
         # number_of_quartics = np.arange(20, 60, 5)  # np.geomspace(1, 10, 10)
         for simulation_index, number_of_quartics_use in \
                 enumerate(number_of_quartics):
@@ -99,8 +114,10 @@ def main():
         print("Done!")
 
         pogger.set_context("quartics")
+
         ground_truth, squares, errors = \
             calculate_error(density_operators_list, number_of_quartics*2)
+
         plot_errors(squares, errors)
 
         with open("profile/datetime", "w") as file_datetime:
