@@ -276,13 +276,13 @@ if __name__ == "__main__":
     with open("profile/datetime", "r") as file_previous_log:
         previous_log = file_previous_log.readline().strip()
     read = Read("superspinsim-benchmarks", previous_log)
-    # error = read.read_array("errors", "error_analysis")
+    error = read.read_array("errors", "error_analysis")
     # error = read.read_array("errors", "quartics")
 
     pogger.set_context()
     pogger.write_value("previous_log", previous_log)
 
-    # pogger.set_context("errors")
-    # fit_errors(error, durations_total)
+    pogger.set_context("errors")
+    fit_errors(error, durations_total)
 
     plt.show()

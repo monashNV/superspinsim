@@ -2,6 +2,7 @@ from superspinsim import generate_simulator
 from superspinsim.nv import lindbladians as nvl
 
 import numpy as np
+import math
 
 from matplotlib import pyplot as plt
 from cmcrameri import cm
@@ -25,7 +26,9 @@ def main():
             simulate = generate_simulator(
                 sampler,
                 number_of_fine_divisions=number_of_fine_divisions,
-                number_of_exponentials=1
+                number_of_quartic_repeats=int(math.ceil(
+                    (math.log2(200e-12/number_of_fine_divisions) + 93.2)/2)),
+                number_of_exponentials=2
             )
 
             time, density_operators = simulate(
@@ -84,7 +87,7 @@ def main():
 
         sampler = nvl.rabi_excited
         time_start: datatype = 0.0
-        time_step: datatype = 100e-12
+        time_step: datatype = 200e-12
         time_end: datatype = 12e-6
 
         density_operator_initial = np.zeros(
