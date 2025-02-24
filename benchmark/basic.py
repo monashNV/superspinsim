@@ -28,7 +28,7 @@ def main():
                 number_of_fine_divisions=number_of_fine_divisions,
                 number_of_quartic_repeats=int(math.ceil(
                     (math.log2(200e-12/number_of_fine_divisions) + 93.2)/2)),
-                number_of_exponentials=2
+                number_of_exponentials=1
             )
 
             time, density_operators = simulate(
@@ -99,7 +99,7 @@ def main():
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        divisions = np.arange(1, 20, 4)  # np.geomspace(1, 10, 10)
+        divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(

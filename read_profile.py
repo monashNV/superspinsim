@@ -7,7 +7,7 @@ from cmcrameri import cm
 
 from scipy import optimize as spo
 
-from pogger import Pogger, Read
+from pogger import Pogger as Logger, Read
 
 datatype = np.float64
 
@@ -16,7 +16,7 @@ END_TIME_HEADING = "end"
 KERNEL_NAME_ID_HEADING = "demangledName"
 MEMORY_NAME_ID_HEADING = "copyKind"
 
-pogger = Pogger("superspinsim-benchmarks")
+pogger = Logger("superspinsim-benchmarks")
 
 
 def read_h5():
