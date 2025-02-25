@@ -217,37 +217,40 @@ if __name__ == "__main__":
 
         error_log = np.log10(error)
         durations_log = np.log10(durations_total)
-        hyperbolic_fit, hyperbolic_fit_cov = spo.curve_fit(
-            hyperbolic_function,
-            error_log,
-            durations_log,
-            [0, -2, 1, -4]
-        )
-
-        power = 1/hyperbolic_fit[2]
-        print(f"Power scaling: {power}")
-
-        error_span = np.geomspace(error[0], error[-1])
-        durations_fit = 10**hyperbolic_function(
-                np.log10(error_span),
-                hyperbolic_fit[0],
-                hyperbolic_fit[1],
-                hyperbolic_fit[2],
-                hyperbolic_fit[3]
+        power = None
+        try:
+            hyperbolic_fit, hyperbolic_fit_cov = spo.curve_fit(
+                hyperbolic_function,
+                error_log,
+                durations_log,
+                [0, -2, 1, -4]
             )
 
-        plt.figure(label="fit")
-        plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
-        plt.loglog(
-            durations_fit*1e-9, error_span,
-            "k--", label=f"Fit (Power = {power:.2f})"
-        )
-        plt.xlabel("GPU time (s)")
-        plt.ylabel("RMS error")
-        plt.legend()
-        plt.draw()
+            power = 1/hyperbolic_fit[2]
+            print(f"Power scaling: {power}")
 
-        return error, durations_total, power
+            error_span = np.geomspace(error[0], error[-1])
+            durations_fit = 10**hyperbolic_function(
+                    np.log10(error_span),
+                    hyperbolic_fit[0],
+                    hyperbolic_fit[1],
+                    hyperbolic_fit[2],
+                    hyperbolic_fit[3]
+                )
+
+            plt.figure(label="fit")
+            plt.loglog(durations_total*1e-9, error, "k.", label="Measured")
+            plt.loglog(
+                durations_fit*1e-9, error_span,
+                "k--", label=f"Fit (Power = {power:.2f})"
+            )
+            plt.xlabel("GPU time (s)")
+            plt.ylabel("RMS error")
+            plt.legend()
+            plt.draw()
+
+        finally:
+            return error, durations_total, power
 
     names, start_times, end_times = read_h5()
     durations = calculate_durations(start_times, end_times)

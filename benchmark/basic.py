@@ -27,8 +27,8 @@ def main():
                 sampler,
                 number_of_fine_divisions=number_of_fine_divisions,
                 number_of_quartic_repeats=int(math.ceil(
-                    (math.log2(200e-12/number_of_fine_divisions) + 93.2)/2)),
-                number_of_exponentials=1
+                    (math.log2(500e-12/number_of_fine_divisions) + 93.2)/2)),
+                number_of_exponentials=2
             )
 
             time, density_operators = simulate(
@@ -36,10 +36,11 @@ def main():
 
             return number_of_fine_divisions, density_operators
 
-        @pogger.record(("ground_truth", "divisions", "errors"))
-        def calculate_error(density_operators_list, divisions):
+        @pogger.record(("ground_truth", "divisions", "sample_rate", "errors"))
+        def calculate_error(density_operators_list, divisions, time_step):
             print("Comparing")
             ground_truth = density_operators_list.pop()
+            sample_rate = divisions[:-1]/time_step
             divisions = divisions[:-1]*ground_truth.shape[0]
             errors = []
             for density_operators in density_operators_list:
@@ -49,7 +50,7 @@ def main():
             print("Done!")
 
             errors = np.array(errors)
-            return ground_truth, divisions, errors
+            return ground_truth, divisions, sample_rate, errors
 
         @pogger.record()
         def plot_errors(divisions, errors):
@@ -86,9 +87,12 @@ def main():
         # density_operator_initial[2, 2, 0] = 0
 
         sampler = nvl.rabi_excited
-        time_start: datatype = 0.0
-        time_step: datatype = 200e-12
-        time_end: datatype = 12e-6
+        # time_start: datatype = 0.0
+        # time_step: datatype = 200e-12
+        # time_end: datatype = 12e-6
+        time_start: datatype = 0e-6
+        time_end: datatype = 6e-6
+        time_step: datatype = 500e-12
 
         density_operator_initial = np.zeros(
             (wavefunction_size, wavefunction_size, 2),
@@ -99,7 +103,8 @@ def main():
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
+        # divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
+        divisions = np.geomspace(1, 2000, 6)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(
@@ -115,8 +120,8 @@ def main():
         print("Done!")
 
         pogger.set_context("error_analysis")
-        ground_truth, divisions, errors = \
-            calculate_error(density_operators_list, divisions)
+        ground_truth, divisions, sample_rate, errors = \
+            calculate_error(density_operators_list, divisions, time_step)
         plot_errors(divisions, errors)
 
         with open("profile/datetime", "w") as file_datetime:

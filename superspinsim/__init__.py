@@ -556,8 +556,10 @@ def generate_simulator(
                     for x_index_stride in range(wavefunction_size):
                         _multiply_superoperator(
                             superoperators[
-                                number_of_exponentials*nc.blockIdx.x
-                                + exponential_index,
+                                # number_of_exponentials*nc.blockIdx.x
+                                # + exponential_index,
+                                number_of_exponentials*(nc.blockIdx.x + 1)
+                                - exponential_index - 1,
                                 :, :, :],
                             time_evolutions[nc.blockIdx.x, :, :, :],
                             scratch,
@@ -571,8 +573,10 @@ def generate_simulator(
                         for x_index_stride in range(wavefunction_size):
                             _multiply_superoperator(
                                 superoperators[
-                                    number_of_exponentials*nc.blockIdx.x
-                                    + exponential_index + 1,
+                                    # number_of_exponentials*nc.blockIdx.x
+                                    # + exponential_index + 1,
+                                    number_of_exponentials*(nc.blockIdx.x + 1)
+                                    - exponential_index - 2,
                                     :, :, :],
                                 scratch,
                                 time_evolutions[nc.blockIdx.x, :, :, :],
