@@ -28,7 +28,7 @@ def main():
                 number_of_fine_divisions=number_of_fine_divisions,
                 number_of_quartic_repeats=int(math.ceil(
                     (math.log2(500e-12/number_of_fine_divisions) + 93.2)/2)),
-                number_of_exponentials=2
+                number_of_exponentials=5
             )
 
             time, density_operators = simulate(

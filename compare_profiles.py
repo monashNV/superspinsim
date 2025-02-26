@@ -39,7 +39,8 @@ if __name__ == "__main__":
                 divisions = np.floor(
                     read.read_array("divisions", "error_analysis"))
 
-                sample_rate = divisions/12e-6
+                # sample_rate = divisions/12e-6
+                sample_rate = read.read_array("sample_rate", "error_analysis")
 
                 trial_data["divisions"] = divisions
                 trial_data["sample_rate"] = sample_rate
@@ -155,7 +156,7 @@ if __name__ == "__main__":
                 plt.legend()
                 plt.xlabel("GPU time (s)")
                 plt.ylabel("RMS error")
-                plt.show()
+                plt.draw()
 
                 plt.figure("comparison_sample_rate")
                 for trial_index, (trial, trial_data) \
@@ -182,7 +183,7 @@ if __name__ == "__main__":
                 plt.legend()
                 plt.xlabel("Integration stepping rate (GS/s)")
                 plt.ylabel("RMS error")
-                plt.show()
+                plt.draw()
             except Exception as exception:
                 print(exception)
             finally:
@@ -196,6 +197,9 @@ if __name__ == "__main__":
             "CF4_2": {
                 # "profile_log": "2025-02-21T15-57-21"
                 "profile_log": "2025-02-25T19-00-58"
+            },
+            "CF6_5": {
+                "profile_log": "2025-02-26T00-04-13"
             }
         }
 
