@@ -21,8 +21,8 @@ def main():
     def simulate_continuous_rabi(lindbladian):
         simulator = s3.generate_simulator(
             lindbladian,
-            number_of_exponentials=1,
-            number_of_fine_divisions=1,
+            number_of_exponentials=5,
+            number_of_fine_divisions=20,
             use_cayley=False
         )
 
@@ -33,7 +33,7 @@ def main():
         density_operator_initial[6, 6, 0] = 1
 
         # time_step_coarse = 1e-9
-        time_step_coarse = 100e-12
+        time_step_coarse = 500e-12
         time, density_operator = simulator(
              # density_operator_initial, 0, 102e-6, time_step_coarse)
              # density_operator_initial, 0, 9e-6, time_step_coarse)
