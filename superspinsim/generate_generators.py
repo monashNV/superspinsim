@@ -338,6 +338,27 @@ def _generate_decay_s_m_operator():
 _operator_generators["decay_s_m"] = _generate_decay_s_m_operator
 
 
+def _generate_valid_indices():
+    valid_mask = np.zeros((7, 7), dtype=meta_datatype)
+    valid_mask[:3, :3] = 1
+    valid_mask[3:6, 3:6] = 1
+    valid_mask[6, 6] = 1
+
+    valid_indices = []
+
+    for y_index in range(7):
+        valid_indices.append([y_index, y_index, 0])
+
+    for y_index in range(6):
+        for x_index in range(y_index + 1, 7):
+            if valid_mask[y_index, x_index]:
+                valid_indices.append([y_index, x_index, 0])
+                valid_indices.append([y_index, x_index, 1])
+
+    valid_indices = np.array(valid_indices, dtype=np.int32)
+    return valid_indices
+
+
 def _mult(operator_a, operator_b):
     operator_out = np.empty_like(operator_a)
     operator_out[:, :, 0] = operator_a[:, :, 0]@operator_b[:, :, 0] \
@@ -347,47 +368,65 @@ def _mult(operator_a, operator_b):
     return operator_out
 
 
-def _generate_von_neumann(operator):
-    superoperator = np.empty((49, 49, 2), dtype=meta_datatype)
-    for x_sample in range(7):
-        for y_sample in range(7):
-            density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
-            density_matrix[y_sample, x_sample, 0] = 1
+def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
+    operator_dimension = valid_indices.shape[0]
+    superoperator = np.empty(
+        (operator_dimension, operator_dimension),
+        dtype=meta_datatype
+    )
 
-            scratch = _mult(operator, density_matrix) \
-                - _mult(density_matrix, operator)
-            operator_out = np.empty_like(scratch)
-            operator_out[:, :, 0] = scratch[:, :, 1]
-            operator_out[:, :, 1] = -scratch[:, :, 0]
+    for in_index in range(operator_dimension):
+        y_in_index = valid_indices[in_index, 0]
+        x_in_index = valid_indices[in_index, 1]
+        c_in_index = valid_indices[in_index, 2]
 
-            for x_sample_out in range(7):
-                for y_sample_out in range(7):
-                    superoperator[
-                        x_sample_out + 7*y_sample_out, x_sample + 7*y_sample, :
-                    ] = operator_out[y_sample_out, x_sample_out, :]
+        density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
+        density_matrix[y_in_index, x_in_index, c_in_index] = 1
+
+        scratch = _mult(operator, density_matrix) \
+            - _mult(density_matrix, operator)
+        operator_out = np.empty_like(scratch)
+        operator_out[:, :, 0] = scratch[:, :, 1]
+        operator_out[:, :, 1] = -scratch[:, :, 0]
+
+        for out_index in range(operator_dimension):
+            y_out_index = valid_indices[out_index, 0]
+            x_out_index = valid_indices[out_index, 1]
+            c_out_index = valid_indices[out_index, 2]
+            superoperator[out_index, in_index] = \
+                operator_out[y_out_index, x_out_index, c_out_index]
     return superoperator
 
 
-def _generate_dissipator(operator):
-    superoperator = np.empty((49, 49, 2), dtype=meta_datatype)
-    for x_sample in range(7):
-        for y_sample in range(7):
-            density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
-            density_matrix[y_sample, x_sample, 0] = 1
+def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
+    operator_dimension = valid_indices.shape[0]
+    superoperator = np.empty(
+        (operator_dimension, operator_dimension),
+        dtype=meta_datatype
+    )
 
-            operator_transpose = np.transpose(operator, axes=(1, 0, 2))
-            operator_out = _mult(_mult(operator, density_matrix),
-                                 operator_transpose)
-            operator_out -= 0.5*_mult(_mult(operator_transpose, operator),
-                                      density_matrix)
-            operator_out -= 0.5*_mult(density_matrix,
-                                      _mult(operator_transpose, operator))
+    for in_index in range(operator_dimension):
+        y_in_index = valid_indices[in_index, 0]
+        x_in_index = valid_indices[in_index, 1]
+        c_in_index = valid_indices[in_index, 2]
 
-            for x_sample_out in range(7):
-                for y_sample_out in range(7):
-                    superoperator[
-                        x_sample_out + 7*y_sample_out, x_sample + 7*y_sample, :
-                    ] = operator_out[y_sample_out, x_sample_out, :]
+        density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
+        density_matrix[y_in_index, x_in_index, c_in_index] = 1
+
+        operator_transpose = np.transpose(operator, axes=(1, 0, 2))
+        operator_out = _mult(_mult(operator, density_matrix),
+                             operator_transpose)
+        operator_out -= 0.5*_mult(_mult(operator_transpose, operator),
+                                  density_matrix)
+        operator_out -= 0.5*_mult(density_matrix,
+                                  _mult(operator_transpose, operator))
+
+        for out_index in range(operator_dimension):
+            y_out_index = valid_indices[out_index, 0]
+            x_out_index = valid_indices[out_index, 1]
+            c_out_index = valid_indices[out_index, 2]
+            superoperator[out_index, in_index] = \
+                operator_out[y_out_index, x_out_index, c_out_index]
     return superoperator
 
 
@@ -399,14 +438,16 @@ with Pogger(project_name="superspinsim-generate") as logger:
             operators[label] = operator_generator()
         return operators
 
-    @logger.record(("superoperators_all", "superoperators"))
-    def _generate_superoperators(operators):
+    @logger.record(("superoperators_all", "superoperators", "valid_indices"))
+    def _generate_superoperators(operators, valid_indices):
         superoperators = {}
         for label, operator in operators.items():
             if "spin" in label:
-                superoperators[label] = _generate_von_neumann(operator)
+                superoperators[label] = \
+                    _generate_von_neumann(operator, valid_indices)
             else:
-                superoperators[label] = _generate_dissipator(operator)
+                superoperators[label] = \
+                    _generate_dissipator(operator, valid_indices)
 
         superoperators_use = {}
 
@@ -450,9 +491,9 @@ with Pogger(project_name="superspinsim-generate") as logger:
             + 0.5*superoperators["raise_z_p"] + 0.5*superoperators["raise_m_m"] \
             + superoperators["raise_m_z"]
 
-        return superoperators, superoperators_use
+        return superoperators, superoperators_use, valid_indices
 
-    def _write_script(operators, superoperators):
+    def _write_script(operators, superoperators, valid_indices):
         with open("generators.py", "w") as file:
             file.write("\"\"\"\nScript generated by "
                        "`generate_generators.py`.\n\"\"\"\n\n\n")
@@ -462,25 +503,33 @@ with Pogger(project_name="superspinsim-generate") as logger:
 
             for label, operator in operators.items():
                 file.write(f"operators[\"{label}\"] = np.array([\n")
-                for y_index in range(7):
+                for y_index in range(operator.shape[0]):
                     file.write("[")
-                    for x_index in range(7):
+                    for x_index in range(operator.shape[1]):
                         file.write(f"[{operator[y_index, x_index, 0]}, ")
                         file.write(f"{operator[y_index, x_index, 1]}], ")
                     file.write("],\n")
-                file.write("], dtype=np.float128)\n\n")
+                file.write("], dtype=np.float64)\n\n")
 
             file.write("superoperators = {}\n\n")
 
             for label, superoperator in superoperators.items():
                 file.write(f"superoperators[\"{label}\"] = np.array([\n")
-                for y_index in range(49):
+                for y_index in range(superoperator.shape[0]):
                     file.write("[")
-                    for x_index in range(49):
-                        file.write(f"[{superoperator[y_index, x_index, 0]}, ")
-                        file.write(f"{superoperator[y_index, x_index, 1]}], ")
+                    for x_index in range(superoperator.shape[1]):
+                        file.write(f"{superoperator[y_index, x_index]}, ")
                     file.write("],\n")
-                file.write("], dtype=np.float128)\n\n")
+                file.write("], dtype=np.float64)\n\n")
+
+            file.write("vectorisation_map = np.array([\n")
+            for y_index in range(valid_indices.shape[0]):
+                file.write("[")
+                for x_index in range(valid_indices.shape[1]):
+                    file.write(f"{valid_indices[y_index, x_index]}, ")
+                file.write("],\n")
+
+            file.write("], dtype=np.int32)\n\n")
 
     @logger.record()
     def _visualise(operators, superoperators, superoperators_use):
@@ -562,9 +611,11 @@ with Pogger(project_name="superspinsim-generate") as logger:
 
     logger.set_context("superoperators")
     _operators = _generate_operators(_operator_generators)
-    _superoperators, _superoperators_use = _generate_superoperators(_operators)
+    _valid_indices = _generate_valid_indices()
+    _superoperators, _superoperators_use, _ = \
+        _generate_superoperators(_operators, _valid_indices)
     _visualise(_operators, _superoperators, _superoperators_use)
 
 
 if __name__ == "__main__":
-    _write_script(_operators, _superoperators_use)
+    _write_script(_operators, _superoperators_use, _valid_indices)
