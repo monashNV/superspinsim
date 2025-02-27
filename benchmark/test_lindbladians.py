@@ -21,16 +21,14 @@ def main():
     def simulate_continuous_rabi(lindbladian):
         simulator = s3.generate_simulator(
             lindbladian,
-            number_of_exponentials=5,
+            number_of_exponentials=1,
             number_of_fine_divisions=20,
             use_cayley=False
         )
 
         density_operator_initial = np.zeros((7, 7, 2), dtype=np.float64)
-        # density_operator_initial[0, 0, 0] = 1
-        # density_operator_initial[1, 1, 0] = 1
-        # density_operator_initial[2, 2, 0] = 1
-        density_operator_initial[6, 6, 0] = 1
+        # density_operator_initial[6, 6, 0] = 1
+        density_operator_initial[3, 3, 0] = 1
 
         # time_step_coarse = 1e-9
         time_step_coarse = 500e-12
@@ -161,10 +159,10 @@ def main():
         finally:
             return time, density_operator, fluorescence
 
-    # logger.set_context("odmr")
-    # simulate_continuous_rabi(nvl.odmr)
+    logger.set_context("coupling")
+    simulate_continuous_rabi(nvl.coupling)
 
-    logger.set_context("rabi_extended")
-    simulate_continuous_rabi(nvl.rabi_extended)
+    # logger.set_context("rabi_extended")
+    # simulate_continuous_rabi(nvl.rabi_extended)
 
     plt.show()

@@ -1,4 +1,6 @@
-from superspinsim.generators import superoperators as superoperator_basis_dict
+from superspinsim.generators import superoperators as superoperator_basis_dict_nv
+from superspinsim.generators import operators as operator_basis_dict_nv
+from superspinsim.generators import vectorisation_map as vectorisation_map_nv
 
 from superspinsim.quadratures import samples as samples_dict
 from superspinsim.quadratures import weights as weights_dict
@@ -20,21 +22,33 @@ def generate_simulator(
         use_cuda=True,
         datatype=np.float64,
         use_residual=True,
-        number_of_quartic_repeats=35,
+        number_of_quartic_repeats=35,  # 35,
         number_of_exponentials=2,
         number_of_fine_divisions=1,
         use_cayley=False
         ):
 
-    if generators is None:
-        generators = np.array(list(superoperator_basis_dict.values()),
-                              dtype=datatype)
-
-    generators = generators.astype(datatype)
-    wavefunction_size = int(np.round(math.sqrt(generators.shape[1])))
-    operator_size = wavefunction_size**2
     scaling_for_quartics: datatype = \
         4.0**number_of_quartic_repeats
+
+    if generators is None:
+        generators = np.array(list(superoperator_basis_dict_nv.values()),
+                              dtype=datatype)
+        vectorisation_map = vectorisation_map_nv
+        wavefunction_size = list(operator_basis_dict_nv.values())[0].shape[0]
+
+    generators = generators.astype(datatype)
+    operator_size = generators.shape[1]
+
+    # A matrix of size 32*32 or larger cannot be have its entries allocated a
+    # unique thread each, because that is too much for cuda.
+    sqrt_block_size_max = 32
+    operator_size_block = min(operator_size, sqrt_block_size_max)
+    operator_stride_max = int(math.ceil(operator_size/operator_size_block))
+
+    print(operator_size)
+    print(operator_size_block)
+    print(operator_stride_max)
 
     if number_of_exponentials == 1:
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
@@ -110,7 +124,8 @@ def generate_simulator(
                     for generator_index in range(coefficients.shape[1]):
                         coefficients[time_index, generator_index] = 0.0
 
-                    sampler_device(times[time_index], coefficients[time_index, :])
+                    sampler_device(
+                        times[time_index], coefficients[time_index, :])
 
             sample_kernel = nc.jit(sample_kernel)
 
@@ -167,40 +182,35 @@ def generate_simulator(
 
     def _calculate_differential(
             time_step, generator, coefficient, differential, y_index, x_index):
-        differential_real: datatype = 0.0
-        differential_imag: datatype = 0.0
+        scratch: datatype = 0.0
 
         for generator_index in range(generator.shape[0]):
-            differential_real = nc.fma(
+            scratch = nc.fma(
                 coefficient[generator_index],
-                generator[generator_index, y_index, x_index, 0],
-                differential_real
-            )
-            differential_imag = nc.fma(
-                coefficient[generator_index],
-                generator[generator_index, y_index, x_index, 1],
-                differential_imag
+                generator[generator_index, y_index, x_index],
+                scratch
             )
 
-        differential[y_index, x_index, 0] = time_step*differential_real
-        differential[y_index, x_index, 1] = time_step*differential_imag
+        differential[y_index, x_index] = time_step*scratch
 
     if use_cuda:
         _calculate_differential = nc.jit(_calculate_differential, device=True)
 
         def _calculate_differential_kernel(
                 time_step, generator, coefficient, differential):
-            if nc.threadIdx.y < operator_size \
-                    and nc.threadIdx.x < wavefunction_size:
-                for x_index_stride in range(wavefunction_size):
-                    _calculate_differential(
-                        time_step,
-                        generator,
-                        coefficient[nc.blockIdx.x, :],
-                        differential[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + x_index_stride*wavefunction_size
-                    )
+            if nc.threadIdx.y < operator_size:
+                for x_index_stride in range(operator_stride_max):
+                    x_index_use = \
+                        nc.threadIdx.x + x_index_stride*operator_size_block
+                    if x_index_use < operator_size:
+                        _calculate_differential(
+                            time_step,
+                            generator,
+                            coefficient[nc.blockIdx.x, :],
+                            differential[nc.blockIdx.x, :, :],
+                            nc.threadIdx.y,
+                            x_index_use
+                        )
 
         _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
 
@@ -208,31 +218,31 @@ def generate_simulator(
             time_step, generator, coefficient, differential):
         if use_cuda:
             grid_size = (coefficient.shape[0], 1)
-            block_size = (wavefunction_size, operator_size)
+            block_size = (operator_size_block, operator_size)
             _calculate_differential_kernel[grid_size, block_size] \
                 (time_step, generator, coefficient, differential)
 
     def _scale_differential_basic(differential, y_index, x_index):
         if use_cayley:
-            differential[y_index, x_index, 0] /= 2*scaling_for_quartics
-            differential[y_index, x_index, 1] /= 2*scaling_for_quartics
+            differential[y_index, x_index] /= 2*scaling_for_quartics
         else:
-            differential[y_index, x_index, 0] /= scaling_for_quartics
-            differential[y_index, x_index, 1] /= scaling_for_quartics
+            differential[y_index, x_index] /= scaling_for_quartics
 
     if use_cuda:
         _scale_differential_basic = nc.jit(
             _scale_differential_basic, device=True)
 
         def _scale_differential_basic_kernel(differential):
-            if nc.threadIdx.y < operator_size \
-                    and nc.threadIdx.x < wavefunction_size:
-                for x_index_stride in range(wavefunction_size):
-                    _scale_differential_basic(
-                        differential[nc.blockIdx.x, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + x_index_stride*wavefunction_size
-                    )
+            if nc.threadIdx.y < operator_size:
+                for x_index_stride in range(operator_stride_max):
+                    x_index_use = \
+                        nc.threadIdx.x + x_index_stride*operator_size_block
+                    if x_index_use < operator_size:
+                        _scale_differential_basic(
+                            differential[nc.blockIdx.x, :, :],
+                            nc.threadIdx.y,
+                            x_index_use
+                        )
 
         _scale_differential_basic_kernel = nc.jit(
             _scale_differential_basic_kernel)
@@ -240,13 +250,12 @@ def generate_simulator(
     def _scale_differential_basic_run(differential):
         if use_cuda:
             grid_size = (differential.shape[0], 1)
-            block_size = (wavefunction_size, operator_size)
+            block_size = (operator_size_block, operator_size)
             _scale_differential_basic_kernel[grid_size, block_size] \
                 (differential)
 
     def _negate_superoperator(positive, negative, y_index, x_index):
-        negative[y_index, x_index, 0] = -positive[y_index, x_index, 0]
-        negative[y_index, x_index, 1] = -positive[y_index, x_index, 1]
+        negative[y_index, x_index] = -positive[y_index, x_index]
 
     if use_cuda:
         _negate_superoperator = nc.jit(_negate_superoperator, device=True)
@@ -385,37 +394,19 @@ def generate_simulator(
         """
 
         if use_residual:
-            out_scratch_real: datatype = 2*inp[y_index, x_index, 0]
-            out_scratch_imag: datatype = 2*inp[y_index, x_index, 1]
+            out_scratch: datatype = 2*inp[y_index, x_index]
         else:
-            out_scratch_real: datatype = 0.0
-            out_scratch_imag: datatype = 0.0
+            out_scratch: datatype = 0.0
 
         for trace_index in range(operator_size):
             # TODO: unroll?
-            out_scratch_real = nc.fma(
-                    inp[y_index, trace_index, 0],
-                    inp[trace_index, x_index, 0],
-                    out_scratch_real
-            )
-            out_scratch_real = nc.fma(
-                    inp[y_index, trace_index, 1],
-                    -inp[trace_index, x_index, 1],
-                    out_scratch_real
-            )
-            out_scratch_imag = nc.fma(
-                    inp[y_index, trace_index, 0],
-                    inp[trace_index, x_index, 1],
-                    out_scratch_imag
-            )
-            out_scratch_imag = nc.fma(
-                    inp[y_index, trace_index, 1],
-                    inp[trace_index, x_index, 0],
-                    out_scratch_imag
+            out_scratch = nc.fma(
+                    inp[y_index, trace_index],
+                    inp[trace_index, x_index],
+                    out_scratch
             )
 
-        out[y_index, x_index, 0] = out_scratch_real
-        out[y_index, x_index, 1] = out_scratch_imag
+        out[y_index, x_index] = out_scratch
 
     def _multiply_superoperator(
             left, right, out, y_index, x_index):
@@ -437,74 +428,53 @@ def generate_simulator(
         """
 
         if use_residual:
-            out_scratch_real = \
-                left[y_index, x_index, 0]
-            out_scratch_imag = \
-                left[y_index, x_index, 1]
-            out_scratch_real += \
-                right[y_index, x_index, 0]
-            out_scratch_imag += \
-                right[y_index, x_index, 1]
+            out_scratch: datatype = \
+                left[y_index, x_index] + right[y_index, x_index]
+        else:
+            out_scratch: datatype = 0.0
 
         for trace_index in range(operator_size):
-            out_scratch_real = nc.fma(
-                    left[y_index, trace_index, 0],
-                    right[trace_index, x_index, 0],
-                    out_scratch_real
+            out_scratch = nc.fma(
+                    left[y_index, trace_index],
+                    right[trace_index, x_index],
+                    out_scratch
             )
-            out_scratch_real = nc.fma(
-                    left[y_index, trace_index, 1],
-                    -right[trace_index, x_index, 1],
-                    out_scratch_real
-            )
-
-            out_scratch_imag = nc.fma(
-                    left[y_index, trace_index, 0],
-                    right[trace_index, x_index, 1],
-                    out_scratch_imag
-            )
-            out_scratch_imag = nc.fma(
-                    left[y_index, trace_index, 1],
-                    right[trace_index, x_index, 0],
-                    out_scratch_imag
-            )
-        out[y_index, x_index, 0] = out_scratch_real
-        out[y_index, x_index, 1] = out_scratch_imag
-
-    def _repeated_quartic_superoperator(
-            superoperator, scratch, y_index, x_index_reduced):
-        for _ in range(number_of_quartic_repeats):
-            for x_index_stride in range(wavefunction_size):
-                _square_superoperator(
-                    superoperator, scratch, y_index,
-                    x_index_reduced + x_index_stride*wavefunction_size
-                )
-            nc.syncthreads()
-            for x_index_stride in range(wavefunction_size):
-                _square_superoperator(
-                    scratch, superoperator, y_index,
-                    x_index_reduced + x_index_stride*wavefunction_size
-                )
-            nc.syncthreads()
+        out[y_index, x_index] = out_scratch
 
     if use_cuda:
         # Compile squaring
         _square_superoperator = nc.jit(_square_superoperator, device=True)
-        _repeated_quartic_superoperator = nc.jit(
-            _repeated_quartic_superoperator, device=True
-        )
 
         # Wrap in kernel
         def _repeated_quartic_superoperator_kernel(superoperators):
-            superoperator = superoperators[nc.blockIdx.x, :, :, :]
+            superoperator = superoperators[nc.blockIdx.x, :, :]
             scratch = nc.shared.array(
-                (operator_size, operator_size, 2), datatype
+                (operator_size, operator_size), datatype
             )
-            if nc.threadIdx.x < wavefunction_size and \
-                    nc.threadIdx.y < operator_size:
-                _repeated_quartic_superoperator(
-                    superoperator, scratch, nc.threadIdx.y, nc.threadIdx.x
-                )
+
+            for _ in range(number_of_quartic_repeats):
+                if nc.threadIdx.y < operator_size:
+                    for x_index_stride in range(operator_stride_max):
+                        x_index_use = \
+                            nc.threadIdx.x + x_index_stride*operator_size_block
+                        if x_index_use < operator_size:
+                            _square_superoperator(
+                                superoperator, scratch,
+                                nc.threadIdx.y, x_index_use
+                            )
+                nc.syncthreads()
+
+                if nc.threadIdx.y < operator_size:
+                    for x_index_stride in range(operator_stride_max):
+                        x_index_use = \
+                            nc.threadIdx.x + x_index_stride*operator_size_block
+                        if x_index_use < operator_size:
+                            _square_superoperator(
+                                scratch, superoperator,
+                                nc.threadIdx.y, x_index_use
+                            )
+                nc.syncthreads()
+
         _repeated_quartic_superoperator_kernel = nc.jit(
             _repeated_quartic_superoperator_kernel
         )
@@ -519,128 +489,122 @@ def generate_simulator(
 
         if use_cuda:
             number_of_blocks = (superoperators.shape[0], 1)
-            block_shape = (wavefunction_size, operator_size)
+            block_shape = (operator_size_block, operator_size)
             _repeated_quartic_superoperator_kernel[
                 number_of_blocks, block_shape](superoperators)
 
-        else:
-            for block_index in nb.prange(superoperators.shape[0]):
-                superoperator = superoperators[block_index, :, :, :]
-                scratch = np.empty(
-                    (operator_size, operator_size, 2), datatype
-                )
-                for y_index in nb.prange(operator_size):
-                    for x_index in nb.prange(wavefunction_size):
-                        _repeated_quartic_superoperator(
-                            superoperator, scratch, y_index, x_index
-                        )
-
     def _copy_superoperator(original, clone, y_index, x_index):
-        clone[y_index, x_index, 0] = original[y_index, x_index, 0]
-        clone[y_index, x_index, 1] = original[y_index, x_index, 1]
+        clone[y_index, x_index] = original[y_index, x_index]
 
     if use_cuda:
         _multiply_superoperator = nc.jit(_multiply_superoperator, device=True)
         _copy_superoperator = nc.jit(_copy_superoperator, device=True)
 
         def _quadrature_combine_kernel(superoperators, time_evolutions):
-            if nc.threadIdx.x < wavefunction_size \
-                    and nc.threadIdx.y < operator_size:
+            if nc.threadIdx.y < operator_size:
                 scratch = nc.shared.array(
-                    (operator_size, operator_size, 2),
+                    (operator_size, operator_size),
                     dtype=datatype
                 )
 
                 for exponential_index in range(
                         0, number_of_exponentials, 2):
-                    for x_index_stride in range(wavefunction_size):
-                        _multiply_superoperator(
-                            superoperators[
-                                # number_of_exponentials*nc.blockIdx.x
-                                # + exponential_index,
-                                number_of_exponentials*(nc.blockIdx.x + 1)
-                                - exponential_index - 1,
-                                :, :, :],
-                            time_evolutions[nc.blockIdx.x, :, :, :],
-                            scratch,
-                            nc.threadIdx.y,
-                            nc.threadIdx.x
-                            + wavefunction_size*x_index_stride
-                        )
-                    nc.syncthreads()
-
-                    if exponential_index + 1 < number_of_exponentials:
-                        for x_index_stride in range(wavefunction_size):
+                    for x_index_stride in range(operator_stride_max):
+                        x_index_use = \
+                            nc.threadIdx.x + x_index_stride*operator_size_block
+                        if x_index_use < operator_size:
                             _multiply_superoperator(
                                 superoperators[
                                     # number_of_exponentials*nc.blockIdx.x
-                                    # + exponential_index + 1,
+                                    # + exponential_index,
                                     number_of_exponentials*(nc.blockIdx.x + 1)
-                                    - exponential_index - 2,
-                                    :, :, :],
+                                    - exponential_index - 1,
+                                    :, :],
+                                time_evolutions[nc.blockIdx.x, :, :],
                                 scratch,
-                                time_evolutions[nc.blockIdx.x, :, :, :],
                                 nc.threadIdx.y,
-                                nc.threadIdx.x
-                                + wavefunction_size*x_index_stride
+                                x_index_use
                             )
+                    nc.syncthreads()
+
+                    if exponential_index + 1 < number_of_exponentials:
+                        for x_index_stride in range(operator_stride_max):
+                            x_index_use = \
+                                nc.threadIdx.x + x_index_stride*operator_size_block
+                            if x_index_use < operator_size:
+                                _multiply_superoperator(
+                                    superoperators[
+                                        # number_of_exponentials*nc.blockIdx.x
+                                        # + exponential_index + 1,
+                                        number_of_exponentials*(nc.blockIdx.x + 1)
+                                        - exponential_index - 2,
+                                        :, :],
+                                    scratch,
+                                    time_evolutions[nc.blockIdx.x, :, :],
+                                    nc.threadIdx.y,
+                                    x_index_use
+                                )
                     else:
-                        for x_index_stride in range(wavefunction_size):
-                            _copy_superoperator(
-                                scratch,
-                                time_evolutions[nc.blockIdx.x, :, :, :],
-                                nc.threadIdx.y,
-                                nc.threadIdx.x
-                                + wavefunction_size*x_index_stride
-                            )
+                        for x_index_stride in range(operator_stride_max):
+                            x_index_use = \
+                                nc.threadIdx.x + x_index_stride*operator_size_block
+                            if x_index_use < operator_size:
+                                _copy_superoperator(
+                                    scratch,
+                                    time_evolutions[nc.blockIdx.x, :, :],
+                                    nc.threadIdx.y,
+                                    x_index_use
+                                )
 
                     nc.syncthreads()
 
         _quadrature_combine_kernel = nc.jit(_quadrature_combine_kernel)
 
         def _id_superoperator_kernel(time_evolutions):
-            if nc.threadIdx.y < operator_size \
-                    and nc.threadIdx.x < wavefunction_size:
-                for x_index_stride in range(wavefunction_size):
-                    time_evolutions[
-                        nc.blockIdx.x,
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + wavefunction_size*x_index_stride,
-                        0] = 0
-
-                    time_evolutions[
-                        nc.blockIdx.x,
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + wavefunction_size*x_index_stride,
-                        1] = 0
+            if nc.threadIdx.y < operator_size:
+                for x_index_stride in range(operator_stride_max):
+                    x_index_use = \
+                        nc.threadIdx.x + x_index_stride*operator_size_block
+                    if x_index_use < operator_size:
+                        time_evolutions[
+                            nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 0
+                    if not use_residual:
+                        if x_index_use == nc.threadIdx.y:
+                            time_evolutions[
+                                nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 1
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
         def _basic_combine_kernel(time_evolutions, time_index):
             scratch = nc.shared.array(
-                (operator_size, operator_size, 2),
+                (operator_size, operator_size),
                 dtype=datatype
             )
 
-            if nc.threadIdx.y < operator_size \
-                    and nc.threadIdx.x < wavefunction_size:
-                for x_index_stride in range(wavefunction_size):
-                    _multiply_superoperator(
-                        time_evolutions[time_index + 1, :, :, :],
-                        time_evolutions[time_index, :, :, :],
-                        scratch,
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + x_index_stride*wavefunction_size
-                    )
+            if nc.threadIdx.y < operator_size:
+                for x_index_stride in range(operator_stride_max):
+                    x_index_use = \
+                        nc.threadIdx.x + x_index_stride*operator_size_block
+                    if x_index_use < operator_size:
+                        _multiply_superoperator(
+                            time_evolutions[time_index + 1, :, :],
+                            time_evolutions[time_index, :, :],
+                            scratch,
+                            nc.threadIdx.y,
+                            x_index_use
+                        )
                 nc.syncthreads()
 
-                for x_index_stride in range(wavefunction_size):
-                    _copy_superoperator(
-                        scratch,
-                        time_evolutions[time_index + 1, :, :, :],
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + x_index_stride*wavefunction_size
-                    )
+                for x_index_stride in range(operator_stride_max):
+                    x_index_use = \
+                        nc.threadIdx.x + x_index_stride*operator_size_block
+                    if x_index_use < operator_size:
+                        _copy_superoperator(
+                            scratch,
+                            time_evolutions[time_index + 1, :, :],
+                            nc.threadIdx.y,
+                            x_index_use
+                        )
                 nc.syncthreads()
 
         _basic_combine_kernel = nc.jit(_basic_combine_kernel)
@@ -648,56 +612,38 @@ def generate_simulator(
     def _quadrature_combine_run(exponentials, time_evolution):
         if use_cuda:
             grid_size = (time_evolution.shape[0], 1)
-            block_size = (wavefunction_size, operator_size)
+            block_size = (operator_size_block, operator_size)
             _quadrature_combine_kernel[grid_size, block_size] \
                 (exponentials, time_evolution)
 
     def _id_superoperator_run(time_evolution):
         if use_cuda:
             grid_size = (time_evolution.shape[0], 1)
-            block_size = (wavefunction_size, operator_size)
+            block_size = (operator_size_block, operator_size)
             _id_superoperator_kernel[grid_size, block_size] \
                 (time_evolution)
 
     def _basic_combine_run(time_evolutions):
         if use_cuda:
-            block_size = (wavefunction_size, operator_size)
+            block_size = (operator_size_block, operator_size)
             for time_index in range(0, time_evolutions.shape[0] - 1):
                 _basic_combine_kernel[(1, 1), block_size] \
                     (time_evolutions, time_index)
 
     def _multiply_superoperator_operator(superoperator, operator, out, index):
         if use_residual:
-            out[index, 0] = operator[index, 0]
-            out[index, 1] = operator[index, 1]
+            scratch = operator[index]
         else:
-            out[index, 0] = 0
-            out[index, 1] = 0
+            scratch: datatype = 0.0
 
         for trace_index in range(operator_size):
-            out[index, 0] = nc.fma(
-                superoperator[index, trace_index, 0],
-                operator[trace_index, 0],
-                out[index, 0]
+            scratch = nc.fma(
+                superoperator[index, trace_index],
+                operator[trace_index],
+                scratch
             )
 
-            out[index, 0] = nc.fma(
-                superoperator[index, trace_index, 1],
-                -operator[trace_index, 1],
-                out[index, 0]
-            )
-
-            out[index, 1] = nc.fma(
-                superoperator[index, trace_index, 0],
-                operator[trace_index, 1],
-                out[index, 1]
-            )
-
-            out[index, 1] = nc.fma(
-                superoperator[index, trace_index, 1],
-                operator[trace_index, 0],
-                out[index, 1]
-            )
+        out[index] = scratch
 
     if use_cuda:
         _multiply_superoperator_operator = nc.jit(
@@ -707,24 +653,24 @@ def generate_simulator(
 
         def _apply_time_evolution_kernel(time_evolutions,
                                          density_operator_initial,
-                                         denisty_operators):
+                                         density_operators):
             if nc.threadIdx.x < operator_size:
                 _multiply_superoperator_operator(
-                    time_evolutions[nc.blockIdx.x, :, :, :],
+                    time_evolutions[nc.blockIdx.x, :, :],
                     density_operator_initial,
-                    denisty_operators[nc.blockIdx.x, :, :],
+                    density_operators[nc.blockIdx.x, :],
                     nc.threadIdx.x
                 )
 
         _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
 
     def _apply_time_evolution_run(time_evolutions,
-                                  density_operator_initial, denisty_operators):
+                                  density_operator_initial, density_operators):
         if use_cuda:
             grid_size = (time_evolutions.shape[0], 1)
             block_size = (operator_size, 1)
             _apply_time_evolution_kernel[grid_size, block_size] \
-                (time_evolutions, density_operator_initial, denisty_operators)
+                (time_evolutions, density_operator_initial, density_operators)
 
     def simulate(
             density_operator_initial,
@@ -735,9 +681,17 @@ def generate_simulator(
 
         # Time
         number_of_samples = int((time_end - time_start)/time_step)
+
         # Flatten density operator
-        density_operator_initial_flat = density_operator_initial.reshape(
-            (operator_size, 2))
+        density_operator_initial_flat = \
+            np.empty(vectorisation_map.shape[0], dtype=datatype)
+        for operator_index in range(vectorisation_map.shape[0]):
+            y_index = vectorisation_map[operator_index, 0]
+            x_index = vectorisation_map[operator_index, 1]
+            c_index = vectorisation_map[operator_index, 2]
+
+            density_operator_initial_flat[operator_index] = \
+                density_operator_initial[y_index, x_index, c_index]
 
         # Declare memory
         if use_cuda:
@@ -773,15 +727,13 @@ def generate_simulator(
             # Storage for individual exponentials of the commutator-free
             # integrator
             superoperators_device = nc.device_array(
-                (
-                    weighted_coefficients_device.shape[0], operator_size,
-                    operator_size, 2
-                ), dtype=datatype)
+                (weighted_coefficients_device.shape[0],
+                 operator_size, operator_size),
+                dtype=datatype)
 
             # Storage for time evolution superoperators
             time_evolution_device = nc.device_array(
-                (time_device.shape[0], operator_size,
-                 operator_size, 2),
+                (time_device.shape[0], operator_size, operator_size),
                 dtype=datatype
             )
 
@@ -791,8 +743,7 @@ def generate_simulator(
 
             # Storage for evaluated density operators
             density_operators_device = nc.device_array(
-                (time_evolution_device.shape[0],
-                 operator_size, 2),
+                (time_evolution_device.shape[0], operator_size),
                 dtype=datatype)
 
         # Calculate time
@@ -828,10 +779,10 @@ def generate_simulator(
             # Put Lindbladian superoperator in matrix form
             _scale_differential_basic_run(superoperators_device)
 
-            # Apply a Cayley transform (Pade 1,1) to the Lindbladian for
-            # smoother exponentiation
-            if use_cayley:
-                _calculate_cayley_run(superoperators_device)
+            # # Apply a Cayley transform (Pade 1,1) to the Lindbladian for
+            # # smoother exponentiation
+            # if use_cayley:
+            #     _calculate_cayley_run(superoperators_device)
 
             # Repeatedly square (1 +) Lindbladian superoperator for
             # exponentiation
@@ -856,13 +807,35 @@ def generate_simulator(
         if use_cuda:
             time = time_device.copy_to_host()
             # time_evolution = time_evolution_device.copy_to_host()
-            density_operators = density_operators_device.copy_to_host()
+            # print(time_evolution)
+            density_operators_flat = density_operators_device.copy_to_host()
+            print(density_operators_flat)
 
         # Unflatten density operators
-        density_operators = density_operators.reshape(
-            (density_operators.shape[0],
-             wavefunction_size,
-             wavefunction_size, 2))
+        density_operators = np.zeros(
+            (density_operators_flat.shape[0],
+             wavefunction_size, wavefunction_size, 2),
+            dtype=datatype
+        )
+        for operator_index in range(vectorisation_map.shape[0]):
+            y_index = vectorisation_map[operator_index, 0]
+            x_index = vectorisation_map[operator_index, 1]
+            c_index = vectorisation_map[operator_index, 2]
+
+            density_operators[:, y_index, x_index, c_index] = \
+                density_operators_flat[:, operator_index]
+
+            # If we are dealing with a coherence, also add to other
+            # off-diagonal
+            if y_index != x_index:
+                if c_index:
+                    # Imaginary part
+                    density_operators[:, x_index, y_index, c_index] = \
+                        -density_operators_flat[:, operator_index]
+                else:
+                    # Real part
+                    density_operators[:, x_index, y_index, c_index] = \
+                        density_operators_flat[:, operator_index]
 
         # Remove numba warnings
         warnings.simplefilter(

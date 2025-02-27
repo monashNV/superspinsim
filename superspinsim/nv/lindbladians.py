@@ -465,3 +465,7 @@ def rabi_extended(time, coefficient):
         # polarise
         coefficient[18] = 0.5*parameters.spin_conserving_decay_rate
         coefficient[19] = 0.5*parameters.spin_nonconserving_decay_rate
+
+
+def coupling(time, coefficient):
+    coefficient[4] = math.tau*1e5
