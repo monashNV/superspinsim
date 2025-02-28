@@ -804,7 +804,7 @@ def generate_simulator(
         # Retrieve results from GPU
         if use_cuda:
             time = time_device.copy_to_host()
-            time_evolution = time_evolution_device.copy_to_host()
+            # time_evolution = time_evolution_device.copy_to_host()
             # print(time_evolution)
             density_operators_flat = density_operators_device.copy_to_host()
             # print(density_operators_flat)
@@ -839,6 +839,6 @@ def generate_simulator(
         warnings.simplefilter(
             "default", nb.core.errors.NumbaPerformanceWarning)
 
-        return time, density_operators, time_evolution
+        return time, density_operators
 
     return simulate

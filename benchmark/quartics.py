@@ -27,7 +27,7 @@ def main():
                 number_of_fine_divisions=2,
                 number_of_quartic_repeats=number_of_quartics,
                 number_of_exponentials=1,
-                use_cayley=True
+                use_cayley=False
             )
 
             time, density_operators = simulate(
@@ -95,8 +95,8 @@ def main():
         # Simulate with different fidelity
         print("Simulating")
         density_operators_list = []
-        number_of_quartics = np.arange(5, 30, 1)  # np.geomspace(1, 10, 10)
-        # number_of_quartics = np.arange(25, 42, 1)  # np.geomspace(1, 10, 10)
+        # number_of_quartics = np.arange(5, 30, 1)  # np.geomspace(1, 10, 10)
+        number_of_quartics = np.arange(25, 42, 1)  # np.geomspace(1, 10, 10)
         # number_of_quartics = np.arange(20, 60, 5)  # np.geomspace(1, 10, 10)
         for simulation_index, number_of_quartics_use in \
                 enumerate(number_of_quartics):

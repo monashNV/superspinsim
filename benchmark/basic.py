@@ -27,8 +27,8 @@ def main():
                 sampler,
                 number_of_fine_divisions=number_of_fine_divisions,
                 number_of_quartic_repeats=int(math.ceil(
-                    (math.log2(500e-12/number_of_fine_divisions) + 93.2)/2)),
-                number_of_exponentials=5
+                    (math.log2(500e-12/number_of_fine_divisions) + 85.2)/2)),
+                number_of_exponentials=2
             )
 
             time, density_operators = simulate(
@@ -87,12 +87,12 @@ def main():
         # density_operator_initial[2, 2, 0] = 0
 
         sampler = nvl.rabi_excited
-        # time_start: datatype = 0.0
-        # time_step: datatype = 200e-12
-        # time_end: datatype = 12e-6
-        time_start: datatype = 0e-6
-        time_end: datatype = 6e-6
+        time_start: datatype = 0.0
         time_step: datatype = 500e-12
+        time_end: datatype = 12e-6
+        # time_start: datatype = 0e-6
+        # time_end: datatype = 6e-6
+        # time_step: datatype = 500e-12
 
         density_operator_initial = np.zeros(
             (wavefunction_size, wavefunction_size, 2),
@@ -104,7 +104,8 @@ def main():
         print("Simulating")
         density_operators_list = []
         # divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
-        divisions = np.geomspace(1, 2000, 6)
+        divisions = np.geomspace(1, 1024, 11)
+        divisions = np.round(divisions)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(

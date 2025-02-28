@@ -192,15 +192,17 @@ if __name__ == "__main__":
         trials = {
             "CF2_1": {
                 # "profile_log": "2025-02-21T15-57-21"
-                "profile_log": "2025-02-24T19-45-55"
+                # "profile_log": "2025-02-24T19-45-55"
+                "profile_log": "2025-02-28T18-17-29"
             },
             "CF4_2": {
                 # "profile_log": "2025-02-21T15-57-21"
-                "profile_log": "2025-02-25T19-00-58"
+                # "profile_log": "2025-02-25T19-00-58"
+                "profile_log": "2025-02-28T18-02-32"
             },
-            "CF6_5": {
-                "profile_log": "2025-02-26T00-04-13"
-            }
+            # "CF6_5": {
+            #     "profile_log": "2025-02-26T00-04-13"
+            # }
         }
 
         read_from_archive(trials)
