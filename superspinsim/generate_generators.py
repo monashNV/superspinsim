@@ -347,7 +347,8 @@ def _generate_valid_indices():
     valid_indices = []
 
     for y_index in range(7):
-        valid_indices.append([y_index, y_index, 0])
+        if valid_mask[y_index, y_index]:
+            valid_indices.append([y_index, y_index, 0])
 
     for y_index in range(6):
         for x_index in range(y_index + 1, 7):
@@ -382,6 +383,11 @@ def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
 
         density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
         density_matrix[y_in_index, x_in_index, c_in_index] = 1
+        if y_in_index != x_in_index:
+            if c_in_index:
+                density_matrix[x_in_index, y_in_index, c_in_index] = -1
+            else:
+                density_matrix[x_in_index, y_in_index, c_in_index] = 1
 
         scratch = _mult(operator, density_matrix) \
             - _mult(density_matrix, operator)

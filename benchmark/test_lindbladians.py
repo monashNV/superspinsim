@@ -22,14 +22,13 @@ def main():
         simulator = s3.generate_simulator(
             lindbladian,
             number_of_exponentials=1,
-            number_of_fine_divisions=10,
+            number_of_fine_divisions=20,
             use_cayley=False,
-            number_of_quartic_repeats=100
+            number_of_quartic_repeats=35
         )
 
         density_operator_initial = np.zeros((7, 7, 2), dtype=np.float64)
-        # density_operator_initial[6, 6, 0] = 1
-        density_operator_initial[0, 0, 0] = 1
+        density_operator_initial[6, 6, 0] = 1
 
         # time_step_coarse = 1e-9
         time_step_coarse = 500e-12
@@ -112,7 +111,7 @@ def main():
 
             plt.xlabel("Time (us)")
             plt.ylabel("Population (%)")
-            # plt.ylim(top=80)
+            plt.ylim(top=80)
             plt.legend()
             plt.draw()
 
@@ -165,10 +164,10 @@ def main():
         finally:
             return time, density_operator, fluorescence
 
-    logger.set_context("coupling")
-    simulate_continuous_rabi(nvl.coupling)
+    # logger.set_context("coupling")
+    # simulate_continuous_rabi(nvl.coupling)
 
-    # logger.set_context("rabi_extended")
-    # simulate_continuous_rabi(nvl.rabi_extended)
+    logger.set_context("rabi_extended")
+    simulate_continuous_rabi(nvl.rabi_extended)
 
     plt.show()

@@ -31,80 +31,79 @@ def plot_populations(time, density_operators):
     print("Done!")
 
 
-def visualise_time_evolution(density_operators, time_evolution=None):
+def visualise_time_evolution(density_operators=None, time_evolution=None):
     print("Creating animations...")
 
-    frames = []
+    if density_operators is not None:
+        frames = []
 
-    # plt.figure()
-    for density_operator_index in range(density_operators.shape[0]):
-        # plt.subplot(6, 10, density_operator_index + 1)
-        coloured = _colour_complex_matrix(
-            density_operators[density_operator_index, :, :, :])
-        # plt.imshow(coloured)
-        # plt.axis("off")
+        # plt.figure()
+        for density_operator_index in range(density_operators.shape[0]):
+            # plt.subplot(6, 10, density_operator_index + 1)
+            coloured = _colour_complex_matrix(
+                density_operators[density_operator_index, :, :, :])
+            # plt.imshow(coloured)
+            # plt.axis("off")
 
-        scale = 20
-        frame = np.empty(
-            (scale*density_operators.shape[1],
-             scale*density_operators.shape[1], 3),
-            dtype=np.uint8
+            scale = 20
+            frame = np.empty(
+                (scale*density_operators.shape[1],
+                 scale*density_operators.shape[1], 3),
+                dtype=np.uint8
+            )
+            for x_index in range(scale):
+                for y_index in range(scale):
+                    frame[y_index::scale, x_index::scale] = coloured*255
+                    progress = int(frame.shape[1]*(density_operator_index + 1)
+                                   / density_operators.shape[0])
+                    frame[-4:, :progress] = np.array([255, 255, 255])
+            frame = pli.fromarray(frame)
+            frames.append(frame)
+
+        frames[0].save(
+            "density_operator.gif",
+            save_all=True,
+            append_images=frames[1:],
+            duration=1e3/density_operators.shape[0],
+            loop=0
         )
-        for x_index in range(scale):
-            for y_index in range(scale):
-                frame[y_index::scale, x_index::scale] = coloured*255
-                progress = int(frame.shape[1]*(density_operator_index + 1)
-                               / density_operators.shape[0])
-                frame[-4:, :progress] = np.array([255, 255, 255])
-        frame = pli.fromarray(frame)
-        frames.append(frame)
 
-    frames[0].save(
-        "density_operator.gif",
-        save_all=True,
-        append_images=frames[1:],
-        duration=1e3/density_operators.shape[0],
-        loop=0
-    )
+    if time_evolution is not None:
+        transforms_true = time_evolution.copy()
+        transforms_true[:, :, :] += np.eye(transforms_true.shape[1])
 
-    if time_evolution is None:
-        return
+        frames = []
 
-    transforms_true = time_evolution.copy()
-    transforms_true[:, :, :] += np.eye(transforms_true.shape[1])
+        # plt.figure()
+        for transform_index in range(transforms_true.shape[0]):
+            # plt.subplot(6, 10, transform_index + 1)
+            coloured = _colour_complex_matrix(
+                transforms_true[transform_index, :, :])
+            # plt.imshow(coloured)
+            # plt.axis("off")
 
-    frames = []
+            scale = 10
+            frame = np.empty(
+                (scale*transforms_true.shape[1],
+                 scale*transforms_true.shape[1], 3),
+                dtype=np.uint8
+            )
+            for x_index in range(scale):
+                for y_index in range(scale):
+                    frame[y_index::scale, x_index::scale] = coloured*255
+                    progress = int(frame.shape[1]*(transform_index + 1)
+                                   / transforms_true.shape[0])
+                    frame[-4:, :progress] = np.array([255, 255, 255])
+            frame = pli.fromarray(frame)
+            frames.append(frame)
 
-    # plt.figure()
-    for transform_index in range(transforms_true.shape[0]):
-        # plt.subplot(6, 10, transform_index + 1)
-        coloured = _colour_complex_matrix(
-            transforms_true[transform_index, :, :])
-        # plt.imshow(coloured)
-        # plt.axis("off")
-
-        scale = 10
-        frame = np.empty(
-            (scale*transforms_true.shape[1],
-             scale*transforms_true.shape[1], 3),
-            dtype=np.uint8
+        frames[0].save(
+            "time_evolution.gif",
+            save_all=True,
+            append_images=frames[1:],
+            duration=1e3/15,
+            loop=0
         )
-        for x_index in range(scale):
-            for y_index in range(scale):
-                frame[y_index::scale, x_index::scale] = coloured*255
-                progress = int(frame.shape[1]*(transform_index + 1)
-                               / transforms_true.shape[0])
-                frame[-4:, :progress] = np.array([255, 255, 255])
-        frame = pli.fromarray(frame)
-        frames.append(frame)
-
-    frames[0].save(
-        "time_evolution.gif",
-        save_all=True,
-        append_images=frames[1:],
-        duration=1e3/15,
-        loop=0
-    )
 
 
 def test_time_sample_quadrature():
@@ -463,6 +462,53 @@ def test_time_sample_quadrature():
 #     visualise_time_evolution(density_operators, time_evolution)
 # 
 #     print("Done")
+
+def scipy_exponentiate():
+    from pogger import Pogger as Logger
+
+    with Logger("superspinsim-benchmarks") as logger:
+
+        @logger.record(("superoperators"))
+        def run_scipy_exponentiate():
+            import scipy.linalg as sl
+            from superspinsim.generators import superoperators \
+                as superoperators_dict
+
+            superoperator = list(superoperators_dict.values())[0]
+            superoperator *= math.tau
+            times = np.arange(100)/100
+
+            superoperators = []
+            for time in times:
+                superoperators.append(sl.expm(superoperator*time))
+
+            superoperators = np.array(superoperators)
+
+            plt.figure("scipy_exponenentiate")
+            plt.plot(
+                times, 100*superoperators[:, 0, 0], "-",
+                color=cm.hawaii(0/3), label="+"
+            )
+            plt.plot(
+                times, 100*superoperators[:, 0, 1], "-",
+                color=cm.hawaii(1/3), label="0"
+            )
+            plt.plot(
+                times, 100*superoperators[:, 0, 2], "-",
+                color=cm.hawaii(2/3), label="-"
+            )
+
+            plt.xlabel("Time (arb.)")
+            plt.ylabel("Population (%)")
+            plt.legend()
+            plt.draw()
+
+            # superoperators -= np.eye(superoperator.shape[0])
+
+            # visualise_time_evolution(time_evolution=superoperators)
+            return superoperators
+
+        run_scipy_exponentiate()
 
 
 if __name__ == "__main__":
