@@ -590,7 +590,7 @@ with Pogger(project_name="superspinsim-generate") as logger:
                 1 + operator_index
             )
             coloured = np.array(
-                _colour_complex_matrix(superoperator), dtype=np.float64)
+                _colour_complex_matrix(superoperator/3), dtype=np.float64)
             plt.imshow(coloured)
             # plt.axis("off")
             plt.xticks([])

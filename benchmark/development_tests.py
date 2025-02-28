@@ -31,7 +31,7 @@ def plot_populations(time, density_operators):
     print("Done!")
 
 
-def visualise_time_evolution(density_operators, time_evolution):
+def visualise_time_evolution(density_operators, time_evolution=None):
     print("Creating animations...")
 
     frames = []
@@ -71,7 +71,7 @@ def visualise_time_evolution(density_operators, time_evolution):
         return
 
     transforms_true = time_evolution.copy()
-    transforms_true[:, :, :, 0] += np.eye(transforms_true.shape[1])
+    transforms_true[:, :, :] += np.eye(transforms_true.shape[1])
 
     frames = []
 
@@ -79,7 +79,7 @@ def visualise_time_evolution(density_operators, time_evolution):
     for transform_index in range(transforms_true.shape[0]):
         # plt.subplot(6, 10, transform_index + 1)
         coloured = _colour_complex_matrix(
-            transforms_true[transform_index, :, :, :])
+            transforms_true[transform_index, :, :])
         # plt.imshow(coloured)
         # plt.axis("off")
 
@@ -92,6 +92,9 @@ def visualise_time_evolution(density_operators, time_evolution):
         for x_index in range(scale):
             for y_index in range(scale):
                 frame[y_index::scale, x_index::scale] = coloured*255
+                progress = int(frame.shape[1]*(transform_index + 1)
+                               / transforms_true.shape[0])
+                frame[-4:, :progress] = np.array([255, 255, 255])
         frame = pli.fromarray(frame)
         frames.append(frame)
 

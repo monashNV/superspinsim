@@ -468,4 +468,5 @@ def rabi_extended(time, coefficient):
 
 
 def coupling(time, coefficient):
-    coefficient[4] = math.tau*1e5
+    coefficient[2] = math.tau*1e5
+    # coefficient[4] = math.tau*1e5

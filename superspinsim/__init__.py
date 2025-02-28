@@ -46,10 +46,6 @@ def generate_simulator(
     operator_size_block = min(operator_size, sqrt_block_size_max)
     operator_stride_max = int(math.ceil(operator_size/operator_size_block))
 
-    print(operator_size)
-    print(operator_size_block)
-    print(operator_stride_max)
-
     if number_of_exponentials == 1:
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
         weights = np.array(weights_dict["1_1_gl"], dtype=datatype)
@@ -568,10 +564,12 @@ def generate_simulator(
                     if x_index_use < operator_size:
                         time_evolutions[
                             nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 0
-                    if not use_residual:
-                        if x_index_use == nc.threadIdx.y:
-                            time_evolutions[
-                                nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 1
+                        if not use_residual:
+                            if x_index_use == nc.threadIdx.y:
+                                time_evolutions[
+                                    nc.blockIdx.x, nc.threadIdx.y,
+                                    x_index_use
+                                ] = 1
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
@@ -806,10 +804,10 @@ def generate_simulator(
         # Retrieve results from GPU
         if use_cuda:
             time = time_device.copy_to_host()
-            # time_evolution = time_evolution_device.copy_to_host()
+            time_evolution = time_evolution_device.copy_to_host()
             # print(time_evolution)
             density_operators_flat = density_operators_device.copy_to_host()
-            print(density_operators_flat)
+            # print(density_operators_flat)
 
         # Unflatten density operators
         density_operators = np.zeros(
@@ -841,6 +839,6 @@ def generate_simulator(
         warnings.simplefilter(
             "default", nb.core.errors.NumbaPerformanceWarning)
 
-        return time, density_operators
+        return time, density_operators, time_evolution
 
     return simulate
