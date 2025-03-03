@@ -96,15 +96,16 @@ def odmr(time, coefficient):
     coefficient[16] = parameters.spin_conserving_decay_rate
     coefficient[17] = parameters.spin_nonconserving_decay_rate
 
-    # coefficient[2] = 0.001*parameters.longitudinal_gyromagnetic_ratio_ground
-    # coefficient[6] = 0.001*parameters.gyromagnetic_ratio_excited
+    coefficient[2] = 0.5*parameters.longitudinal_gyromagnetic_ratio_ground
+    coefficient[6] = 0.5*parameters.gyromagnetic_ratio_excited
 
     # Polarise
-    coefficient[18] = 0.01*parameters.spin_conserving_decay_rate
-    coefficient[19] = 0.01*parameters.spin_nonconserving_decay_rate
+    coefficient[18] = 0.1*parameters.spin_conserving_decay_rate
+    coefficient[19] = 0.1*parameters.spin_nonconserving_decay_rate
 
     if time > 2e-6:
-        phase = 2.8e9*(time - 2e-6) + 100e6*(time - 2e-6)**2/100e-6/2
+        phase = math.tau*(
+            2.8e9*(time - 2e-6) + 100e6*(time - 2e-6)**2/10e-6/2)
         coefficient[0] = 1e6*math.tau*math.cos(phase)
         coefficient[4] = 1e6*math.tau*math.cos(phase)
 

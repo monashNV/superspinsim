@@ -59,6 +59,11 @@ if __name__ == "__main__":
                 log_durations = np.log10(durations)
                 log_sample_rate = np.log10(sample_rate)
 
+                mask = log_errors > -12
+                log_errors = log_errors[mask]
+                log_durations = log_durations[mask]
+                log_sample_rate = log_sample_rate[mask]
+
                 try:
                     fit_params_durations, fit_covs_durations = spo.curve_fit(
                         hyperbolic_template,
@@ -68,7 +73,7 @@ if __name__ == "__main__":
                     )
 
                     errors_smooth = np.geomspace(
-                        errors[0], errors[-1], smooth_resolution)
+                        errors[0], errors[mask][-1], smooth_resolution)
                     durations_fit = np.power(10, hyperbolic_template(
                         np.log10(errors_smooth),
                         *fit_params_durations
@@ -84,7 +89,7 @@ if __name__ == "__main__":
                     )
 
                     errors_smooth = np.geomspace(
-                        errors[0], errors[-1], smooth_resolution)
+                        errors[0], errors[mask][-1], smooth_resolution)
                     durations_fit = np.power(10, linear_template(
                         np.log10(errors_smooth),
                         *fit_params_durations
@@ -108,7 +113,7 @@ if __name__ == "__main__":
                     (2, 1)
                 )
                 sample_rate_smooth = np.geomspace(
-                    sample_rate[0], sample_rate[-1], smooth_resolution)
+                    sample_rate[0], sample_rate[mask][-1], smooth_resolution)
                 errors_fit = np.power(10, linear_template(
                     np.log10(sample_rate_smooth),
                     *fit_params_sample_rate
@@ -193,12 +198,12 @@ if __name__ == "__main__":
             "CF2_1": {
                 # "profile_log": "2025-02-21T15-57-21"
                 # "profile_log": "2025-02-24T19-45-55"
-                "profile_log": "2025-02-28T18-17-29"
+                "profile_log": "2025-02-28T19-10-39"
             },
             "CF4_2": {
                 # "profile_log": "2025-02-21T15-57-21"
                 # "profile_log": "2025-02-25T19-00-58"
-                "profile_log": "2025-02-28T18-02-32"
+                "profile_log": "2025-02-28T19-14-51"
             },
             # "CF6_5": {
             #     "profile_log": "2025-02-26T00-04-13"

@@ -2,14 +2,11 @@ import superspinsim as s3
 import superspinsim.nv.lindbladians as nvl
 
 import numpy as np
-import matplotlib as mpl
 import matplotlib.pyplot as plt
 from cmcrameri import cm
 
 
 def main():
-    mpl.use("tkagg")
-
     from pogger import Pogger as Logger
 
     logger = Logger("superspinsim-benchmarks")
@@ -22,7 +19,7 @@ def main():
         simulator = s3.generate_simulator(
             lindbladian,
             number_of_exponentials=1,
-            number_of_fine_divisions=20,
+            number_of_fine_divisions=200,
             use_cayley=False,
             number_of_quartic_repeats=35
         )
@@ -30,12 +27,12 @@ def main():
         density_operator_initial = np.zeros((7, 7, 2), dtype=np.float64)
         density_operator_initial[6, 6, 0] = 1
 
-        # time_step_coarse = 1e-9
-        time_step_coarse = 500e-12
-        time, density_operator, time_evolution = simulator(
-             # density_operator_initial, 0, 102e-6, time_step_coarse)
-             # density_operator_initial, 0, 9e-6, time_step_coarse)
+        time_step_coarse = 5e-9
+        # time_step_coarse = 500e-12
+        time, density_operator = simulator(
              density_operator_initial, 0, 12e-6, time_step_coarse)
+             # density_operator_initial, 0, 9e-6, time_step_coarse)
+             # density_operator_initial, 0, 12e-6, time_step_coarse)
 
         fluorescence = density_operator[:, 3, 3, 0] + \
             density_operator[:, 4, 4, 0] + density_operator[:, 5, 5, 0]
@@ -146,8 +143,10 @@ def main():
                 plt.draw()
 
             if lindbladian == nvl.odmr:
+                plot_window = np.logical_and(
+                    time > 3e-6, time < np.inf)
                 # mw_frequency = 2.87e9*(1 + 0.5*(time - 5e-3)/10e-3)
-                mw_frequency = 2.8e9 + 100e6*(time - 2e-6)/100e-6
+                mw_frequency = 2.8e9 + 100e6*(time - 2e-6)/10e-6
                 plt.figure(label="odmr")
                 plt.plot(
                     mw_frequency[plot_window]/1e9,
@@ -157,17 +156,20 @@ def main():
                 plt.ylabel("Fluorescence (%)")
                 plt.draw()
 
-            from benchmark.development_tests import visualise_time_evolution
+            # from benchmark.development_tests import visualise_time_evolution
 
-            visualise_time_evolution(
-                density_operator[::100, :, :, :], time_evolution[::100, :, :])
+            # visualise_time_evolution(
+            #     density_operator[::100, :, :, :], time_evolution[::100, :, :])
         finally:
             return time, density_operator, fluorescence
 
     # logger.set_context("coupling")
     # simulate_continuous_rabi(nvl.coupling)
 
-    logger.set_context("rabi_extended")
-    simulate_continuous_rabi(nvl.rabi_extended)
+    # logger.set_context("rabi_extended")
+    # simulate_continuous_rabi(nvl.rabi_extended)
+
+    logger.set_context("odmr")
+    simulate_continuous_rabi(nvl.odmr)
 
     plt.show()
