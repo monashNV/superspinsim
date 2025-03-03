@@ -16,7 +16,7 @@ samples["3_gl"] = np.array([0.1127016653792583, 0.5, 0.8872983346207417, ], dtyp
 
 weights = {}
 
-weights["1_1_gl"] = np.array([
+weights["2_1_gl"] = np.array([
 [1.0, ],
 ], dtype=np.float128)
 

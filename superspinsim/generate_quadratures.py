@@ -245,46 +245,51 @@ def _write_script(samples, weights):
             file.write("], dtype=np.float128)\n\n")
 
 
-def _visualise(samples, weights):
-    from util import colour_complex_matrix as _colour_complex_matrix
+if __name__ == "__main__":
     from matplotlib import pyplot as plt
 
-    plt.figure()
-    plt.suptitle("Gauss-Legendre nodes")
-    for plot_index, (label, sample) in enumerate(samples.items()):
-        plt.subplot(4, 1, plot_index + 1)
-        plt.plot(sample, [0]*sample.size, "k.")
-        plt.xlim(0, 1)
-        plt.text(0 - 0.05, 0, f"{plot_index + 1}-point")
-        plt.axis("off")
-    plt.subplot(4, 1, 4)
-    plt.plot([0, 1], [0, 0], "k-")
-    plt.xlim(0, 1)
-    plt.text(0 - 0.05, 0, "0")
-    plt.text(1 + 0.05, 0, "1")
-    plt.axis("off")
-    plt.draw()
+    from pogger import Pogger as Logger
 
-    plt.figure()
-    plt.suptitle("Commutator-free weights")
+    with Logger("superspinsim-generate") as logger:
+        @logger.record(("samples", "weights"))
+        def _visualise(samples, weights):
+            from util import colour_complex_matrix as _colour_complex_matrix
 
-    for plot_index, (label, weight) in enumerate(weights.items()):
-        if plot_index == 0:
-            continue
-        plt.subplot(2, 2, plot_index)
-        coloured = np.array(_colour_complex_matrix(weight), dtype=np.float64)
-        plt.imshow(coloured)
-        plt.title(label)
-        plt.xticks(range(weight.shape[1]))
-        plt.yticks(range(weight.shape[0]))
-        if plot_index == 3:
-            plt.xlabel("GL sample")
-            plt.ylabel("Exponential\n\n")
-    plt.draw()
+            plt.figure("nodes", figsize=(6, 4))
+            for plot_index, (label, sample) in enumerate(samples.items()):
+                plt.subplot(4, 1, plot_index + 1)
+                plt.plot(sample, [0]*sample.size, "k.")
+                plt.xlim(0, 1)
+                plt.text(0 - 0.05, 0, f"{plot_index + 1}-point")
+                plt.axis("off")
+            plt.subplot(4, 1, 4)
+            plt.plot([0, 1], [0, 0], "k-")
+            plt.xlim(0, 1)
+            plt.text(0 - 0.05, 0, "0")
+            plt.text(1 + 0.05, 0, "1")
+            plt.axis("off")
+            plt.draw()
 
-    plt.show()
+            plt.figure("weights", figsize=(6, 8))
+            plt.suptitle("Commutator-free weights")
 
+            for plot_index, (label, weight) in enumerate(weights.items()):
+                if plot_index == 0:
+                    continue
+                plt.subplot(2, 2, plot_index)
+                coloured = np.array(
+                    _colour_complex_matrix(weight), dtype=np.float64)
+                plt.imshow(coloured)
+                plt.title(label)
+                plt.xticks(range(weight.shape[1]))
+                plt.yticks(range(weight.shape[0]))
+                if plot_index == 3:
+                    plt.xlabel("GL sample")
+                    plt.ylabel("Exponential\n\n")
+            plt.draw()
 
-if __name__ == "__main__":
-    _write_script(_sample, _rho)
-    _visualise(_sample, _rho)
+            return samples, weights
+
+        _write_script(_sample, _rho)
+        _visualise(_sample, _rho)
+        plt.show()
