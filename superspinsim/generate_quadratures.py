@@ -93,7 +93,7 @@ def _fill_symetric_X(x):
                 ((-1)**(sample_index))*x[exponential_index, sample_index]
 
 
-_X_1_1 = np.array([[1]], dtype=meta_datatype)
+_X_2_1 = np.array([[1]], dtype=meta_datatype)
 
 # Eq (37) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
 _X_4_2 = np.array(
@@ -159,7 +159,7 @@ print("\n")
 # rho matrices ----------------------------------------------------------------
 
 # Eq (50) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
-_rho_1_1_gl = _X_1_1@_R_1@_Q_1_1_gl
+_rho_2_1_gl = _X_2_1@_R_1@_Q_1_1_gl
 _rho_4_2_gl = _X_4_2@_R_2@_Q_2_2_gl
 _rho_4_3_gl = _X_4_3@_R_2@_Q_2_2_gl
 _rho_6_5_gl = _X_6_5@_R_3@_Q_3_3_gl
@@ -199,7 +199,7 @@ _rho_6_6_gl = _X_6_6@_R_3@_Q_3_3_gl
 # _fill_symetric_X(_rho_6_6_gl)
 # 
 _rho = {
-    "1_1_gl": _rho_1_1_gl,
+    "2_1_gl": _rho_2_1_gl,
     "4_2_gl": _rho_4_2_gl,
     "4_3_gl": _rho_4_3_gl,
     "6_5_gl": _rho_6_5_gl,
@@ -210,7 +210,7 @@ for key, rho in _rho.items():
     print(np.sum(rho))
     _rho[key] = rho/np.sum(rho)
 
-print(f"rho42:\n{_rho['1_1_gl']}")
+print(f"rho21:\n{_rho['2_1_gl']}")
 print(f"rho42:\n{_rho['4_2_gl']}")
 print(f"rho43:\n{_rho['4_3_gl']}")
 print(f"rho65:\n{_rho['6_5_gl']}")

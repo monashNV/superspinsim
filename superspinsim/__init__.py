@@ -48,7 +48,7 @@ def generate_simulator(
 
     if number_of_exponentials == 1:
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
-        weights = np.array(weights_dict["1_1_gl"], dtype=datatype)
+        weights = np.array(weights_dict["2_1_gl"], dtype=datatype)
     elif number_of_exponentials == 2:
         sample_quadrature = np.array(samples_dict["2_gl"], dtype=datatype)
         weights = np.array(weights_dict["4_2_gl"], dtype=datatype)
