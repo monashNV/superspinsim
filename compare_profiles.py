@@ -139,55 +139,59 @@ if __name__ == "__main__":
                 plt.figure("comparison_gpu_time")
                 for trial_index, (trial, trial_data) \
                         in enumerate(trials.items()):
+
+                    fit = trial_data["fits"]["durations_vs_errors"]
+                    durations_fit = fit["durations_fit"]
+                    errors_smooth = fit["errors_smooth"]
+                    power = fit["power"]
+
                     plt.loglog(
                         trial_data["durations"],
                         trial_data["errors"],
-                        ".",
+                        trial_data["marker"],
                         color=cm.hawaii(trial_index/len(trials)),
-                        label=f"{trial} calculated"
+                        label=f"{trial.replace('_', ':')}, power={power:.2f}"
                     )
 
-                    fit = trial_data["fits"]["durations_vs_errors"]
-                    power = fit["power"]
-                    durations_fit = fit["durations_fit"]
-                    errors_smooth = fit["errors_smooth"]
                     plt.loglog(
                         durations_fit,
                         errors_smooth,
-                        "--",
-                        color=cm.hawaii(trial_index/len(trials)),
-                        label=f"{trial} fit, power={power:.2f}"
+                        "-",
+                        color=cm.hawaii(trial_index/len(trials))
                     )
                 plt.legend()
                 plt.xlabel("GPU time (s)")
                 plt.ylabel("RMS error")
+                plt.gca().spines[["right", "top"]].set_visible(False)
                 plt.draw()
 
                 plt.figure("comparison_sample_rate")
                 for trial_index, (trial, trial_data) \
                         in enumerate(trials.items()):
+
+                    fit = trial_data["fits"]["sample_rate_vs_errors"]
+                    sample_rate_smooth = fit["sample_rate_smooth"]
+                    errors_fit = fit["errors_fit"]
+                    power = fit["power"]
+
                     plt.loglog(
                         trial_data["sample_rate"]/1e9,
                         trial_data["errors"],
-                        ".",
+                        trial_data["marker"],
                         color=cm.hawaii(trial_index/len(trials)),
-                        label=trial
+                        label=f"{trial.replace('_', ':')}, power={power:.2f}"
                     )
 
-                    fit = trial_data["fits"]["sample_rate_vs_errors"]
-                    power = fit["power"]
-                    sample_rate_smooth = fit["sample_rate_smooth"]
-                    errors_fit = fit["errors_fit"]
                     plt.loglog(
                         sample_rate_smooth/1e9,
                         errors_fit,
-                        "--",
-                        color=cm.hawaii(trial_index/len(trials)),
-                        label=f"{trial} fit, power={power:.2f}"
+                        "-",
+                        color=cm.hawaii(trial_index/len(trials))
                     )
                 plt.legend()
                 plt.xlabel("Integration stepping rate (GS/s)")
                 plt.ylabel("RMS error")
+                plt.gca().spines[["right", "top"]].set_visible(False)
                 plt.draw()
             except Exception as exception:
                 print(exception)
@@ -198,16 +202,33 @@ if __name__ == "__main__":
             "CF2_1": {
                 # "profile_log": "2025-02-21T15-57-21"
                 # "profile_log": "2025-02-24T19-45-55"
-                "profile_log": "2025-03-03T14-08-43"
+                "profile_log": "2025-03-03T14-08-43",
+                "marker": "."
             },
+
             "CF4_2": {
                 # "profile_log": "2025-02-21T15-57-21"
                 # "profile_log": "2025-02-25T19-00-58"
-                "profile_log": "2025-02-28T19-14-51"
+                "profile_log": "2025-02-28T19-14-51",
+                "marker": "o"
             },
-            # "CF6_5": {
-            #     "profile_log": "2025-02-26T00-04-13"
-            # }
+
+            "CF4_3": {
+                # "profile_log": "2025-02-21T15-57-21"
+                # "profile_log": "2025-02-25T19-00-58"
+                "profile_log": "2025-03-03T16-01-44",
+                "marker": ">"
+            },
+
+            "CF6_5": {
+                "profile_log": "2025-03-04T16-51-09",
+                "marker": "p"
+            },
+
+            "CF6_6": {
+                "profile_log": "2025-03-04T17-01-16",
+                "marker": "h"
+            }
         }
 
         read_from_archive(trials)

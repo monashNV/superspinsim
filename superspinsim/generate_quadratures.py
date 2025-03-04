@@ -66,9 +66,10 @@ _R_2 = np.array(
 )
 
 # Eq (24) Blanes and Moan, Applied Numerical Mathematics 56 (2006) 1519-1537
+# Eq (249) Blanes, Physics Reports 470 (2009) 151–238
 _R_3 = np.array(
     [
-        [9/4, 0, 15],
+        [9/4, 0, -15],
         [0, 12, 0],
         [-15, 0, 180]
     ],
@@ -208,7 +209,7 @@ _rho = {
 
 for key, rho in _rho.items():
     print(np.sum(rho))
-    _rho[key] = rho/np.sum(rho)
+    # _rho[key] = rho/np.sum(rho)
 
 print(f"rho21:\n{_rho['2_1_gl']}")
 print(f"rho42:\n{_rho['4_2_gl']}")
