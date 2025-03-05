@@ -95,7 +95,7 @@ if __name__ == "__main__":
                     )
 
                     errors_smooth = np.geomspace(
-                        errors[0], errors[mask][-1], smooth_resolution)
+                        errors[mask][0], errors[mask][-1], smooth_resolution)
                     durations_fit = np.power(10, hyperbolic_template(
                         np.log10(errors_smooth),
                         *fit_params_durations
@@ -111,7 +111,7 @@ if __name__ == "__main__":
                     )
 
                     errors_smooth = np.geomspace(
-                        errors[0], errors[mask][-1], smooth_resolution)
+                        errors[mask][0], errors[mask][-1], smooth_resolution)
                     durations_fit = np.power(10, linear_template(
                         np.log10(errors_smooth),
                         *fit_params_durations
@@ -135,7 +135,10 @@ if __name__ == "__main__":
                     (2, 1)
                 )
                 sample_rate_smooth = np.geomspace(
-                    sample_rate[0], sample_rate[mask][-1], smooth_resolution)
+                    sample_rate[mask][0],
+                    sample_rate[mask][-1],
+                    smooth_resolution
+                )
                 errors_fit = np.power(10, linear_template(
                     np.log10(sample_rate_smooth),
                     *fit_params_sample_rate

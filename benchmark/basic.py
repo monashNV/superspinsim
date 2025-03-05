@@ -22,13 +22,12 @@ def main():
             with open("profile/profile_list.csv", "w") as file_profile_list:
                 pass
 
-
         number_of_exponentials_list = [
-                {"name": "CF2_1", "number_of_exponentials": 1},
-                {"name": "CF4_2", "number_of_exponentials": 2},
-                {"name": "CF4_3", "number_of_exponentials": 3},
-                {"name": "CF6_5", "number_of_exponentials": 5},
-                {"name": "CF6_6", "number_of_exponentials": 6}
+            {"name": "CF2_1", "number_of_exponentials": 1, "maxpower": 18},
+            {"name": "CF4_2", "number_of_exponentials": 2, "maxpower": 11},
+            {"name": "CF4_3", "number_of_exponentials": 3, "maxpower": 11},
+            {"name": "CF6_5", "number_of_exponentials": 5, "maxpower": 8},
+            {"name": "CF6_6", "number_of_exponentials": 6, "maxpower": 8}
         ]
 
         number_of_exponentials_dict = \
@@ -135,8 +134,9 @@ def main():
         print("Simulating")
         density_operators_list = []
         # divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
-        divisions = np.geomspace(1, 1024, 11)
-        divisions = np.round(divisions)
+        # divisions = np.geomspace(1, 1024, 11)
+        # divisions = np.round(divisions)
+        divisions = 2**np.arange(number_of_exponentials_dict["max_power"] + 1)
         divisions = np.flip(divisions)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
