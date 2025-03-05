@@ -23,7 +23,7 @@ def main():
                 pass
 
         number_of_exponentials_list = [
-            {"name": "CF2_1", "number_of_exponentials": 1, "max_power": 18},
+            {"name": "CF2_1", "number_of_exponentials": 1, "max_power": 14},
             {"name": "CF4_2", "number_of_exponentials": 2, "max_power": 11},
             {"name": "CF4_3", "number_of_exponentials": 3, "max_power": 11},
             {"name": "CF6_5", "number_of_exponentials": 5, "max_power": 8},
