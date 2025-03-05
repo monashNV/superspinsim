@@ -23,11 +23,11 @@ def main():
                 pass
 
         number_of_exponentials_list = [
-            {"name": "CF2_1", "number_of_exponentials": 1, "maxpower": 18},
-            {"name": "CF4_2", "number_of_exponentials": 2, "maxpower": 11},
-            {"name": "CF4_3", "number_of_exponentials": 3, "maxpower": 11},
-            {"name": "CF6_5", "number_of_exponentials": 5, "maxpower": 8},
-            {"name": "CF6_6", "number_of_exponentials": 6, "maxpower": 8}
+            {"name": "CF2_1", "number_of_exponentials": 1, "max_power": 18},
+            {"name": "CF4_2", "number_of_exponentials": 2, "max_power": 11},
+            {"name": "CF4_3", "number_of_exponentials": 3, "max_power": 11},
+            {"name": "CF6_5", "number_of_exponentials": 5, "max_power": 8},
+            {"name": "CF6_6", "number_of_exponentials": 6, "max_power": 8}
         ]
 
         number_of_exponentials_dict = \
