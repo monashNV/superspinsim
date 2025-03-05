@@ -120,7 +120,7 @@ def main():
         sampler = nvl.rabi_excited
         time_start: datatype = 0.0
         time_step: datatype = 500e-12
-        time_end: datatype = 100e-9  # 12e-6
+        time_end: datatype = 12e-6
         # time_start: datatype = 0e-6
         # time_end: datatype = 6e-6
         # time_step: datatype = 500e-12

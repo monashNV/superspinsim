@@ -81,6 +81,7 @@ if __name__ == "__main__":
                 log_sample_rate = np.log10(sample_rate)
 
                 mask = log_errors > -12
+                # mask = np.ones_like(log_errors, dtype=np.bool)
                 log_errors = log_errors[mask]
                 log_durations = log_durations[mask]
                 log_sample_rate = log_sample_rate[mask]
