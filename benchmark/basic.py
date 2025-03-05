@@ -120,7 +120,7 @@ def main():
         sampler = nvl.rabi_excited
         time_start: datatype = 0.0
         time_step: datatype = 500e-12
-        time_end: datatype = 12e-6
+        time_end: datatype = 100e-9  # 12e-6
         # time_start: datatype = 0e-6
         # time_end: datatype = 6e-6
         # time_step: datatype = 500e-12
@@ -152,6 +152,7 @@ def main():
             density_operators_list.append(density_operators)
         print("Done!")
 
+        pogger.set_context("error_analysis")
         ground_truth, divisions, sample_rate, errors = \
             calculate_error(density_operators_list, divisions, time_step)
         plot_errors(divisions, errors)
@@ -159,7 +160,7 @@ def main():
         with open("profile/datetime", "w") as file_datetime:
             file_datetime.write(pogger.get_datetime())
 
-        if profile_index <= len(number_of_exponentials_list) - 1:
+        if profile_index < len(number_of_exponentials_list) - 1:
             with open("profile/index", "w") as file_index:
                 file_index.write(str(profile_index))
         else:

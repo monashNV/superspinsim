@@ -57,16 +57,17 @@ def read_h5():
 
         system_info_h5 = h5_file["TARGET_INFO_SYSTEM_ENV"]
         for entry_h5 in system_info_h5:
-            if entry_h5["name"] == "CpuDescription":
+            entry_name = entry_h5["name"].decode("utf-8").strip()
+            if entry_name == "CpuDescription":
                 system_info["cpu"]["name"] = entry_h5["value"]
-            elif entry_h5["name"] == "CpuCores":
+            elif entry_name == "CpuCores":
                 system_info["cpu"]["cores"] = entry_h5["value"]
-            elif entry_h5["name"] == "CpuSpeedMhz":
+            elif entry_name == "CpuSpeedMhz":
                 system_info["cpu"]["clock"] = entry_h5["value"]
                 system_info["cpu"]["clock_units"] = "MHz"
-            elif entry_h5["name"] == "Hostname":
+            elif entry_name == "Hostname":
                 system_info["hostname"] = entry_h5["value"]
-            elif entry_h5["name"] == "OsDescription":
+            elif entry_name == "OsDescription":
                 system_info["os"] = entry_h5["value"]
 
         system_info_h5 = h5_file["TARGET_INFO_GPU"]
@@ -329,4 +330,4 @@ if __name__ == "__main__":
     with open("profile/profile_list.csv", "a") as file_profile_list:
         file_profile_list.write(f"{integration_method}, {datetime}\n")
 
-    plt.show()
+    # plt.show()
