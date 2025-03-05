@@ -22,9 +22,30 @@ if __name__ == "__main__":
     with Logger("superspinsim-benchmarks", verbose=True) as logger:
 
         def read_from_archive(trials):
+            system_info = None
             for trial, trial_data in trials.items():
                 profile_log = trial_data["profile_log"]
                 read = Read("superspinsim-benchmarks", profile_log)
+
+                if system_info is None:
+                    system_info = {"cpu": {}, "gpu": {}}
+
+                    for key in ["os", "hostname"]:
+                        system_info[key] = \
+                            read.read_value(key, "errors/system_info")
+
+                    for key in ["name", "cores", "clock", "clock_units"]:
+                        system_info["cpu"][key] = \
+                            read.read_value(key, "errors/system_info/cpu")
+
+                    for key in [
+                            "name", "chip", "clock", "clock_units",
+                            "memory", "memory_units",
+                            "streaming_multiprocessors"
+                            ]:
+                        system_info["gpu"][key] = \
+                            read.read_value(key, "errors/system_info/gpu")
+
                 simulation_log = read.read_value("previous_log")
 
                 errors = read.read_array("error", "errors")
@@ -45,7 +66,7 @@ if __name__ == "__main__":
                 trial_data["divisions"] = divisions
                 trial_data["sample_rate"] = sample_rate
 
-            return trials
+            return trials, system_info
 
         def fit(trials):
             for trial, trial_data in trials.items():
@@ -133,8 +154,8 @@ if __name__ == "__main__":
 
             return trials
 
-        @logger.record(("trials"))
-        def plot(trials):
+        @logger.record(("trials", "system_info"))
+        def plot(trials, system_info):
             try:
                 plt.figure("comparison_gpu_time")
                 for trial_index, (trial, trial_data) \
@@ -196,41 +217,59 @@ if __name__ == "__main__":
             except Exception as exception:
                 print(exception)
             finally:
-                return trials
+                return trials, system_info
 
-        trials = {
-            "CF2_1": {
-                # "profile_log": "2025-02-21T15-57-21"
-                # "profile_log": "2025-02-24T19-45-55"
-                "profile_log": "2025-03-03T14-08-43",
-                "marker": "."
-            },
+        # trials = {
+        #     "CF2_1": {
+        #         # "profile_log": "2025-02-21T15-57-21"
+        #         # "profile_log": "2025-02-24T19-45-55"
+        #         "profile_log": "2025-03-03T14-08-43",
+        #         "marker": "."
+        #     },
 
-            "CF4_2": {
-                # "profile_log": "2025-02-21T15-57-21"
-                # "profile_log": "2025-02-25T19-00-58"
-                "profile_log": "2025-02-28T19-14-51",
-                "marker": "o"
-            },
+        #     "CF4_2": {
+        #         # "profile_log": "2025-02-21T15-57-21"
+        #         # "profile_log": "2025-02-25T19-00-58"
+        #         "profile_log": "2025-02-28T19-14-51",
+        #         "marker": "o"
+        #     },
 
-            "CF4_3": {
-                # "profile_log": "2025-02-21T15-57-21"
-                # "profile_log": "2025-02-25T19-00-58"
-                "profile_log": "2025-03-03T16-01-44",
-                "marker": ">"
-            },
+        #     "CF4_3": {
+        #         # "profile_log": "2025-02-21T15-57-21"
+        #         # "profile_log": "2025-02-25T19-00-58"
+        #         "profile_log": "2025-03-03T16-01-44",
+        #         "marker": ">"
+        #     },
 
-            "CF6_5": {
-                "profile_log": "2025-03-04T16-51-09",
-                "marker": "p"
-            },
+        #     "CF6_5": {
+        #         "profile_log": "2025-03-04T16-51-09",
+        #         "marker": "p"
+        #     },
 
-            "CF6_6": {
-                "profile_log": "2025-03-04T17-01-16",
-                "marker": "h"
-            }
+        #     "CF6_6": {
+        #         "profile_log": "2025-03-04T17-01-16",
+        #         "marker": "h"
+        #     }
+        # }
+
+        markers = {
+            "CF2_1": ".",
+            "CF4_2": "o",
+            "CF4_3": ">",
+            "CF6_5": "p",
+            "CF6_6": "h"
         }
 
-        read_from_archive(trials)
+        trials = {}
+        with open("profile/profile_list.csv", "r") as file_profile_list:
+            for line in file_profile_list.readlines():
+                integration_method, profile_log = line.split(",")
+                integration_method = integration_method.strip()
+                profile_log = profile_log.strip()
+                trials[integration_method] = {"profile_log": profile_log}
+                trials[integration_method]["marker"] = \
+                    markers[integration_method]
+
+        _, system_info = read_from_archive(trials)
         fit(trials)
-        plot(trials)
+        plot(trials, system_info)

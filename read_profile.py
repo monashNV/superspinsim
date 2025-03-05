@@ -51,6 +51,37 @@ def read_h5():
             name = id_map_h5[name_id][2].decode("utf-8")
             memory_names.append(name)
 
+        system_info = {
+            "cpu": {}
+        }
+
+        system_info_h5 = h5_file["TARGET_INFO_SYSTEM_ENV"]
+        for entry_h5 in system_info_h5:
+            if entry_h5["name"] == "CpuDescription":
+                system_info["cpu"]["name"] = entry_h5["value"]
+            elif entry_h5["name"] == "CpuCores":
+                system_info["cpu"]["cores"] = entry_h5["value"]
+            elif entry_h5["name"] == "CpuSpeedMhz":
+                system_info["cpu"]["clock"] = entry_h5["value"]
+                system_info["cpu"]["clock_units"] = "MHz"
+            elif entry_h5["name"] == "Hostname":
+                system_info["hostname"] = entry_h5["value"]
+            elif entry_h5["name"] == "OsDescription":
+                system_info["os"] = entry_h5["value"]
+
+        system_info_h5 = h5_file["TARGET_INFO_GPU"]
+        for entry_h5 in system_info_h5:
+            gpu_info = {
+                "name": entry_h5["name"],
+                "clock": entry_h5["clockRate"],
+                "clock_units": "Hz",
+                "streaming_multiprocessors": entry_h5["smCount"],
+                "chip": entry_h5["chipName"],
+                "memory": entry_h5["totalMemory"],
+                "memory_units": "B"
+            }
+            system_info["gpu"] = gpu_info
+
     names = kernel_names + memory_names
     start_times = kernel_start_times + memory_start_times
     end_times = kernel_end_times + memory_end_times
@@ -67,7 +98,7 @@ def read_h5():
     names = [names[order_index] for order_index in order]
     print(order)
 
-    return names, start_times, end_times
+    return names, start_times, end_times, system_info
 
 
 def calculate_durations(start_times, end_times):
@@ -210,8 +241,11 @@ if __name__ == "__main__":
         plt.legend()
         plt.draw()
 
-    @pogger.record(("error", "durations", "power"), (None, "ns", None))
-    def fit_errors(error, durations_total):
+    @pogger.record(
+        ("error", "durations", "power", "system_info"),
+        (None, "ns", None, None)
+    )
+    def fit_errors(error, durations_total, system_info):
         def hyperbolic_function(x, x0, y0, m, c):
             return np.sqrt((m*(x - x0))**2 + y0**2) + c
 
@@ -250,9 +284,9 @@ if __name__ == "__main__":
             plt.draw()
 
         finally:
-            return error, durations_total, power
+            return error, durations_total, power, system_info
 
-    names, start_times, end_times = read_h5()
+    names, start_times, end_times, system_info = read_h5()
     durations = calculate_durations(start_times, end_times)
     clean_names(names)
     print(names[:10])
@@ -274,18 +308,25 @@ if __name__ == "__main__":
     pogger.set_context("durations_important")
     plot_durations(durations_total, durations_important)
 
-    durations_total = durations_total[:-1]
+    durations_total = durations_total[1:]
 
     with open("profile/datetime", "r") as file_previous_log:
         previous_log = file_previous_log.readline().strip()
     read = Read("superspinsim-benchmarks", previous_log)
     error = read.read_array("errors", "error_analysis")
-    # error = read.read_array("errors", "quartics")
 
     pogger.set_context()
     pogger.write_value("previous_log", previous_log)
 
     pogger.set_context("errors")
-    fit_errors(error, durations_total)
+    fit_errors(error, durations_total, system_info)
+
+    integration_method = read.read_value(
+        "integration_method", "error_analysis")
+    pogger.write_value("integration_method", integration_method)
+
+    datetime = pogger.get_datetime()
+    with open("profile/profile_list.csv", "a") as file_profile_list:
+        file_profile_list.write(f"{integration_method}, {datetime}\n")
 
     plt.show()

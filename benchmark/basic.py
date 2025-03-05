@@ -7,11 +7,41 @@ import math
 from matplotlib import pyplot as plt
 from cmcrameri import cm
 
+import os
+
 from pogger import Pogger
 
 
 def main():
     with Pogger("superspinsim-benchmarks") as pogger:
+        if os.path.exists("profile/index"):
+            with open("profile/index", "r") as file_index:
+                profile_index = int(file_index.read()) + 1
+        else:
+            profile_index = 0
+            with open("profile/profile_list.csv", "w") as file_profile_list:
+                pass
+
+
+        number_of_exponentials_list = [
+                {"name": "CF2_1", "number_of_exponentials": 1},
+                {"name": "CF4_2", "number_of_exponentials": 2},
+                {"name": "CF4_3", "number_of_exponentials": 3},
+                {"name": "CF6_5", "number_of_exponentials": 5},
+                {"name": "CF6_6", "number_of_exponentials": 6}
+        ]
+
+        number_of_exponentials_dict = \
+            number_of_exponentials_list[profile_index]
+        number_of_exponentials = \
+            number_of_exponentials_dict["number_of_exponentials"]
+
+        pogger.set_context("error_analysis")
+        pogger.write_value(
+            "integration_method",
+            number_of_exponentials_dict["name"]
+        )
+
         @pogger.record(("number_of_fine_divisions", "density_operators"))
         def simulate(
                 simulation_index,
@@ -28,7 +58,7 @@ def main():
                 number_of_fine_divisions=number_of_fine_divisions,
                 number_of_quartic_repeats=int(math.ceil(
                     (math.log2(500e-12/number_of_fine_divisions) + 85.2)/2)),
-                number_of_exponentials=6
+                number_of_exponentials=number_of_exponentials
             )
 
             time, density_operators = simulate(
@@ -39,9 +69,10 @@ def main():
         @pogger.record(("ground_truth", "divisions", "sample_rate", "errors"))
         def calculate_error(density_operators_list, divisions, time_step):
             print("Comparing")
-            ground_truth = density_operators_list.pop()
-            sample_rate = divisions[:-1]/time_step
-            divisions = divisions[:-1]*ground_truth.shape[0]
+            ground_truth = density_operators_list[0]
+            density_operators_list = density_operators_list[1:]
+            sample_rate = divisions[1:]/time_step
+            divisions = divisions[1:]*ground_truth.shape[0]
             errors = []
             for density_operators in density_operators_list:
                 difference = density_operators - ground_truth
@@ -106,6 +137,7 @@ def main():
         # divisions = np.geomspace(1, 10000, 6)  # np.geomspace(1, 10, 10)
         divisions = np.geomspace(1, 1024, 11)
         divisions = np.round(divisions)
+        divisions = np.flip(divisions)
         for simulation_index, number_of_fine_divisions in enumerate(divisions):
             pogger.set_context(f"density_matrices/{simulation_index}")
             _, density_operators = simulate(
@@ -120,10 +152,15 @@ def main():
             density_operators_list.append(density_operators)
         print("Done!")
 
-        pogger.set_context("error_analysis")
         ground_truth, divisions, sample_rate, errors = \
             calculate_error(density_operators_list, divisions, time_step)
         plot_errors(divisions, errors)
 
         with open("profile/datetime", "w") as file_datetime:
             file_datetime.write(pogger.get_datetime())
+
+        if profile_index <= len(number_of_exponentials_list) - 1:
+            with open("profile/index", "w") as file_index:
+                file_index.write(str(profile_index))
+        else:
+            os.remove("profile/index")
