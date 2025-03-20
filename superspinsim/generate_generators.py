@@ -13,68 +13,23 @@ with Logger("superspinsim-generate") as logger:
         hilbert_space_shape = []
         operator_list = []
         operator_names = []
-        previous_spin_identity = None
+        previous_identity = None
         for block in description:
             for atom_index, atom in enumerate(block):
                 # Electron spin
                 if "S" in atom.keys():
-                    electron_spin = atom["S"]
+                    spin = atom["S"]
                 else:
-                    electron_spin = 1/2
+                    spin = 1/2
 
-                electron_spin_dimension = int(2*electron_spin + 1)
-                hilbert_space_shape.append(electron_spin_dimension)
+                spin_x, spin_y, spin_z, previous_identity, \
+                    operator_list, operator_names = add_spin(
+                        spin, hilbert_space_shape, previous_identity,
+                        operator_list, operator_names)
 
-                # Spin matrix elements (Sakurai 3ed Section 3.5.3)
-                magnetic = np.linspace(
-                    electron_spin, -electron_spin, electron_spin_dimension,
-                    dtype=meta_datatype
-                )
-                diag_p = np.sqrt(
-                    (electron_spin - magnetic)*(1 + electron_spin + magnetic))[1:]
-                diag_m = np.sqrt(
-                    (electron_spin + magnetic)*(1 + electron_spin - magnetic))[:-1]
-                electron_spin_p = np.diag(diag_p, 1)
-                electron_spin_m = np.diag(diag_m, -1)
-
-                electron_spin_x = np.zeros(
-                    (electron_spin_p.shape[0], electron_spin_p.shape[1], 2),
-                    dtype=meta_datatype
-                )
-                electron_spin_x[:, :, 0] = (electron_spin_p + electron_spin_m)/2
-
-                electron_spin_y = np.zeros_like(electron_spin_x)
-                electron_spin_y[:, :, 1] = (electron_spin_m - electron_spin_p)/2
-
-                electron_spin_z = np.zeros_like(electron_spin_x)
-                electron_spin_z[:, :, 0] = np.diag(magnetic)
-
-                electron_spin_identity = np.zeros_like(electron_spin_x)
-                electron_spin_identity[:, :, 0] = \
-                    np.eye(electron_spin_x.shape[0])
-
-                if previous_spin_identity is not None:
-                    operator_list_new = []
-                    for operator in operator_list:
-                        operator_new = kroneker_product(
-                            operator, electron_spin_identity)
-                        operator_list_new.append(operator_new)
-                    operator_list = operator_list_new
-
-                    electron_spin_x = kroneker_product(
-                        previous_spin_identity, electron_spin_x)
-                    electron_spin_y = kroneker_product(
-                        previous_spin_identity, electron_spin_y)
-                    electron_spin_z = kroneker_product(
-                        previous_spin_identity, electron_spin_z)
-                    electron_spin_identity = kroneker_product(
-                        previous_spin_identity, electron_spin_identity)
-
-                previous_spin_identity = electron_spin_identity
-
-                operator_list.append(electron_spin_x)
-                operator_list.append(electron_spin_y)
-                operator_list.append(electron_spin_z)
+                operator_list.append(spin_x)
+                operator_list.append(spin_y)
+                operator_list.append(spin_z)
 
                 operator_names.append(f"S{atom_index}x")
                 operator_names.append(f"S{atom_index}y")
@@ -102,13 +57,60 @@ with Logger("superspinsim-generate") as logger:
 
                 # Nuclear spin
                 if "I" in atom.keys():
-                    nuclear_spin = atom["I"]
+                    spin = atom["I"]
 
-                    nuclear_spin_dimension = int(2*nuclear_spin + 1)
-                    hilbert_space_shape.append(nuclear_spin_dimension)
+                    spin_x, spin_y, spin_z, previous_identity, \
+                        operator_list, operator_names = add_spin(
+                            spin, hilbert_space_shape, previous_identity,
+                            operator_list, operator_names)
+
+                    electron_spin_x = operator_list[-3]
+                    electron_spin_y = operator_list[-2]
+                    electron_spin_z = operator_list[-1]
+
+                    hyperfine_xx = _mult(electron_spin_x, spin_x)
+                    hyperfine_xy = _mult(electron_spin_x, spin_y)
+                    hyperfine_xz = _mult(electron_spin_x, spin_z)
+                    hyperfine_yx = _mult(electron_spin_y, spin_x)
+                    hyperfine_yy = _mult(electron_spin_y, spin_y)
+                    hyperfine_yz = _mult(electron_spin_y, spin_z)
+                    hyperfine_zx = _mult(electron_spin_z, spin_x)
+                    hyperfine_zy = _mult(electron_spin_z, spin_y)
+                    hyperfine_zz = _mult(electron_spin_z, spin_z)
+
+                    operator_list.append(spin_x)
+                    operator_list.append(spin_y)
+                    operator_list.append(spin_z)
+
+                    operator_names.append(f"I{atom_index}x")
+                    operator_names.append(f"I{atom_index}y")
+                    operator_names.append(f"I{atom_index}z")
+
+                    operator_list.append(hyperfine_xx)
+                    operator_list.append(hyperfine_xy)
+                    operator_list.append(hyperfine_xz)
+                    operator_list.append(hyperfine_yx)
+                    operator_list.append(hyperfine_yy)
+                    operator_list.append(hyperfine_yz)
+                    operator_list.append(hyperfine_zx)
+                    operator_list.append(hyperfine_zy)
+                    operator_list.append(hyperfine_zz)
+
+                    operator_names.append(f"S{atom_index}x I{atom_index}x")
+                    operator_names.append(f"S{atom_index}x I{atom_index}y")
+                    operator_names.append(f"S{atom_index}x I{atom_index}z")
+                    operator_names.append(f"S{atom_index}y I{atom_index}x")
+                    operator_names.append(f"S{atom_index}y I{atom_index}y")
+                    operator_names.append(f"S{atom_index}y I{atom_index}z")
+                    operator_names.append(f"S{atom_index}z I{atom_index}x")
+                    operator_names.append(f"S{atom_index}z I{atom_index}y")
+                    operator_names.append(f"S{atom_index}z I{atom_index}z")
 
         if verbose:
-            plt.figure(label="spins")
+            plt.figure(
+                figsize=(6.4, 6.4),
+                label="spins"
+            )
             plot_rows = int(math.ceil(math.sqrt(len(operator_list))))
             for operator_index, (operator, operator_name) in \
                     enumerate(zip(operator_list, operator_names)):
@@ -118,6 +120,62 @@ with Logger("superspinsim-generate") as logger:
                 plt.title(operator_name)
                 plt.gca().set_axis_off()
             plt.draw()
+
+    def add_spin(
+            spin, hilbert_space_shape, previous_identity,
+            operator_list, operator_names):
+        spin_dimension = int(2*spin + 1)
+        hilbert_space_shape.append(spin_dimension)
+
+        # Spin matrix elements (Sakurai 3ed Section 3.5.3)
+        magnetic = np.linspace(
+            spin, -spin, spin_dimension,
+            dtype=meta_datatype
+        )
+        diag_p = np.sqrt(
+            (spin - magnetic)*(1 + spin + magnetic))[1:]
+        diag_m = np.sqrt(
+            (spin + magnetic)*(1 + spin - magnetic))[:-1]
+        spin_p = np.diag(diag_p, 1)
+        spin_m = np.diag(diag_m, -1)
+
+        spin_x = np.zeros(
+            (spin_p.shape[0], spin_p.shape[1], 2),
+            dtype=meta_datatype
+        )
+        spin_x[:, :, 0] = (spin_p + spin_m)/2
+
+        spin_y = np.zeros_like(spin_x)
+        spin_y[:, :, 1] = (spin_m - spin_p)/2
+
+        spin_z = np.zeros_like(spin_x)
+        spin_z[:, :, 0] = np.diag(magnetic)
+
+        spin_identity = np.zeros_like(spin_x)
+        spin_identity[:, :, 0] = \
+            np.eye(spin_x.shape[0])
+
+        if previous_identity is not None:
+            operator_list_new = []
+            for operator in operator_list:
+                operator_new = kroneker_product(
+                    operator, spin_identity)
+                operator_list_new.append(operator_new)
+            operator_list = operator_list_new
+
+            spin_x = kroneker_product(
+                previous_identity, spin_x)
+            spin_y = kroneker_product(
+                previous_identity, spin_y)
+            spin_z = kroneker_product(
+                previous_identity, spin_z)
+            spin_identity = kroneker_product(
+                previous_identity, spin_identity)
+
+        previous_identity = spin_identity
+
+        return spin_x, spin_y, spin_z, previous_identity, \
+            operator_list, operator_names
 
 
     def kroneker_product(inner: np.ndarray, outer: np.ndarray):
@@ -245,6 +303,8 @@ with Logger("superspinsim-generate") as logger:
         return superoperator
 
     logger.set_context("spins")
-    generate_atoms([[{"S": 2, "g": 2, "g_perp": 2.1}, {"S": 1}]], verbose=True)
+    generate_atoms([[
+        {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}  # , {"S": 1/2}
+    ]], verbose=True)
 
     plt.draw()
