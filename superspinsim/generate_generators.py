@@ -7,11 +7,28 @@ from pogger import Pogger as Logger
 
 meta_datatype = np.float64
 
+constants = {
+    "bohr_gyro": {
+        "value": math.tau*13.9962449171e9,
+        "units": "rad/s/T",
+        "citation": "CODATA Recommended Values of the " \
+            + "Fundamental Physical Constants: 2022"
+    },
+
+    "nuclear_gyro": {
+        "value": math.tau*7.6225932188e6,
+        "units": "rad/s/T",
+        "citation": "CODATA Recommended Values of the " \
+            + "Fundamental Physical Constants: 2022"
+    }
+}
+
 with Logger("superspinsim-generate") as logger:
-    @logger.record()
+    @logger.record(("operators", "tensors"))
     def generate_atoms(description: list, verbose=False):
         hilbert_space_shape = []
         operator_labels = set()
+        tensor_labels = set()
         previous_identity = None
         for block in description:
             for atom_index, atom in enumerate(block):
@@ -73,16 +90,20 @@ with Logger("superspinsim-generate") as logger:
                         g_iso = 2
                         g_dipole = 0
 
-                    g_electron = np.zeros((3, 3), dtype=meta_datatype)
-                    g_electron[0, 0] = g_iso - g_dipole
-                    g_electron[1, 1] = g_iso - g_dipole
-                    g_electron[2, 2] = g_iso + 2*g_dipole
+                    g_spin = np.zeros((3, 3), dtype=meta_datatype)
+                    g_spin[0, 0] = g_iso - g_dipole
+                    g_spin[1, 1] = g_iso - g_dipole
+                    g_spin[2, 2] = g_iso + 2*g_dipole
+
+                    atom["gyroS"] = g_spin*constants["bohr_gyro"]["value"]
+                    tensor_labels |= {"gyroS"}
 
                 # Nuclear spin
                 if "I" in atom.keys():
                     electron_spin = spin
 
                     spin = atom["I"]
+                    nuclear_spin = spin
 
                     spin_x, spin_y, spin_z, previous_identity = add_spin(
                         spin, hilbert_space_shape, previous_identity,
@@ -93,6 +114,55 @@ with Logger("superspinsim-generate") as logger:
                     atom["Iy"] = spin_y
                     atom["Iz"] = spin_z
                     operator_labels |= {"Ix", "Iy", "Iz"}
+
+                    # Nuclear quadrupole
+                    if spin > 1/2:
+                        spin_xx = _mult(spin_x, spin_x)
+                        spin_xy = _mult(spin_x, spin_y)
+                        spin_xz = _mult(spin_x, spin_z)
+                        spin_yx = _mult(spin_y, spin_x)
+                        spin_yy = _mult(spin_y, spin_y)
+                        spin_yz = _mult(spin_y, spin_z)
+                        spin_zx = _mult(spin_z, spin_x)
+                        spin_zy = _mult(spin_z, spin_y)
+                        spin_zz = _mult(spin_z, spin_z)
+
+                        atom["Ix Ix"] = spin_xx
+                        atom["Ix Iy"] = spin_xy
+                        atom["Ix Iz"] = spin_xz
+                        atom["Iy Ix"] = spin_yx
+                        atom["Iy Iy"] = spin_yy
+                        atom["Iy Iz"] = spin_yz
+                        atom["Iz Ix"] = spin_zx
+                        atom["Iz Iy"] = spin_zy
+                        atom["Iz Iz"] = spin_zz
+                        operator_labels |= {"Ix Ix", "Ix Iy", "Ix Iz"}
+                        operator_labels |= {"Iy Ix", "Iy Iy", "Iy Iz"}
+                        operator_labels |= {"Iz Ix", "Iz Iy", "Iz Iz"}
+
+                    # Nuclear Zeeman
+                    if spin > 0:
+                        if "gN" in atom.keys():
+                            g_iso = atom["g"]
+                            if "gN_dipole" in atom.keys():
+                                g_dipole = atom["gN_dipole"]
+                            elif "gN_perp" in atom.keys():
+                                g_perp = atom["gN_perp"]
+                                g_dipole = (g_iso - g_perp)/3
+                                g_iso -= 2*g_dipole
+                            else:
+                                g_dipole = 2
+                        else:
+                            g_iso = 2
+                            g_dipole = 0
+
+                        g_spin = np.zeros((3, 3), dtype=meta_datatype)
+                        g_spin[0, 0] = g_iso - g_dipole
+                        g_spin[1, 1] = g_iso - g_dipole
+                        g_spin[2, 2] = g_iso + 2*g_dipole
+
+                        atom["gyroI"] = -g_spin*constants["nuclear_gyro"]["value"]
+                        tensor_labels |= {"gyroI"}
 
                     # Hyperfine
                     if electron_spin > 0:
@@ -113,9 +183,11 @@ with Logger("superspinsim-generate") as logger:
                         hyperfine_zy = _mult(electron_spin_z, spin_y)
                         hyperfine_zz = _mult(electron_spin_z, spin_z)
 
-                        atom["Fx"] = hyperfine_x
-                        atom["Fy"] = hyperfine_y
-                        atom["Fz"] = hyperfine_z
+                        # atom["Fx"] = hyperfine_x
+                        # atom["Fy"] = hyperfine_y
+                        # atom["Fz"] = hyperfine_z
+                        # operator_labels |= {"Fx", "Fy", "Fz"}
+
                         atom["Sx Ix"] = hyperfine_xx
                         atom["Sx Iy"] = hyperfine_xy
                         atom["Sx Iz"] = hyperfine_xz
@@ -125,10 +197,51 @@ with Logger("superspinsim-generate") as logger:
                         atom["Sz Ix"] = hyperfine_zx
                         atom["Sz Iy"] = hyperfine_zy
                         atom["Sz Iz"] = hyperfine_zz
-                        operator_labels |= {"Fx", "Fy", "Fz"}
                         operator_labels |= {"Sx Ix", "Sx Iy", "Sx Iz"}
                         operator_labels |= {"Sy Ix", "Sy Iy", "Sy Iz"}
                         operator_labels |= {"Sz Ix", "Sz Iy", "Sz Iz"}
+
+                # Magnetic generators
+                generator_x = np.empty_like(previous_identity)
+                generator_y = np.empty_like(previous_identity)
+                generator_z = np.empty_like(previous_identity)
+
+                if electron_spin > 0:
+                    spin_x = atom["Sx"]
+                    spin_y = atom["Sy"]
+                    spin_z = atom["Sz"]
+                    spin_gyro = atom["gyroS"]
+
+                    generator_x += spin_gyro[0, 0]*spin_x \
+                        + spin_gyro[0, 1]*spin_y \
+                        + spin_gyro[0, 2]*spin_z
+                    generator_y += spin_gyro[1, 0]*spin_x \
+                        + spin_gyro[1, 1]*spin_y \
+                        + spin_gyro[1, 2]*spin_z
+                    generator_z += spin_gyro[2, 0]*spin_x \
+                        + spin_gyro[2, 1]*spin_y \
+                        + spin_gyro[2, 2]*spin_z
+
+                if nuclear_spin > 0:
+                    spin_x = atom["Ix"]
+                    spin_y = atom["Iy"]
+                    spin_z = atom["Iz"]
+                    spin_gyro = atom["gyroI"]
+
+                    generator_x += spin_gyro[0, 0]*spin_x \
+                        + spin_gyro[0, 1]*spin_y \
+                        + spin_gyro[0, 2]*spin_z
+                    generator_y += spin_gyro[1, 0]*spin_x \
+                        + spin_gyro[1, 1]*spin_y \
+                        + spin_gyro[1, 2]*spin_z
+                    generator_z += spin_gyro[2, 0]*spin_x \
+                        + spin_gyro[2, 1]*spin_y \
+                        + spin_gyro[2, 2]*spin_z
+                    
+                atom["Gx"] = generator_x
+                atom["Gy"] = generator_y
+                atom["Gz"] = generator_z
+                operator_labels |= {"Gx", "Gy", "Gz"}
 
         # Make traceless
         for block in description:
@@ -141,33 +254,55 @@ with Logger("superspinsim-generate") as logger:
                         operator_new[:, :, 0] -= \
                             trace*np.eye(operator.shape[0])/operator.shape[0]
                         atom[operator_label] = operator_new
+
+        operator_dict = {}
+        tensor_dict = {}
+        for block_index, block in enumerate(description):
+            for atom_index, atom in enumerate(block):
+                for operator_label in operator_labels:
+                    if operator_label in atom.keys():
+                        operator_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {operator_label}"
+                        operator_dict[operator_name] = atom[operator_label]
+                for tensor_label in tensor_labels:
+                    if tensor_label in atom.keys():
+                        tensor_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {tensor_label}"
+                        tensor_dict[tensor_name] = atom[tensor_label]
+
         # Plot
         if verbose:
-            operator_list = []
-            operator_names = []
-            for block_index, block in enumerate(description):
-                for atom_index, atom in enumerate(block):
-                    for operator_label in operator_labels:
-                        if operator_label in atom.keys():
-                            operator_list.append(atom[operator_label])
-                            operator_names.append(
-                                f"[{block_index}, {atom_index}]"
-                                f" {operator_label}"
-                            )
-
             plt.figure(
-                figsize=(6.4, 2*4.8),
-                label="spins"            )
+                figsize=(6.4, 3*4.8),
+                label="operators"
+            )
             plot_columns = 5  # int(math.ceil(math.sqrt(len(operator_list))))
-            plot_rows = math.ceil(len(operator_list)/plot_columns)
-            for operator_index, (operator, operator_name) in \
-                    enumerate(zip(operator_list, operator_names)):
+            plot_rows = math.ceil(len(operator_dict)/plot_columns)
+            for operator_index, (operator_name, operator) in \
+                    enumerate(operator_dict.items()):
                 plt.subplot(plot_rows, plot_columns, operator_index + 1)
                 plt.imshow(colour_complex_matrix(
                     operator/np.max(np.abs(operator))))
                 plt.title(operator_name)
                 plt.gca().set_axis_off()
             plt.draw()
+
+            plt.figure(
+                figsize=(6.4, 4.8),
+                label="tensors"
+            )
+            plot_columns = int(math.ceil(math.sqrt(len(tensor_dict))))
+            plot_rows = math.ceil(len(tensor_dict)/plot_columns)
+            for tensor_index, (tensor_name, tensor) in \
+                    enumerate(tensor_dict.items()):
+                plt.subplot(plot_rows, plot_columns, tensor_index + 1)
+                plt.imshow(colour_complex_matrix(
+                    tensor/np.max(np.abs(tensor))))
+                plt.title(tensor_name)
+                plt.gca().set_axis_off()
+            plt.draw()
+
+        return operator_dict, tensor_dict
 
     def add_spin(
             spin, hilbert_space_shape, previous_identity,
@@ -360,8 +495,8 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
     generate_atoms([[
-        # {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}, {"I": 1/2}
-        {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
+        {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}, {"I": 1/2}
+        # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], verbose=True)
 
     plt.draw()
