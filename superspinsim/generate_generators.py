@@ -11,8 +11,7 @@ with Logger("superspinsim-generate") as logger:
     @logger.record()
     def generate_atoms(description: list, verbose=False):
         hilbert_space_shape = []
-        operator_list = []
-        operator_names = []
+        operator_labels = set()
         previous_identity = None
         for block in description:
             for atom_index, atom in enumerate(block):
@@ -20,110 +19,159 @@ with Logger("superspinsim-generate") as logger:
                 if "S" in atom.keys():
                     spin = atom["S"]
                 else:
-                    spin = 1/2
+                    spin = 0
 
-                spin_x, spin_y, spin_z, previous_identity, \
-                    operator_list, operator_names = add_spin(
+                if spin > 0:
+                    spin_x, spin_y, spin_z, previous_identity = add_spin(
                         spin, hilbert_space_shape, previous_identity,
-                        operator_list, operator_names)
+                        description, operator_labels
+                    )
 
-                operator_list.append(spin_x)
-                operator_list.append(spin_y)
-                operator_list.append(spin_z)
+                    atom["Sx"] = spin_x
+                    atom["Sy"] = spin_y
+                    atom["Sz"] = spin_z
+                    operator_labels |= {"Sx", "Sy", "Sz"}
 
-                operator_names.append(f"S{atom_index}x")
-                operator_names.append(f"S{atom_index}y")
-                operator_names.append(f"S{atom_index}z")
+                # Electron ZFS
+                if spin > 1/2:
+                    spin_xx = _mult(spin_x, spin_x)
+                    spin_xy = _mult(spin_x, spin_y)
+                    spin_xz = _mult(spin_x, spin_z)
+                    spin_yx = _mult(spin_y, spin_x)
+                    spin_yy = _mult(spin_y, spin_y)
+                    spin_yz = _mult(spin_y, spin_z)
+                    spin_zx = _mult(spin_z, spin_x)
+                    spin_zy = _mult(spin_z, spin_y)
+                    spin_zz = _mult(spin_z, spin_z)
+
+                    atom["Sx Sx"] = spin_xx
+                    atom["Sx Sy"] = spin_xy
+                    atom["Sx Sz"] = spin_xz
+                    atom["Sy Sx"] = spin_yx
+                    atom["Sy Sy"] = spin_yy
+                    atom["Sy Sz"] = spin_yz
+                    atom["Sz Sx"] = spin_zx
+                    atom["Sz Sy"] = spin_zy
+                    atom["Sz Sz"] = spin_zz
+                    operator_labels |= {"Sx Sx", "Sx Sy", "Sx Sz"}
+                    operator_labels |= {"Sy Sx", "Sy Sy", "Sy Sz"}
+                    operator_labels |= {"Sz Sx", "Sz Sy", "Sz Sz"}
 
                 # Electron Zeeman
-                if "g" in atom.keys():
-                    g_iso = atom["g"]
-                    if "g_dipole" in atom.keys():
-                        g_dipole = atom["g_dipole"]
-                    elif "g_perp" in atom.keys():
-                        g_perp = atom["g_perp"]
-                        g_dipole = (g_iso - g_perp)/3
-                        g_iso -= 2*g_dipole
+                if spin > 0:
+                    if "g" in atom.keys():
+                        g_iso = atom["g"]
+                        if "g_dipole" in atom.keys():
+                            g_dipole = atom["g_dipole"]
+                        elif "g_perp" in atom.keys():
+                            g_perp = atom["g_perp"]
+                            g_dipole = (g_iso - g_perp)/3
+                            g_iso -= 2*g_dipole
+                        else:
+                            g_dipole = 0
                     else:
+                        g_iso = 2
                         g_dipole = 0
-                else:
-                    g_iso = 2
-                    g_dipole = 0
 
-                g_electron = np.zeros((3, 3), dtype=meta_datatype)
-                g_electron[0, 0] = g_iso - g_dipole
-                g_electron[1, 1] = g_iso - g_dipole
-                g_electron[2, 2] = g_iso + 2*g_dipole
+                    g_electron = np.zeros((3, 3), dtype=meta_datatype)
+                    g_electron[0, 0] = g_iso - g_dipole
+                    g_electron[1, 1] = g_iso - g_dipole
+                    g_electron[2, 2] = g_iso + 2*g_dipole
 
                 # Nuclear spin
                 if "I" in atom.keys():
+                    electron_spin = spin
+
                     spin = atom["I"]
 
-                    spin_x, spin_y, spin_z, previous_identity, \
-                        operator_list, operator_names = add_spin(
-                            spin, hilbert_space_shape, previous_identity,
-                            operator_list, operator_names)
+                    spin_x, spin_y, spin_z, previous_identity = add_spin(
+                        spin, hilbert_space_shape, previous_identity,
+                        description, operator_labels
+                    )
 
-                    electron_spin_x = operator_list[-3]
-                    electron_spin_y = operator_list[-2]
-                    electron_spin_z = operator_list[-1]
+                    atom["Ix"] = spin_x
+                    atom["Iy"] = spin_y
+                    atom["Iz"] = spin_z
+                    operator_labels |= {"Ix", "Iy", "Iz"}
 
-                    hyperfine_xx = _mult(electron_spin_x, spin_x)
-                    hyperfine_xy = _mult(electron_spin_x, spin_y)
-                    hyperfine_xz = _mult(electron_spin_x, spin_z)
-                    hyperfine_yx = _mult(electron_spin_y, spin_x)
-                    hyperfine_yy = _mult(electron_spin_y, spin_y)
-                    hyperfine_yz = _mult(electron_spin_y, spin_z)
-                    hyperfine_zx = _mult(electron_spin_z, spin_x)
-                    hyperfine_zy = _mult(electron_spin_z, spin_y)
-                    hyperfine_zz = _mult(electron_spin_z, spin_z)
+                    # Hyperfine
+                    if electron_spin > 0:
+                        electron_spin_x = atom["Sx"]
+                        electron_spin_y = atom["Sy"]
+                        electron_spin_z = atom["Sz"]
 
-                    operator_list.append(spin_x)
-                    operator_list.append(spin_y)
-                    operator_list.append(spin_z)
+                        hyperfine_x = spin_x + electron_spin_x
+                        hyperfine_y = spin_y + electron_spin_y
+                        hyperfine_z = spin_z + electron_spin_z
+                        hyperfine_xx = _mult(electron_spin_x, spin_x)
+                        hyperfine_xy = _mult(electron_spin_x, spin_y)
+                        hyperfine_xz = _mult(electron_spin_x, spin_z)
+                        hyperfine_yx = _mult(electron_spin_y, spin_x)
+                        hyperfine_yy = _mult(electron_spin_y, spin_y)
+                        hyperfine_yz = _mult(electron_spin_y, spin_z)
+                        hyperfine_zx = _mult(electron_spin_z, spin_x)
+                        hyperfine_zy = _mult(electron_spin_z, spin_y)
+                        hyperfine_zz = _mult(electron_spin_z, spin_z)
 
-                    operator_names.append(f"I{atom_index}x")
-                    operator_names.append(f"I{atom_index}y")
-                    operator_names.append(f"I{atom_index}z")
+                        atom["Fx"] = hyperfine_x
+                        atom["Fy"] = hyperfine_y
+                        atom["Fz"] = hyperfine_z
+                        atom["Sx Ix"] = hyperfine_xx
+                        atom["Sx Iy"] = hyperfine_xy
+                        atom["Sx Iz"] = hyperfine_xz
+                        atom["Sy Ix"] = hyperfine_yx
+                        atom["Sy Iy"] = hyperfine_yy
+                        atom["Sy Iz"] = hyperfine_yz
+                        atom["Sz Ix"] = hyperfine_zx
+                        atom["Sz Iy"] = hyperfine_zy
+                        atom["Sz Iz"] = hyperfine_zz
+                        operator_labels |= {"Fx", "Fy", "Fz"}
+                        operator_labels |= {"Sx Ix", "Sx Iy", "Sx Iz"}
+                        operator_labels |= {"Sy Ix", "Sy Iy", "Sy Iz"}
+                        operator_labels |= {"Sz Ix", "Sz Iy", "Sz Iz"}
 
-                    operator_list.append(hyperfine_xx)
-                    operator_list.append(hyperfine_xy)
-                    operator_list.append(hyperfine_xz)
-                    operator_list.append(hyperfine_yx)
-                    operator_list.append(hyperfine_yy)
-                    operator_list.append(hyperfine_yz)
-                    operator_list.append(hyperfine_zx)
-                    operator_list.append(hyperfine_zy)
-                    operator_list.append(hyperfine_zz)
-
-                    operator_names.append(f"S{atom_index}x I{atom_index}x")
-                    operator_names.append(f"S{atom_index}x I{atom_index}y")
-                    operator_names.append(f"S{atom_index}x I{atom_index}z")
-                    operator_names.append(f"S{atom_index}y I{atom_index}x")
-                    operator_names.append(f"S{atom_index}y I{atom_index}y")
-                    operator_names.append(f"S{atom_index}y I{atom_index}z")
-                    operator_names.append(f"S{atom_index}z I{atom_index}x")
-                    operator_names.append(f"S{atom_index}z I{atom_index}y")
-                    operator_names.append(f"S{atom_index}z I{atom_index}z")
-
+        # Make traceless
+        for block in description:
+            for atom in block:
+                for operator_label in operator_labels:
+                    if operator_label in atom.keys():
+                        operator = atom[operator_label]
+                        trace = np.trace(operator[:, :, 0])
+                        operator_new = operator.copy()
+                        operator_new[:, :, 0] -= \
+                            trace*np.eye(operator.shape[0])/operator.shape[0]
+                        atom[operator_label] = operator_new
+        # Plot
         if verbose:
+            operator_list = []
+            operator_names = []
+            for block_index, block in enumerate(description):
+                for atom_index, atom in enumerate(block):
+                    for operator_label in operator_labels:
+                        if operator_label in atom.keys():
+                            operator_list.append(atom[operator_label])
+                            operator_names.append(
+                                f"[{block_index}, {atom_index}]"
+                                f" {operator_label}"
+                            )
+
             plt.figure(
-                figsize=(6.4, 6.4),
-                label="spins"
-            )
-            plot_rows = int(math.ceil(math.sqrt(len(operator_list))))
+                figsize=(6.4, 2*4.8),
+                label="spins"            )
+            plot_columns = 5  # int(math.ceil(math.sqrt(len(operator_list))))
+            plot_rows = math.ceil(len(operator_list)/plot_columns)
             for operator_index, (operator, operator_name) in \
                     enumerate(zip(operator_list, operator_names)):
-                plt.subplot(plot_rows, plot_rows, operator_index + 1)
+                plt.subplot(plot_rows, plot_columns, operator_index + 1)
                 plt.imshow(colour_complex_matrix(
-                    operator/np.max(operator)))
+                    operator/np.max(np.abs(operator))))
                 plt.title(operator_name)
                 plt.gca().set_axis_off()
             plt.draw()
 
     def add_spin(
             spin, hilbert_space_shape, previous_identity,
-            operator_list, operator_names):
+            description, operator_labels):
         spin_dimension = int(2*spin + 1)
         hilbert_space_shape.append(spin_dimension)
 
@@ -156,26 +204,34 @@ with Logger("superspinsim-generate") as logger:
             np.eye(spin_x.shape[0])
 
         if previous_identity is not None:
-            operator_list_new = []
-            for operator in operator_list:
-                operator_new = kroneker_product(
-                    operator, spin_identity)
-                operator_list_new.append(operator_new)
-            operator_list = operator_list_new
+            for block in description:
+                for atom in block:
+                    for operator_label in operator_labels:
+                        if operator_label in atom.keys():
+                            operator = atom[operator_label]
+                            operator_new = kroneker_product(
+                                spin_identity, operator)
+                            atom[operator_label] = operator_new
+
+            # operator_list_new = []
+            # for operator in operator_list:
+            #     operator_new = kroneker_product(
+            #         operator, spin_identity)
+            #     operator_list_new.append(operator_new)
+            # operator_list = operator_list_new
 
             spin_x = kroneker_product(
-                previous_identity, spin_x)
+                spin_x, previous_identity)
             spin_y = kroneker_product(
-                previous_identity, spin_y)
+                spin_y, previous_identity)
             spin_z = kroneker_product(
-                previous_identity, spin_z)
+                spin_z, previous_identity)
             spin_identity = kroneker_product(
                 previous_identity, spin_identity)
 
         previous_identity = spin_identity
 
-        return spin_x, spin_y, spin_z, previous_identity, \
-            operator_list, operator_names
+        return spin_x, spin_y, spin_z, previous_identity
 
 
     def kroneker_product(inner: np.ndarray, outer: np.ndarray):
@@ -304,7 +360,8 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
     generate_atoms([[
-        {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}  # , {"S": 1/2}
+        # {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}, {"I": 1/2}
+        {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], verbose=True)
 
     plt.draw()
