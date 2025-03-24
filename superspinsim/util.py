@@ -22,7 +22,7 @@ def colour_complex_matrix(inp):
     # vmax = np.max(np.sqrt(np.sum(out**2, axis = 2)))
     # out /= 2*vmax
     # out += 1/math.sqrt(3)
-    out += np.sqrt(inp[:, :, 0]**2 + inp[:, :, 1]**2).reshape(
+    out += 1 - np.sqrt(inp[:, :, 0]**2 + inp[:, :, 1]**2).reshape(
         (inp.shape[0], inp.shape[1], 1))
     out = np.clip(out, 0, 1)
     return out
