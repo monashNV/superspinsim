@@ -29,6 +29,8 @@ with Logger("superspinsim-generate") as logger:
         hilbert_space_shape = []
         operator_labels = set()
         tensor_labels = set()
+        zero_field_labels = set()
+        field_labels = set()
         previous_identity = None
         for block in description:
             for atom_index, atom in enumerate(block):
@@ -50,7 +52,18 @@ with Logger("superspinsim-generate") as logger:
                     operator_labels |= {"Sx", "Sy", "Sz"}
 
                 # Electron ZFS
+                zfs = np.zeros((3, 3), dtype=meta_datatype)
+                zfs_longitudinal = 0
+                zfs_transverse = 0
                 if spin > 1/2:
+                    if "D" in atom.keys():
+                        zfs_longitudinal = atom["D"]
+                    if "E" in atom.keys():
+                        zfs_transverse = atom["E"]
+                    zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
+                    zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
+                    zfs[2, 2] = zfs_longitudinal*2/3
+
                     spin_xx = _mult(spin_x, spin_x)
                     spin_xy = _mult(spin_x, spin_y)
                     spin_xz = _mult(spin_x, spin_z)
@@ -73,6 +86,17 @@ with Logger("superspinsim-generate") as logger:
                     operator_labels |= {"Sx Sx", "Sx Sy", "Sx Sz"}
                     operator_labels |= {"Sy Sx", "Sy Sy", "Sy Sz"}
                     operator_labels |= {"Sz Sx", "Sz Sy", "Sz Sz"}
+
+                    zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
+                        + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
+                        + zfs[1, 1]*spin_yy + zfs[1, 2]*spin_yz \
+                        + zfs[2, 0]*spin_zx + zfs[2, 1]*spin_zy \
+                        + zfs[2, 2]*spin_zz
+                    atom["Dten"] = zfs
+                    atom["Dgen"] = zfs_generator
+                    tensor_labels.add("Dten")
+                    operator_labels.add("Dgen")
+                    zero_field_labels.add("Dgen")
 
                 # Electron Zeeman
                 if spin > 0:
@@ -116,7 +140,19 @@ with Logger("superspinsim-generate") as logger:
                     operator_labels |= {"Ix", "Iy", "Iz"}
 
                     # Nuclear quadrupole
+                    zfs = np.zeros((3, 3), dtype=meta_datatype)
+                    zfs_longitudinal = 0
+                    zfs_transverse = 0
                     if spin > 1/2:
+                        if "P" in atom.keys():
+                            zfs_longitudinal = atom["P"]
+                        if "Pt" in atom.keys():
+                            zfs_transverse = atom["Pt"]
+                        zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
+                        zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
+                        zfs[2, 2] = zfs_longitudinal*2/3
+
+                    if np.sum(np.abs(zfs)) > 0:
                         spin_xx = _mult(spin_x, spin_x)
                         spin_xy = _mult(spin_x, spin_y)
                         spin_xz = _mult(spin_x, spin_z)
@@ -140,6 +176,17 @@ with Logger("superspinsim-generate") as logger:
                         operator_labels |= {"Iy Ix", "Iy Iy", "Iy Iz"}
                         operator_labels |= {"Iz Ix", "Iz Iy", "Iz Iz"}
 
+                        zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
+                            + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
+                            + zfs[1, 1]*spin_yy + zfs[1, 2]*spin_yz \
+                            + zfs[2, 0]*spin_zx + zfs[2, 1]*spin_zy \
+                            + zfs[2, 2]*spin_zz
+                        atom["Pten"] = zfs
+                        atom["Pgen"] = zfs_generator
+                        tensor_labels.add("Pten")
+                        operator_labels.add("Pgen")
+                        zero_field_labels.add("Pgen")
+
                     # Nuclear Zeeman
                     if spin > 0:
                         if "gN" in atom.keys():
@@ -151,7 +198,7 @@ with Logger("superspinsim-generate") as logger:
                                 g_dipole = (g_iso - g_perp)/3
                                 g_iso -= 2*g_dipole
                             else:
-                                g_dipole = 2
+                                g_dipole = 0
                         else:
                             g_iso = 2
                             g_dipole = 0
@@ -183,10 +230,10 @@ with Logger("superspinsim-generate") as logger:
                         hyperfine_zy = _mult(electron_spin_z, spin_y)
                         hyperfine_zz = _mult(electron_spin_z, spin_z)
 
-                        # atom["Fx"] = hyperfine_x
-                        # atom["Fy"] = hyperfine_y
-                        # atom["Fz"] = hyperfine_z
-                        # operator_labels |= {"Fx", "Fy", "Fz"}
+                        atom["Fx"] = hyperfine_x
+                        atom["Fy"] = hyperfine_y
+                        atom["Fz"] = hyperfine_z
+                        operator_labels |= {"Fx", "Fy", "Fz"}
 
                         atom["Sx Ix"] = hyperfine_xx
                         atom["Sx Iy"] = hyperfine_xy
@@ -242,6 +289,19 @@ with Logger("superspinsim-generate") as logger:
                 atom["Gy"] = generator_y
                 atom["Gz"] = generator_z
                 operator_labels |= {"Gx", "Gy", "Gz"}
+                field_labels |= {"Gx", "Gy", "Gz"}
+
+                # Zero-field total
+                zfs_generator = None
+                for label in zero_field_labels:
+                    if label in atom.keys():
+                        if zfs_generator is None:
+                            zfs_generator = atom[label].copy()
+                        else:
+                            zfs_generator += atom[label]
+                if zfs_generator is not None:
+                    atom["Z"] = zfs_generator
+                    operator_labels.add("Z")
 
         # Make traceless
         for block in description:
@@ -256,14 +316,35 @@ with Logger("superspinsim-generate") as logger:
                         atom[operator_label] = operator_new
 
         operator_dict = {}
+        composite_operator_dict = {}
         tensor_dict = {}
         for block_index, block in enumerate(description):
             for atom_index, atom in enumerate(block):
+                # All
                 for operator_label in operator_labels:
                     if operator_label in atom.keys():
                         operator_name = f"[{block_index}, {atom_index}]" \
                                         + f" {operator_label}"
                         operator_dict[operator_name] = atom[operator_label]
+
+                # Composite
+                for operator_label in zero_field_labels:
+                    if operator_label in atom.keys():
+                        operator_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {operator_label}"
+                        composite_operator_dict[operator_name] = atom[operator_label]
+                for operator_label in field_labels:
+                    if operator_label in atom.keys():
+                        operator_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {operator_label}"
+                        composite_operator_dict[operator_name] = atom[operator_label]
+                operator_label = "Z"
+                if operator_label in atom.keys():
+                    operator_name = f"[{block_index}, {atom_index}]" \
+                                    + f" {operator_label}"
+                    composite_operator_dict[operator_name] = atom[operator_label]
+
+                # Tensors
                 for tensor_label in tensor_labels:
                     if tensor_label in atom.keys():
                         tensor_name = f"[{block_index}, {atom_index}]" \
@@ -276,13 +357,30 @@ with Logger("superspinsim-generate") as logger:
                 figsize=(6.4, 3*4.8),
                 label="operators"
             )
-            plot_columns = 5  # int(math.ceil(math.sqrt(len(operator_list))))
+            plot_columns = \
+                min(5, int(math.ceil(math.sqrt(len(operator_dict)))))
             plot_rows = math.ceil(len(operator_dict)/plot_columns)
             for operator_index, (operator_name, operator) in \
                     enumerate(operator_dict.items()):
                 plt.subplot(plot_rows, plot_columns, operator_index + 1)
                 plt.imshow(colour_complex_matrix(
-                    operator/np.max(np.abs(operator))))
+                    operator/(2*np.max(np.abs(operator)))))
+                plt.title(operator_name)
+                plt.gca().set_axis_off()
+            plt.draw()
+
+            plt.figure(
+                figsize=(6.4, 2*4.8),
+                label="composite_operators"
+            )
+            plot_columns = \
+                min(5, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
+            plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
+            for operator_index, (operator_name, operator) in \
+                    enumerate(composite_operator_dict.items()):
+                plt.subplot(plot_rows, plot_columns, operator_index + 1)
+                plt.imshow(colour_complex_matrix(
+                    operator/(2*np.max(np.abs(operator)))))
                 plt.title(operator_name)
                 plt.gca().set_axis_off()
             plt.draw()
@@ -297,7 +395,7 @@ with Logger("superspinsim-generate") as logger:
                     enumerate(tensor_dict.items()):
                 plt.subplot(plot_rows, plot_columns, tensor_index + 1)
                 plt.imshow(colour_complex_matrix(
-                    tensor/np.max(np.abs(tensor))))
+                    tensor/(2*np.max(np.abs(tensor)))))
                 plt.title(tensor_name)
                 plt.gca().set_axis_off()
             plt.draw()
@@ -495,7 +593,7 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
     generate_atoms([[
-        {"S": 1, "g": 2, "g_perp": 2.1, "I": 1}, {"I": 1/2}
+        {"S": 1, "g": 2, "g_perp": 2.1, "D": 50, "I": 1, "P": 10}, {"I": 1/2}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], verbose=True)
 
