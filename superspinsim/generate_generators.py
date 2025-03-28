@@ -24,289 +24,405 @@ constants = {
 }
 
 with Logger("superspinsim-generate") as logger:
-    def generate_atoms(description: list, atom_interactions, verbose=False):
+    def generate_atoms(
+            description: list[list[dict]], atom_interactions: list[dict],
+            verbose=False) -> [dict, dict, list[dict], dict]:
         hilbert_space_shape = []
         operator_labels = set()
         tensor_labels = set()
         zero_field_labels = set()
         field_labels = set()
+        label_sets = [
+            operator_labels, tensor_labels,
+            zero_field_labels, field_labels
+        ]
         previous_identity = None
 
         for block, atom_interaction in \
                 zip(description, atom_interactions):
+
+            # Individual atoms
             for atom_index, atom in enumerate(block):
-                # Electron spin
-                if "S" in atom.keys():
-                    spin = atom["S"]
-                else:
-                    spin = 0
-
-                if spin > 0:
-                    spin_vec, previous_identity = add_spin(
-                        spin, hilbert_space_shape, previous_identity,
-                        description, operator_labels
-                    )
-                    _record_spin_vec("S", spin_vec, atom, [operator_labels])
-                    (spin_x, spin_y, spin_z) = spin_vec
-
-                # Electron ZFS
-                zfs = np.zeros((3, 3), dtype=meta_datatype)
-                zfs_longitudinal = 0
-                zfs_transverse = 0
-                if spin > 1/2:
-                    if "D" in atom.keys():
-                        zfs_longitudinal = atom["D"]
-                    if "E" in atom.keys():
-                        zfs_transverse = atom["E"]
-                    zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
-                    zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
-                    zfs[2, 2] = zfs_longitudinal*2/3
-
-                    quadratic = _quadratic_outer(spin_vec, spin_vec)
-                    _record_spin_quadratic(
-                        "S", "S", quadratic, atom, [operator_labels])
-
-                    zfs_generator = _quadratic_transform(zfs, quadratic)
-                    _record_operator(
-                        "Dgen", zfs_generator, atom,
-                        [operator_labels, zero_field_labels]
-                    )
-
-                    atom["Dten"] = zfs
-                    tensor_labels.add("Dten")
-
-                # Electron Zeeman
-                if spin > 0:
-                    if "g" in atom.keys():
-                        g_iso = atom["g"]
-                        if "g_dipole" in atom.keys():
-                            g_dipole = atom["g_dipole"]
-                        elif "g_perp" in atom.keys():
-                            g_perp = atom["g_perp"]
-                            g_dipole = (g_iso - g_perp)/3
-                            g_iso -= 2*g_dipole
-                        else:
-                            g_dipole = 0
-                    else:
-                        g_iso = 2
-                        g_dipole = 0
-
-                    g_spin = np.zeros((3, 3), dtype=meta_datatype)
-                    g_spin[0, 0] = g_iso - g_dipole
-                    g_spin[1, 1] = g_iso - g_dipole
-                    g_spin[2, 2] = g_iso + 2*g_dipole
-
-                    atom["gyroS"] = g_spin*constants["bohr_gyro"]["value"]
-                    tensor_labels |= {"gyroS"}
-
-                # Nuclear spin
-                if "I" in atom.keys():
-                    electron_spin = spin
-
-                    spin = atom["I"]
-                    nuclear_spin = spin
-
-                    spin_vec, previous_identity = add_spin(
-                        spin, hilbert_space_shape, previous_identity,
-                        description, operator_labels
-                    )
-
-                    _record_spin_vec("I", spin_vec, atom, [operator_labels])
-
-                    # Nuclear quadrupole
-                    zfs = np.zeros((3, 3), dtype=meta_datatype)
-                    zfs_longitudinal = 0
-                    zfs_transverse = 0
-                    if spin > 1/2:
-                        if "P" in atom.keys():
-                            zfs_longitudinal = atom["P"]
-                        if "Pt" in atom.keys():
-                            zfs_transverse = atom["Pt"]
-                        zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
-                        zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
-                        zfs[2, 2] = zfs_longitudinal*2/3
-
-                    if np.sum(np.abs(zfs)) > 0:
-                        quadratic = _quadratic_outer(spin_vec, spin_vec)
-                        _record_spin_quadratic(
-                            "I", "I", quadratic, atom, [operator_labels])
-
-                        zfs_generator = _quadratic_transform(zfs, quadratic)
-                        _record_operator(
-                            "Pgen", zfs_generator, atom,
-                            [operator_labels, zero_field_labels]
-                        )
-
-                        atom["Pten"] = zfs
-                        tensor_labels.add("Pten")
-
-                    # Nuclear Zeeman
-                    if spin > 0:
-                        if "gN" in atom.keys():
-                            g_iso = atom["g"]
-                            if "gN_dipole" in atom.keys():
-                                g_dipole = atom["gN_dipole"]
-                            elif "gN_perp" in atom.keys():
-                                g_perp = atom["gN_perp"]
-                                g_dipole = (g_iso - g_perp)/3
-                                g_iso -= 2*g_dipole
-                            else:
-                                g_dipole = 0
-                        else:
-                            g_iso = 2
-                            g_dipole = 0
-
-                        g_spin = np.zeros((3, 3), dtype=meta_datatype)
-                        g_spin[0, 0] = g_iso - g_dipole
-                        g_spin[1, 1] = g_iso - g_dipole
-                        g_spin[2, 2] = g_iso + 2*g_dipole
-
-                        atom["gyroI"] = -g_spin \
-                            * constants["nuclear_gyro"]["value"]
-                        tensor_labels |= {"gyroI"}
-
-                    # Hyperfine
-                    a_hyperfine = np.zeros((3, 3), dtype=meta_datatype)
-                    if electron_spin > 0:
-                        if "A" in atom.keys():
-                            a_iso = atom["A"]
-                            if "A_dipole" in atom.keys():
-                                a_dipole = atom["A_dipole"]
-                            elif "A_perp" in atom.keys():
-                                a_perp = atom["A_perp"]
-                                a_dipole = (a_iso - a_perp)/3
-                                a_iso -= 2*a_dipole
-                            else:
-                                a_dipole = 0
-                        else:
-                            a_iso = 2
-                            a_dipole = 0
-
-                        a_hyperfine[0, 0] = a_iso - a_dipole
-                        a_hyperfine[1, 1] = a_iso - a_dipole
-                        a_hyperfine[2, 2] = a_iso + 2*a_dipole
-
-                        atom["Aten"] = a_hyperfine
-                        tensor_labels.add("Aten")
-
-                        electron_spin_vec = _read_spin_vec("S", atom)
-                        quadratic = _quadratic_outer(
-                            electron_spin_vec, spin_vec)
-                        _record_spin_quadratic(
-                            "S", "I", quadratic, atom, [operator_labels])
-
-                        (
-                            (hyperfine_xx, hyperfine_xy, hyperfine_xz),
-                            (hyperfine_yx, hyperfine_yy, hyperfine_yz),
-                            (hyperfine_zx, hyperfine_zy, hyperfine_zz)
-                        ) = quadratic
-
-                        hyperfine_vec = _add_vec(electron_spin_vec, spin_vec)
-                        _record_spin_vec(
-                            "F", hyperfine_vec, atom, [operator_labels])
-
-                        hyperfine_generator = _quadratic_transform(
-                            a_hyperfine, quadratic)
-                        _record_operator(
-                            "Agen", hyperfine_generator, atom,
-                            [operator_labels, zero_field_labels]
-                        )
-
-                # Magnetic generators
-                if electron_spin > 0:
-                    spin_gyro = atom["gyroS"]
-
-                    spin_vec = _read_spin_vec("S", atom)
-                    electron_generator_vec = _linear_transform(
-                        spin_gyro, spin_vec)
-
-                if nuclear_spin > 0:
-                    spin_gyro = atom["gyroI"]
-
-                    spin_vec = _read_spin_vec("I", atom)
-                    nuclear_generator_vec = _linear_transform(
-                        spin_gyro, spin_vec)
-
-                if nuclear_spin > 0:
-                    if electron_spin > 0:
-                        generator_vec = _add_vec(
-                            electron_generator_vec, nuclear_generator_vec)
-                    else:
-                        generator_vec = nuclear_generator_vec
-                elif electron_spin > 0:
-                    generator_vec = electron_spin
-                else:
-                    generator_vec = None
-
-                if generator_vec is not None:
-                    _record_spin_vec(
-                        "G", generator_vec, atom,
-                        [operator_labels, field_labels]
-                    )
-
-                # Zero-field total
-                zfs_generator = None
-                for label in zero_field_labels:
-                    if label in atom.keys():
-                        if zfs_generator is None:
-                            zfs_generator = atom[label].copy()
-                        else:
-                            zfs_generator += atom[label]
-                if zfs_generator is not None:
-                    atom["Z"] = zfs_generator
-                    operator_labels.add("Z")
+                previous_identity = _add_atom(
+                    block, atom, label_sets,
+                    previous_identity, hilbert_space_shape
+                )
 
             # Spin-spin interactions and molecular hyperfine
             for (index_a, index_b), j_description in atom_interaction.items():
-                # Spin-spin tensor
-                j_tensor = np.zeros((3, 3), dtype=meta_datatype)
-                if "J" in j_description.keys():
-                    j_iso = j_description["J"]
-                    if "J_dipole" in j_description.keys():
-                        j_dipole = j_description["J_dipole"]
-                    elif "J_perp" in j_description.keys():
-                        j_perp = j_description["J_perp"]
-                        j_dipole = (j_iso - j_perp)/3
-                        j_iso -= 2*j_dipole
-                    else:
-                        j_dipole = 0
-                else:
-                    j_iso = 2
-                    j_dipole = 0
-
-                j_tensor[0, 0] = j_iso - j_dipole
-                j_tensor[1, 1] = j_iso - j_dipole
-                j_tensor[2, 2] = j_iso + 2*j_dipole
-
-                j_description["Jten"] = j_tensor
-                tensor_labels.add("Jten")
-
-                atom_a = block[index_a]
-                atom_b = block[index_b]
-
-                for label in ["S", "I"]:
-                    if label in atom_a.keys():
-                        label_a = label
-                        break
-                for label in ["S", "I"]:
-                    if label in atom_b.keys():
-                        label_b = label
-                        break
-
-                spin_a_vec = _read_spin_vec(label_a, atom_a)
-                spin_b_vec = _read_spin_vec(label_b, atom_b)
-
-                quadratic = _quadratic_outer(spin_a_vec, spin_b_vec)
-                _record_spin_quadratic(
-                    label_a, label_b, quadratic,
-                    j_description, [operator_labels]
-                )
-
-                spin_generator = _quadratic_transform(j_tensor, quadratic)
-                _record_operator(
-                    "Jgen", spin_generator, j_description, [operator_labels])
+                _add_spin_spin_coupling(
+                    block, j_description, index_a, index_b, label_sets)
 
         # Make traceless
+        _remove_trace(description, operator_labels)
+
+        # Combine all atoms in blocks
+        block_operator_list = _combine_in_block(
+            description, atom_interactions, field_labels)
+
+        # Create lists of operators
+        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
+            description, atom_interactions, label_sets)
+
+        return (
+            operator_dict, composite_operator_dict,
+            block_operator_list, tensor_dict
+        )
+
+    def _add_atom(
+            block: list[dict], atom: dict, label_sets: list[set[str]],
+            previous_identity: np.ndarray, hilbert_space_shape: list[int]):
+        """
+            Define an atom.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        electron_spin, previous_identity = _add_electron(
+            block, atom, label_sets, previous_identity, hilbert_space_shape)
+
+        # Nuclear spin
+        nuclear_spin, previous_identity = _add_nucleus(
+            block, atom, label_sets, previous_identity, hilbert_space_shape)
+
+        # Hyperfine
+        _add_hyperfine(electron_spin, nuclear_spin, atom, label_sets)
+
+        # Generators
+        _combine_in_atom(electron_spin, nuclear_spin, atom, label_sets)
+
+        return previous_identity
+
+    def _add_electron(
+                block: list[dict], atom: dict, label_sets: list[set[str]],
+                previous_identity: np.ndarray, hilbert_space_shape: list[int]
+            ) -> [int, np.ndarray]:
+        """
+            Defines the electron spin system.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        # Electron spin
+        if "S" in atom.keys():
+            spin = atom["S"]
+        else:
+            spin = 0
+
+        if spin > 0:
+            spin_vec, previous_identity = add_spin(
+                spin, hilbert_space_shape, previous_identity,
+                block, operator_labels
+            )
+            _record_spin_vec("S", spin_vec, atom, [operator_labels])
+            (spin_x, spin_y, spin_z) = spin_vec
+
+        # Electron ZFS
+        if spin > 1/2:
+            zfs = np.zeros((3, 3), dtype=meta_datatype)
+            zfs_longitudinal = 0
+            zfs_transverse = 0
+
+            if "D" in atom.keys():
+                zfs_longitudinal = atom["D"]
+            if "E" in atom.keys():
+                zfs_transverse = atom["E"]
+            zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
+            zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
+            zfs[2, 2] = zfs_longitudinal*2/3
+
+            quadratic = _quadratic_outer(spin_vec, spin_vec)
+            _record_spin_quadratic(
+                "S", "S", quadratic, atom, [operator_labels])
+
+            zfs_generator = _quadratic_transform(zfs, quadratic)
+            _record_operator(
+                "Dgen", zfs_generator, atom,
+                [operator_labels, zero_field_labels]
+            )
+
+            atom["Dten"] = zfs
+            tensor_labels.add("Dten")
+
+        # Electron Zeeman
+        if spin > 0:
+            if "g" in atom.keys():
+                g_iso = atom["g"]
+                if "g_dipole" in atom.keys():
+                    g_dipole = atom["g_dipole"]
+                elif "g_perp" in atom.keys():
+                    g_perp = atom["g_perp"]
+                    g_dipole = (g_iso - g_perp)/3
+                    g_iso -= 2*g_dipole
+                else:
+                    g_dipole = 0
+            else:
+                g_iso = 2
+                g_dipole = 0
+
+            g_spin = np.zeros((3, 3), dtype=meta_datatype)
+            g_spin[0, 0] = g_iso - g_dipole
+            g_spin[1, 1] = g_iso - g_dipole
+            g_spin[2, 2] = g_iso + 2*g_dipole
+
+            atom["gyroS"] = g_spin*constants["bohr_gyro"]["value"]
+            tensor_labels.add("gyroS")
+
+        return spin, previous_identity
+
+    def _add_nucleus(
+                block: list[dict], atom: dict, label_sets: list[set[str]],
+                previous_identity: np.ndarray, hilbert_space_shape: list[int]
+            ) -> [int, np.ndarray]:
+        """
+            Generates a nucleus.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        if "I" in atom.keys():
+            spin = atom["I"]
+
+            spin_vec, previous_identity = add_spin(
+                spin, hilbert_space_shape, previous_identity,
+                block, operator_labels
+            )
+
+            _record_spin_vec("I", spin_vec, atom, [operator_labels])
+
+            # Nuclear quadrupole
+            zfs = np.zeros((3, 3), dtype=meta_datatype)
+            zfs_longitudinal = 0
+            zfs_transverse = 0
+            if spin > 1/2:
+                if "P" in atom.keys():
+                    zfs_longitudinal = atom["P"]
+                if "Pt" in atom.keys():
+                    zfs_transverse = atom["Pt"]
+                zfs[0, 0] = zfs_transverse - zfs_longitudinal/3
+                zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
+                zfs[2, 2] = zfs_longitudinal*2/3
+
+            if np.sum(np.abs(zfs)) > 0:
+                quadratic = _quadratic_outer(spin_vec, spin_vec)
+                _record_spin_quadratic(
+                    "I", "I", quadratic, atom, [operator_labels])
+
+                zfs_generator = _quadratic_transform(zfs, quadratic)
+                _record_operator(
+                    "Pgen", zfs_generator, atom,
+                    [operator_labels, zero_field_labels]
+                )
+
+                atom["Pten"] = zfs
+                tensor_labels.add("Pten")
+
+        else:
+            spin = 0
+
+        # Nuclear Zeeman
+        if spin > 0:
+            if "gN" in atom.keys():
+                g_iso = atom["g"]
+                if "gN_dipole" in atom.keys():
+                    g_dipole = atom["gN_dipole"]
+                elif "gN_perp" in atom.keys():
+                    g_perp = atom["gN_perp"]
+                    g_dipole = (g_iso - g_perp)/3
+                    g_iso -= 2*g_dipole
+                else:
+                    g_dipole = 0
+            else:
+                g_iso = 2
+                g_dipole = 0
+
+            g_spin = np.zeros((3, 3), dtype=meta_datatype)
+            g_spin[0, 0] = g_iso - g_dipole
+            g_spin[1, 1] = g_iso - g_dipole
+            g_spin[2, 2] = g_iso + 2*g_dipole
+
+            atom["gyroI"] = -g_spin*constants["nuclear_gyro"]["value"]
+            tensor_labels |= {"gyroI"}
+
+        return spin, previous_identity
+
+    def _add_hyperfine(
+            electron_spin: float, nuclear_spin: float, atom: dict,
+            label_sets: list[set[str]]):
+        """
+            Add hyperfine interactions to the atom.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        if electron_spin > 0 and nuclear_spin > 0:
+            a_hyperfine = np.zeros((3, 3), dtype=meta_datatype)
+            if electron_spin > 0:
+                if "A" in atom.keys():
+                    a_iso = atom["A"]
+                    if "A_dipole" in atom.keys():
+                        a_dipole = atom["A_dipole"]
+                    elif "A_perp" in atom.keys():
+                        a_perp = atom["A_perp"]
+                        a_dipole = (a_iso - a_perp)/3
+                        a_iso -= 2*a_dipole
+                    else:
+                        a_dipole = 0
+                else:
+                    a_iso = 2
+                    a_dipole = 0
+
+                a_hyperfine[0, 0] = a_iso - a_dipole
+                a_hyperfine[1, 1] = a_iso - a_dipole
+                a_hyperfine[2, 2] = a_iso + 2*a_dipole
+
+                atom["Aten"] = a_hyperfine
+                tensor_labels.add("Aten")
+
+                electron_spin_vec = _read_spin_vec("S", atom)
+                nuclear_spin_vec = _read_spin_vec("I", atom)
+                quadratic = _quadratic_outer(
+                    electron_spin_vec, nuclear_spin_vec)
+                _record_spin_quadratic(
+                    "S", "I", quadratic, atom, [operator_labels])
+
+                (
+                    (hyperfine_xx, hyperfine_xy, hyperfine_xz),
+                    (hyperfine_yx, hyperfine_yy, hyperfine_yz),
+                    (hyperfine_zx, hyperfine_zy, hyperfine_zz)
+                ) = quadratic
+
+                hyperfine_vec = _add_vec(electron_spin_vec, nuclear_spin_vec)
+                _record_spin_vec(
+                    "F", hyperfine_vec, atom, [operator_labels])
+
+                hyperfine_generator = _quadratic_transform(
+                    a_hyperfine, quadratic)
+                _record_operator(
+                    "Agen", hyperfine_generator, atom,
+                    [operator_labels, zero_field_labels]
+                )
+
+    def _combine_in_atom(
+            electron_spin: float, nuclear_spin: float, atom: dict,
+            label_sets: list[set[str]]):
+        """
+            Zeeman and ZFS.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        # Magnetic generators
+        if electron_spin > 0:
+            spin_gyro = atom["gyroS"]
+
+            spin_vec = _read_spin_vec("S", atom)
+            electron_generator_vec = _linear_transform(
+                spin_gyro, spin_vec)
+
+        if nuclear_spin > 0:
+            spin_gyro = atom["gyroI"]
+
+            spin_vec = _read_spin_vec("I", atom)
+            nuclear_generator_vec = _linear_transform(
+                spin_gyro, spin_vec)
+
+        if nuclear_spin > 0:
+            if electron_spin > 0:
+                generator_vec = _add_vec(
+                    electron_generator_vec, nuclear_generator_vec)
+            else:
+                generator_vec = nuclear_generator_vec
+        elif electron_spin > 0:
+            generator_vec = electron_spin
+        else:
+            generator_vec = None
+
+        if generator_vec is not None:
+            _record_spin_vec(
+                "G", generator_vec, atom,
+                [operator_labels, field_labels]
+            )
+
+        # Zero-field total
+        zfs_generator = None
+        for label in zero_field_labels:
+            if label in atom.keys():
+                if zfs_generator is None:
+                    zfs_generator = atom[label].copy()
+                else:
+                    zfs_generator += atom[label]
+        if zfs_generator is not None:
+            atom["Z"] = zfs_generator
+            operator_labels.add("Z")
+
+    def _add_spin_spin_coupling(
+            block: list[dict], j_description: dict, index_a: int, index_b: int,
+            label_sets: list[set[str]]):
+        """
+        Adds spin-spin coupling to the model.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        j_tensor = np.zeros((3, 3), dtype=meta_datatype)
+        if "J" in j_description.keys():
+            j_iso = j_description["J"]
+            if "J_dipole" in j_description.keys():
+                j_dipole = j_description["J_dipole"]
+            elif "J_perp" in j_description.keys():
+                j_perp = j_description["J_perp"]
+                j_dipole = (j_iso - j_perp)/3
+                j_iso -= 2*j_dipole
+            else:
+                j_dipole = 0
+        else:
+            j_iso = 2
+            j_dipole = 0
+
+        j_tensor[0, 0] = j_iso - j_dipole
+        j_tensor[1, 1] = j_iso - j_dipole
+        j_tensor[2, 2] = j_iso + 2*j_dipole
+
+        j_description["Jten"] = j_tensor
+        tensor_labels.add("Jten")
+
+        atom_a = block[index_a]
+        atom_b = block[index_b]
+
+        for label in ["S", "I"]:
+            if label in atom_a.keys():
+                label_a = label
+                break
+        for label in ["S", "I"]:
+            if label in atom_b.keys():
+                label_b = label
+                break
+
+        spin_a_vec = _read_spin_vec(label_a, atom_a)
+        spin_b_vec = _read_spin_vec(label_b, atom_b)
+
+        quadratic = _quadratic_outer(spin_a_vec, spin_b_vec)
+        _record_spin_quadratic(
+            label_a, label_b, quadratic,
+            j_description, [operator_labels]
+        )
+
+        spin_generator = _quadratic_transform(j_tensor, quadratic)
+        _record_operator(
+            "Jgen", spin_generator, j_description, [operator_labels])
+
+    def _remove_trace(description: list[dict], operator_labels: set[str]):
+        """
+            Remove trace from all operators.
+        """
+
         for block in description:
             for atom in block:
                 for operator_label in operator_labels:
@@ -318,7 +434,13 @@ with Logger("superspinsim-generate") as logger:
                             trace*np.eye(operator.shape[0])/operator.shape[0]
                         atom[operator_label] = operator_new
 
-        # Combine all atoms in blocks
+    def _combine_in_block(
+            description: list[dict], atom_interactions: list[dict],
+            field_labels: set[str]) -> list:
+        """
+            Combine all operators in block.
+        """
+
         block_operator_list = []
         for block_index, (block, atom_interaction) \
                 in enumerate(zip(description, atom_interactions)):
@@ -351,7 +473,18 @@ with Logger("superspinsim-generate") as logger:
                             j_description["Jgen"]
             block_operator_list.append(block_operator_dict)
 
-        # Create lists of operators
+        return block_operator_list
+
+    def _list_operators(
+            description: list[list[dict]], atom_interactions: list[dict],
+            label_sets: list[set[str]]) -> [dict, dict, dict]:
+        """
+            Put all generated operators into global lists.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
         operator_dict = {}
         composite_operator_dict = {}
         tensor_dict = {}
@@ -411,15 +544,13 @@ with Logger("superspinsim-generate") as logger:
                         tensor_dict[tensor_name] = \
                             j_description[tensor_label]
 
-        return (
-            operator_dict, composite_operator_dict,
-            block_operator_list, tensor_dict
-        )
+        return operator_dict, composite_operator_dict, tensor_dict
 
     def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
         """
             Multiply two complex matrices.
         """
+
         operator_out = np.empty_like(left)
         operator_out[:, :, 0] = left[:, :, 0]@right[:, :, 0] \
             - left[:, :, 1]@right[:, :, 1]
@@ -429,10 +560,11 @@ with Logger("superspinsim-generate") as logger:
 
     def add_spin(
         spin: int, hilbert_space_shape: tuple, previous_identity: np.ndarray,
-            description: dict, operator_labels: set) -> (tuple, np.ndarray):
+            block: dict, operator_labels: set) -> (tuple, np.ndarray):
         """
             Add a new spin system to the Hilbert/operator space.
         """
+
         spin_dimension = int(2*spin + 1)
         hilbert_space_shape.append(spin_dimension)
 
@@ -465,14 +597,13 @@ with Logger("superspinsim-generate") as logger:
             np.eye(spin_x.shape[0])
 
         if previous_identity is not None:
-            for block in description:
-                for atom in block:
-                    for operator_label in operator_labels:
-                        if operator_label in atom.keys():
-                            operator = atom[operator_label]
-                            operator_new = kroneker_product(
-                                spin_identity, operator)
-                            atom[operator_label] = operator_new
+            for atom in block:
+                for operator_label in operator_labels:
+                    if operator_label in atom.keys():
+                        operator = atom[operator_label]
+                        operator_new = kroneker_product(
+                            spin_identity, operator)
+                        atom[operator_label] = operator_new
 
             spin_x = kroneker_product(
                 spin_x, previous_identity)
@@ -491,6 +622,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Take the Kroneker product between two operators.
         """
+
         product = np.empty(
             (
                 outer.shape[0]*inner.shape[0], outer.shape[1]*inner.shape[1],
@@ -518,6 +650,10 @@ with Logger("superspinsim-generate") as logger:
         return product
 
     def _add_vec(left: tuple, right: tuple) -> tuple:
+        """
+            Add two vector operators together.
+        """
+
         out = []
         for left_spin, right_spin in zip(left, right):
             out.append(left_spin + right_spin)
@@ -528,6 +664,7 @@ with Logger("superspinsim-generate") as logger:
             Apply a linear transform to a spin vector.
             The typical case would be the g tensor.
         """
+
         out = [None]*3
         for y_index in range(3):
             for x_index in range(3):
@@ -538,6 +675,10 @@ with Logger("superspinsim-generate") as logger:
         return tuple(out)
 
     def _quadratic_outer(left: tuple, right: tuple) -> tuple:
+        """
+            Generate all products of two vector operators.
+        """
+
         quadratic = []
         for y_index in range(3):
             sub_quadratic = []
@@ -552,6 +693,7 @@ with Logger("superspinsim-generate") as logger:
             Apply a transform to a quadratic expansion.
             Cases include the D, P, A and J tensors.
         """
+
         operator = None
         for y_index in range(3):
             for x_index in range(3):
@@ -568,6 +710,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Write a single operator to a dictionary.
         """
+
         atom[label] = operator
         for label_set in label_sets:
             label_set.add(label)
@@ -577,6 +720,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Write a spin vector to an atom dictionary.
         """
+
         directions = ("x", "y", "z")
         for spin_operator, direction in zip(spin_vec, directions):
             operator_label = label + direction
@@ -588,6 +732,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Read a spin vector from a dictionary.
         """
+
         directions = ("x", "y", "z")
         spin_vec = []
         for direction in directions:
@@ -605,6 +750,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Write a quadratic expansion of a spin vector to an atom dictionary.
         """
+
         directions = ("x", "y", "z")
         for quadratic_vec, direction_left in zip(quadratic, directions):
             operator_label_left = label_left + direction_left
@@ -624,6 +770,7 @@ with Logger("superspinsim-generate") as logger:
         """
             Generates heat maps of all the operators and tensors generated.
         """
+
         plt.figure(
             figsize=(6.4, 6*4.8),
             label="operators"
@@ -716,8 +863,6 @@ with Logger("superspinsim-generate") as logger:
 
         valid_indices = np.array(valid_indices, dtype=np.int32)
         return valid_indices
-
-
 
     def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
         operator_dimension = valid_indices.shape[0]
