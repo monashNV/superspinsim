@@ -11,14 +11,21 @@ constants = {
     "bohr_gyro": {
         "value": math.tau*13.9962449171e9,
         "units": "rad/s/T",
-        "citation": "CODATA Recommended Values of the " \
+        "citation": "CODATA Recommended Values of the "
                     + "Fundamental Physical Constants: 2022"
     },
 
     "nuclear_gyro": {
         "value": math.tau*7.6225932188e6,
         "units": "rad/s/T",
-        "citation": "CODATA Recommended Values of the " \
+        "citation": "CODATA Recommended Values of the "
+                    + "Fundamental Physical Constants: 2022"
+    },
+
+    "boltzmann_gyro": {
+        "value": math.tau*20.83661912e9,
+        "units": "rad/s/K",
+        "citation": "CODATA Recommended Values of the "
                     + "Fundamental Physical Constants: 2022"
     }
 }
@@ -365,6 +372,25 @@ with Logger("superspinsim-generate") as logger:
             atom["Z"] = zfs_generator
             operator_labels.add("Z")
 
+        # Quiescent
+        if zfs_generator is not None:
+            quiescent_generator = zfs_generator.copy()
+        else:
+            quiescent_generator = None
+        if "B0" in atom.keys():
+            quiescent_magnetic_field = atom["B0"]
+            quiescent_magnetic_generator = \
+                quiescent_magnetic_field[0]*generator_vec[0] \
+                + quiescent_magnetic_field[1]*generator_vec[1] \
+                + quiescent_magnetic_field[2]*generator_vec[2]
+            if quiescent_generator is None:
+                quiescent_generator = quiescent_magnetic_generator
+            else:
+                quiescent_generator += quiescent_magnetic_generator
+        if quiescent_generator is not None:
+            atom["H0"] = quiescent_generator
+            operator_labels.add("H0")
+
     def _add_spin_spin_coupling(
             block: list[dict], j_description: dict, index_a: int, index_b: int,
             label_sets: list[set[str]]):
@@ -458,23 +484,24 @@ with Logger("superspinsim-generate") as logger:
                         else:
                             block_operator_dict[operator_label] += \
                                 atom[operator_label]
-                operator_label = "Z"
-                if operator_label in atom.keys():
-                    if operator_label not in block_operator_dict.keys():
-                        block_operator_dict[operator_label] = \
-                            atom[operator_label].copy()
-                    else:
-                        block_operator_dict[operator_label] += \
-                            atom[operator_label]
+                for operator_label in ["Z", "H0"]:
+                    if operator_label in atom.keys():
+                        if operator_label not in block_operator_dict.keys():
+                            block_operator_dict[operator_label] = \
+                                atom[operator_label].copy()
+                        else:
+                            block_operator_dict[operator_label] += \
+                                atom[operator_label]
 
             for (index_a, index_b), j_description in atom_interaction.items():
                 if "Jgen" in j_description.keys():
-                    if "Z" not in block_operator_dict.keys():
-                        block_operator_dict["Z"] = \
-                            j_description["Jgen"].copy()
-                    else:
-                        block_operator_dict["Z"] += \
-                            j_description["Jgen"]
+                    for operator_label in ["Z", "H0"]:
+                        if operator_label not in block_operator_dict.keys():
+                            block_operator_dict[operator_label] = \
+                                j_description["Jgen"].copy()
+                        else:
+                            block_operator_dict[operator_label] += \
+                                j_description["Jgen"]
             block_operator_list.append(block_operator_dict)
 
         return block_operator_list
@@ -515,12 +542,12 @@ with Logger("superspinsim-generate") as logger:
                                         + f" {operator_label}"
                         composite_operator_dict[operator_name] = \
                             atom[operator_label]
-                operator_label = "Z"
-                if operator_label in atom.keys():
-                    operator_name = f"[{block_index}, {atom_index}]" \
-                                    + f" {operator_label}"
-                    composite_operator_dict[operator_name] = \
-                        atom[operator_label]
+                for operator_label in ["Z", "H0"]:
+                    if operator_label in atom.keys():
+                        operator_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {operator_label}"
+                        composite_operator_dict[operator_name] = \
+                            atom[operator_label]
 
                 # Tensors
                 for tensor_label in tensor_labels:
@@ -938,9 +965,12 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
 
+    quiescent_magnetic_field = np.array([0.1, 0.1, 1])*1e-10
     operator_dicts = generate_atoms([[
-        {"S": 1, "g": 2, "g_perp": 2.1, "D": 50, "I": 1, "P": 10, "A": 5},
-        {"I": 1/2}
+        {
+            "S": 1, "g": 2, "g_perp": 2.1, "D": 50, "I": 1, "P": 10, "A": 5,
+            "B0": quiescent_magnetic_field
+        }, {"I": 1/2, "B0": quiescent_magnetic_field}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], [{(0, 1): {"J": 4}}])
     _plot_operators(*operator_dicts)
