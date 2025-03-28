@@ -43,15 +43,12 @@ with Logger("superspinsim-generate") as logger:
                     spin = 0
 
                 if spin > 0:
-                    spin_x, spin_y, spin_z, previous_identity = add_spin(
+                    spin_vec, previous_identity = add_spin(
                         spin, hilbert_space_shape, previous_identity,
                         description, operator_labels
                     )
-
-                    atom["Sx"] = spin_x
-                    atom["Sy"] = spin_y
-                    atom["Sz"] = spin_z
-                    operator_labels |= {"Sx", "Sy", "Sz"}
+                    _record_spin_vec("S", spin_vec, atom, [operator_labels])
+                    (spin_x, spin_y, spin_z) = spin_vec
 
                 # Electron ZFS
                 zfs = np.zeros((3, 3), dtype=meta_datatype)
@@ -66,28 +63,38 @@ with Logger("superspinsim-generate") as logger:
                     zfs[1, 1] = -zfs_transverse - zfs_longitudinal/3
                     zfs[2, 2] = zfs_longitudinal*2/3
 
-                    spin_xx = _mult(spin_x, spin_x)
-                    spin_xy = _mult(spin_x, spin_y)
-                    spin_xz = _mult(spin_x, spin_z)
-                    spin_yx = _mult(spin_y, spin_x)
-                    spin_yy = _mult(spin_y, spin_y)
-                    spin_yz = _mult(spin_y, spin_z)
-                    spin_zx = _mult(spin_z, spin_x)
-                    spin_zy = _mult(spin_z, spin_y)
-                    spin_zz = _mult(spin_z, spin_z)
+                    quadratic = _quadratic_outer(spin_vec, spin_vec)
+                    _record_spin_quadratic(
+                        "S", "S", quadratic, atom, [operator_labels])
 
-                    atom["Sx Sx"] = spin_xx
-                    atom["Sx Sy"] = spin_xy
-                    atom["Sx Sz"] = spin_xz
-                    atom["Sy Sx"] = spin_yx
-                    atom["Sy Sy"] = spin_yy
-                    atom["Sy Sz"] = spin_yz
-                    atom["Sz Sx"] = spin_zx
-                    atom["Sz Sy"] = spin_zy
-                    atom["Sz Sz"] = spin_zz
-                    operator_labels |= {"Sx Sx", "Sx Sy", "Sx Sz"}
-                    operator_labels |= {"Sy Sx", "Sy Sy", "Sy Sz"}
-                    operator_labels |= {"Sz Sx", "Sz Sy", "Sz Sz"}
+                    (
+                        (spin_xx, spin_xy, spin_xz),
+                        (spin_yx, spin_yy, spin_yz),
+                        (spin_zx, spin_zy, spin_zz)
+                    ) = quadratic
+
+                    # spin_xx = _mult(spin_x, spin_x)
+                    # spin_xy = _mult(spin_x, spin_y)
+                    # spin_xz = _mult(spin_x, spin_z)
+                    # spin_yx = _mult(spin_y, spin_x)
+                    # spin_yy = _mult(spin_y, spin_y)
+                    # spin_yz = _mult(spin_y, spin_z)
+                    # spin_zx = _mult(spin_z, spin_x)
+                    # spin_zy = _mult(spin_z, spin_y)
+                    # spin_zz = _mult(spin_z, spin_z)
+
+                    # atom["Sx Sx"] = spin_xx
+                    # atom["Sx Sy"] = spin_xy
+                    # atom["Sx Sz"] = spin_xz
+                    # atom["Sy Sx"] = spin_yx
+                    # atom["Sy Sy"] = spin_yy
+                    # atom["Sy Sz"] = spin_yz
+                    # atom["Sz Sx"] = spin_zx
+                    # atom["Sz Sy"] = spin_zy
+                    # atom["Sz Sz"] = spin_zz
+                    # operator_labels |= {"Sx Sx", "Sx Sy", "Sx Sz"}
+                    # operator_labels |= {"Sy Sx", "Sy Sy", "Sy Sz"}
+                    # operator_labels |= {"Sz Sx", "Sz Sy", "Sz Sz"}
 
                     zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
                         + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
@@ -131,15 +138,14 @@ with Logger("superspinsim-generate") as logger:
                     spin = atom["I"]
                     nuclear_spin = spin
 
-                    spin_x, spin_y, spin_z, previous_identity = add_spin(
+                    spin_vec, previous_identity = add_spin(
                         spin, hilbert_space_shape, previous_identity,
                         description, operator_labels
                     )
 
-                    atom["Ix"] = spin_x
-                    atom["Iy"] = spin_y
-                    atom["Iz"] = spin_z
-                    operator_labels |= {"Ix", "Iy", "Iz"}
+                    _record_spin_vec("I", spin_vec, atom, [operator_labels])
+
+                    (spin_x, spin_y, spin_z) = spin_vec
 
                     # Nuclear quadrupole
                     zfs = np.zeros((3, 3), dtype=meta_datatype)
@@ -606,9 +612,23 @@ with Logger("superspinsim-generate") as logger:
 
         return operator_dict, tensor_dict
 
+    def _mult(left, right):
+        """
+            Multiply two complex matrices.
+        """
+        operator_out = np.empty_like(left)
+        operator_out[:, :, 0] = left[:, :, 0]@right[:, :, 0] \
+            - left[:, :, 1]@right[:, :, 1]
+        operator_out[:, :, 1] = left[:, :, 0]@right[:, :, 1] \
+            + left[:, :, 1]@right[:, :, 0]
+        return operator_out
+
     def add_spin(
             spin, hilbert_space_shape, previous_identity,
             description, operator_labels):
+        """
+            Add a new spin system to the Hilbert/operator space.
+        """
         spin_dimension = int(2*spin + 1)
         hilbert_space_shape.append(spin_dimension)
 
@@ -668,10 +688,12 @@ with Logger("superspinsim-generate") as logger:
 
         previous_identity = spin_identity
 
-        return spin_x, spin_y, spin_z, previous_identity
-
+        return (spin_x, spin_y, spin_z), previous_identity
 
     def kroneker_product(inner: np.ndarray, outer: np.ndarray):
+        """
+            Take the Kroneker product between two operators.
+        """
         product = np.empty(
             (
                 outer.shape[0]*inner.shape[0], outer.shape[1]*inner.shape[1],
@@ -698,6 +720,61 @@ with Logger("superspinsim-generate") as logger:
                     + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
         return product
 
+    def _linear_transform(trans: np.ndarray, inp: tuple):
+        """
+            Apply a linear transform to a spin vector.
+            The typical case would be the g tensor.
+        """
+        out = [None]*3
+        for y_index in range(3):
+            for x_index in range(3):
+                if out[y_index] is None:
+                    out[y_index] = trans[y_index, x_index]*inp[x_index]
+                else:
+                    out[y_index] += trans[y_index, x_index]*inp[x_index]
+        return tuple(out)
+
+    def _quadratic_outer(left: tuple, right: tuple):
+        quadratic = []
+        for y_index in range(3):
+            sub_quadratic = []
+            for x_index in range(3):
+                sub_quadratic.append(_mult(left[y_index], right[x_index]))
+            quadratic.append(tuple(sub_quadratic))
+        return tuple(quadratic)
+
+    def _record_spin_vec(
+            label: str, spin_vec: tuple, atom: dict, label_sets: list):
+        """
+            Write a spin vector to an atom dictionary.
+        """
+        directions = ("x", "y", "z")
+        for spin_operator, direction in zip(spin_vec, directions):
+            operator_label = label + direction
+            atom[operator_label] = spin_operator
+            for label_set in label_sets:
+                label_set.add(operator_label)
+
+    def _record_spin_quadratic(
+            label_left: str, label_right: str,  quadratic: tuple,
+            atom: dict, label_sets: list):
+        """
+            Write a quadratic expansion of a spin vector to an atom dictionary.
+        """
+        directions = ("x", "y", "z")
+        for quadratic_vec, direction_left in zip(quadratic, directions):
+            operator_label_left = label_left + direction_left
+            for quadratic_operator, direction_right in \
+                    zip(quadratic_vec, directions):
+
+                operator_label = operator_label_left + " " \
+                    + label_right + direction_right
+                atom[operator_label] = quadratic_operator
+                for label_set in label_sets:
+                    label_set.add(operator_label)
+
+    # Legacy code start =======================================================
+
     def _generate_valid_indices():
         valid_mask = np.zeros((7, 7), dtype=meta_datatype)
         valid_mask[:3, :3] = 1
@@ -719,14 +796,6 @@ with Logger("superspinsim-generate") as logger:
         valid_indices = np.array(valid_indices, dtype=np.int32)
         return valid_indices
 
-
-    def _mult(operator_a, operator_b):
-        operator_out = np.empty_like(operator_a)
-        operator_out[:, :, 0] = operator_a[:, :, 0]@operator_b[:, :, 0] \
-            - operator_a[:, :, 1]@operator_b[:, :, 1]
-        operator_out[:, :, 1] = operator_a[:, :, 0]@operator_b[:, :, 1] \
-            + operator_a[:, :, 1]@operator_b[:, :, 0]
-        return operator_out
 
 
     def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
