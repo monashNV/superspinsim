@@ -24,7 +24,6 @@ constants = {
 }
 
 with Logger("superspinsim-generate") as logger:
-    @logger.record(("operators", "tensors"))
     def generate_atoms(description: list, atom_interactions, verbose=False):
         hilbert_space_shape = []
         operator_labels = set()
@@ -67,22 +66,14 @@ with Logger("superspinsim-generate") as logger:
                     _record_spin_quadratic(
                         "S", "S", quadratic, atom, [operator_labels])
 
-                    (
-                        (spin_xx, spin_xy, spin_xz),
-                        (spin_yx, spin_yy, spin_yz),
-                        (spin_zx, spin_zy, spin_zz)
-                    ) = quadratic
+                    zfs_generator = _quadratic_transform(zfs, quadratic)
+                    _record_operator(
+                        "Dgen", zfs_generator, atom,
+                        [operator_labels, zero_field_labels]
+                    )
 
-                    zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
-                        + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
-                        + zfs[1, 1]*spin_yy + zfs[1, 2]*spin_yz \
-                        + zfs[2, 0]*spin_zx + zfs[2, 1]*spin_zy \
-                        + zfs[2, 2]*spin_zz
                     atom["Dten"] = zfs
-                    atom["Dgen"] = zfs_generator
                     tensor_labels.add("Dten")
-                    operator_labels.add("Dgen")
-                    zero_field_labels.add("Dgen")
 
                 # Electron Zeeman
                 if spin > 0:
@@ -122,8 +113,6 @@ with Logger("superspinsim-generate") as logger:
 
                     _record_spin_vec("I", spin_vec, atom, [operator_labels])
 
-                    (spin_x, spin_y, spin_z) = spin_vec
-
                     # Nuclear quadrupole
                     zfs = np.zeros((3, 3), dtype=meta_datatype)
                     zfs_longitudinal = 0
@@ -142,22 +131,14 @@ with Logger("superspinsim-generate") as logger:
                         _record_spin_quadratic(
                             "I", "I", quadratic, atom, [operator_labels])
 
-                        (
-                            (spin_xx, spin_xy, spin_xz),
-                            (spin_yx, spin_yy, spin_yz),
-                            (spin_zx, spin_zy, spin_zz)
-                        ) = quadratic
+                        zfs_generator = _quadratic_transform(zfs, quadratic)
+                        _record_operator(
+                            "Pgen", zfs_generator, atom,
+                            [operator_labels, zero_field_labels]
+                        )
 
-                        zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
-                            + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
-                            + zfs[1, 1]*spin_yy + zfs[1, 2]*spin_yz \
-                            + zfs[2, 0]*spin_zx + zfs[2, 1]*spin_zy \
-                            + zfs[2, 2]*spin_zz
                         atom["Pten"] = zfs
-                        atom["Pgen"] = zfs_generator
                         tensor_labels.add("Pten")
-                        operator_labels.add("Pgen")
-                        zero_field_labels.add("Pgen")
 
                     # Nuclear Zeeman
                     if spin > 0:
@@ -224,18 +205,12 @@ with Logger("superspinsim-generate") as logger:
                         _record_spin_vec(
                             "F", hyperfine_vec, atom, [operator_labels])
 
-                        hyperfine_generator = a_hyperfine[0, 0]*hyperfine_xx \
-                            + a_hyperfine[0, 1]*hyperfine_xy \
-                            + a_hyperfine[0, 2]*hyperfine_xz \
-                            + a_hyperfine[1, 0]*hyperfine_yx \
-                            + a_hyperfine[1, 1]*hyperfine_yy \
-                            + a_hyperfine[1, 2]*hyperfine_yz \
-                            + a_hyperfine[2, 0]*hyperfine_zx \
-                            + a_hyperfine[2, 1]*hyperfine_zy \
-                            + a_hyperfine[2, 2]*hyperfine_zz
-                        atom["Agen"] = hyperfine_generator
-                        operator_labels.add("Agen")
-                        zero_field_labels.add("Agen")
+                        hyperfine_generator = _quadratic_transform(
+                            a_hyperfine, quadratic)
+                        _record_operator(
+                            "Agen", hyperfine_generator, atom,
+                            [operator_labels, zero_field_labels]
+                        )
 
                 # Magnetic generators
                 if electron_spin > 0:
@@ -327,49 +302,9 @@ with Logger("superspinsim-generate") as logger:
                     j_description, [operator_labels]
                 )
 
-                (
-                    (spin_xx, spin_xy, spin_xz),
-                    (spin_yx, spin_yy, spin_yz),
-                    (spin_zx, spin_zy, spin_zz)
-                ) = quadratic
-
-                # spin_xx = _mult(spin_xa, spin_xb)
-                # spin_xy = _mult(spin_xa, spin_yb)
-                # spin_xz = _mult(spin_xa, spin_zb)
-                # spin_yx = _mult(spin_ya, spin_xb)
-                # spin_yy = _mult(spin_ya, spin_yb)
-                # spin_yz = _mult(spin_ya, spin_zb)
-                # spin_zx = _mult(spin_za, spin_xb)
-                # spin_zy = _mult(spin_za, spin_yb)
-                # spin_zz = _mult(spin_za, spin_zb)
-
-                # j_description[f"{label_a}x {label_b}x"] = spin_xx
-                # j_description[f"{label_a}x {label_b}y"] = spin_xy
-                # j_description[f"{label_a}x {label_b}z"] = spin_xz
-                # j_description[f"{label_a}y {label_b}x"] = spin_yx
-                # j_description[f"{label_a}y {label_b}y"] = spin_yy
-                # j_description[f"{label_a}y {label_b}z"] = spin_yz
-                # j_description[f"{label_a}z {label_b}x"] = spin_zx
-                # j_description[f"{label_a}z {label_b}y"] = spin_zy
-                # j_description[f"{label_a}z {label_b}z"] = spin_zz
-
-                # operator_labels.add(f"{label_a}x {label_b}x")
-                # operator_labels.add(f"{label_a}x {label_b}y")
-                # operator_labels.add(f"{label_a}x {label_b}z")
-                # operator_labels.add(f"{label_a}y {label_b}x")
-                # operator_labels.add(f"{label_a}y {label_b}y")
-                # operator_labels.add(f"{label_a}y {label_b}z")
-                # operator_labels.add(f"{label_a}z {label_b}x")
-                # operator_labels.add(f"{label_a}z {label_b}y")
-                # operator_labels.add(f"{label_a}z {label_b}z")
-
-                spin_generator = j_tensor[0, 0]*spin_xx \
-                    + j_tensor[0, 1]*spin_xy + j_tensor[0, 2]*spin_xz \
-                    + j_tensor[1, 0]*spin_yx + j_tensor[1, 1]*spin_yy \
-                    + j_tensor[1, 2]*spin_yz + j_tensor[2, 0]*spin_zx \
-                    + j_tensor[2, 1]*spin_zy + j_tensor[2, 2]*spin_zz
-                j_description["Jgen"] = spin_generator
-                operator_labels.add("Jgen")
+                spin_generator = _quadratic_transform(j_tensor, quadratic)
+                _record_operator(
+                    "Jgen", spin_generator, j_description, [operator_labels])
 
         # Make traceless
         for block in description:
@@ -476,77 +411,10 @@ with Logger("superspinsim-generate") as logger:
                         tensor_dict[tensor_name] = \
                             j_description[tensor_label]
 
-        # Plot
-        if verbose:
-            plt.figure(
-                figsize=(6.4, 6*4.8),
-                label="operators"
-            )
-            plot_columns = \
-                min(4, int(math.ceil(math.sqrt(len(operator_dict)))))
-            plot_rows = math.ceil(len(operator_dict)/plot_columns)
-            for operator_index, (operator_name, operator) in \
-                    enumerate(operator_dict.items()):
-                plt.subplot(plot_rows, plot_columns, operator_index + 1)
-                plt.imshow(colour_complex_matrix(
-                    operator/(2*np.max(np.abs(operator)))))
-                plt.title(operator_name)
-                plt.xticks([], [])
-                plt.yticks([], [])
-                plt.tight_layout()
-            plt.draw()
-
-            plt.figure(
-                figsize=(6.4, 6.4),
-                label="composite_operators"
-            )
-            plot_columns = \
-                min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
-            plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
-            for operator_index, (operator_name, operator) in \
-                    enumerate(composite_operator_dict.items()):
-                plt.subplot(plot_rows, plot_columns, operator_index + 1)
-                plt.imshow(colour_complex_matrix(
-                    operator/(2*np.max(np.abs(operator)))))
-                plt.title(operator_name)
-                plt.xticks([], [])
-                plt.yticks([], [])
-            plt.draw()
-
-            plt.figure(
-                figsize=(6.4, 6.4),
-                label="blocks"
-            )
-            plot_columns = \
-                min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
-            plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
-            for operator_index, (operator_name, operator) in \
-                    enumerate(block_operator_list[0].items()):
-                plt.subplot(plot_rows, plot_columns, operator_index + 1)
-                plt.imshow(colour_complex_matrix(
-                    operator/(2*np.max(np.abs(operator)))))
-                plt.title(operator_name)
-                plt.xticks([], [])
-                plt.yticks([], [])
-            plt.draw()
-
-            plt.figure(
-                figsize=(6.4, 4.8),
-                label="tensors"
-            )
-            plot_columns = int(math.ceil(math.sqrt(len(tensor_dict))))
-            plot_rows = math.ceil(len(tensor_dict)/plot_columns)
-            for tensor_index, (tensor_name, tensor) in \
-                    enumerate(tensor_dict.items()):
-                plt.subplot(plot_rows, plot_columns, tensor_index + 1)
-                plt.imshow(colour_complex_matrix(
-                    tensor/(2*np.max(np.abs(tensor)))))
-                plt.title(tensor_name)
-                plt.xticks([], [])
-                plt.yticks([], [])
-            plt.draw()
-
-        return operator_dict, tensor_dict
+        return (
+            operator_dict, composite_operator_dict,
+            block_operator_list, tensor_dict
+        )
 
     def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
         """
@@ -605,13 +473,6 @@ with Logger("superspinsim-generate") as logger:
                             operator_new = kroneker_product(
                                 spin_identity, operator)
                             atom[operator_label] = operator_new
-
-            # operator_list_new = []
-            # for operator in operator_list:
-            #     operator_new = kroneker_product(
-            #         operator, spin_identity)
-            #     operator_list_new.append(operator_new)
-            # operator_list = operator_list_new
 
             spin_x = kroneker_product(
                 spin_x, previous_identity)
@@ -685,6 +546,32 @@ with Logger("superspinsim-generate") as logger:
             quadratic.append(tuple(sub_quadratic))
         return tuple(quadratic)
 
+    def _quadratic_transform(
+            trans: np.ndarray, quadratic: tuple) -> np.ndarray:
+        """
+            Apply a transform to a quadratic expansion.
+            Cases include the D, P, A and J tensors.
+        """
+        operator = None
+        for y_index in range(3):
+            for x_index in range(3):
+                if operator is None:
+                    operator = \
+                        trans[y_index, x_index]*quadratic[y_index][x_index]
+                else:
+                    operator += \
+                        trans[y_index, x_index]*quadratic[y_index][x_index]
+        return operator
+
+    def _record_operator(
+            label: str, operator: np.ndarray, atom: dict, label_sets: list):
+        """
+            Write a single operator to a dictionary.
+        """
+        atom[label] = operator
+        for label_set in label_sets:
+            label_set.add(label)
+
     def _record_spin_vec(
             label: str, spin_vec: tuple, atom: dict, label_sets: list):
         """
@@ -729,6 +616,83 @@ with Logger("superspinsim-generate") as logger:
                 atom[operator_label] = quadratic_operator
                 for label_set in label_sets:
                     label_set.add(operator_label)
+
+    @logger.record(("operators", "tensors"))
+    def _plot_operators(
+            operator_dict: dict, composite_operator_dict: dict,
+            block_operator_list: list, tensor_dict: dict):
+        """
+            Generates heat maps of all the operators and tensors generated.
+        """
+        plt.figure(
+            figsize=(6.4, 6*4.8),
+            label="operators"
+        )
+        plot_columns = \
+            min(4, int(math.ceil(math.sqrt(len(operator_dict)))))
+        plot_rows = math.ceil(len(operator_dict)/plot_columns)
+        for operator_index, (operator_name, operator) in \
+                enumerate(operator_dict.items()):
+            plt.subplot(plot_rows, plot_columns, operator_index + 1)
+            plt.imshow(colour_complex_matrix(
+                operator/(2*np.max(np.abs(operator)))))
+            plt.title(operator_name)
+            plt.xticks([], [])
+            plt.yticks([], [])
+            plt.tight_layout()
+        plt.draw()
+
+        plt.figure(
+            figsize=(6.4, 6.4),
+            label="composite_operators"
+        )
+        plot_columns = \
+            min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
+        plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
+        for operator_index, (operator_name, operator) in \
+                enumerate(composite_operator_dict.items()):
+            plt.subplot(plot_rows, plot_columns, operator_index + 1)
+            plt.imshow(colour_complex_matrix(
+                operator/(2*np.max(np.abs(operator)))))
+            plt.title(operator_name)
+            plt.xticks([], [])
+            plt.yticks([], [])
+        plt.draw()
+
+        plt.figure(
+            figsize=(6.4, 6.4),
+            label="blocks"
+        )
+        plot_columns = \
+            min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
+        plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
+        for operator_index, (operator_name, operator) in \
+                enumerate(block_operator_list[0].items()):
+            plt.subplot(plot_rows, plot_columns, operator_index + 1)
+            plt.imshow(colour_complex_matrix(
+                operator/(2*np.max(np.abs(operator)))))
+            plt.title(operator_name)
+            plt.xticks([], [])
+            plt.yticks([], [])
+        plt.draw()
+
+        plt.figure(
+            figsize=(6.4, 4.8),
+            label="tensors"
+        )
+        plot_columns = int(math.ceil(math.sqrt(len(tensor_dict))))
+        plot_rows = math.ceil(len(tensor_dict)/plot_columns)
+        for tensor_index, (tensor_name, tensor) in \
+                enumerate(tensor_dict.items()):
+            plt.subplot(plot_rows, plot_columns, tensor_index + 1)
+            plt.imshow(colour_complex_matrix(
+                tensor/(2*np.max(np.abs(tensor)))))
+            plt.title(tensor_name)
+            plt.xticks([], [])
+            plt.yticks([], [])
+        plt.draw()
+
+        return operator_dict, tensor_dict
 
     # Legacy code start =======================================================
 
@@ -821,11 +785,15 @@ with Logger("superspinsim-generate") as logger:
                     operator_out[y_out_index, x_out_index, c_out_index]
         return superoperator
 
+    # Main ====================================================================
+
     logger.set_context("spins")
-    generate_atoms([[
+
+    operator_dicts = generate_atoms([[
         {"S": 1, "g": 2, "g_perp": 2.1, "D": 50, "I": 1, "P": 10, "A": 5},
         {"I": 1/2}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
-    ]], [{(0, 1): {"J": 4}}], verbose=True)
+    ]], [{(0, 1): {"J": 4}}])
+    _plot_operators(*operator_dicts)
 
     plt.draw()
