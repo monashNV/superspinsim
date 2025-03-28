@@ -27,6 +27,10 @@ with Logger("superspinsim-generate") as logger:
     def generate_atoms(
             description: list[list[dict]], atom_interactions: list[dict],
             verbose=False) -> [dict, dict, list[dict], dict]:
+        """
+            Define a system of multiple spins.
+        """
+
         hilbert_space_shape = []
         operator_labels = set()
         tensor_labels = set()
@@ -563,12 +567,12 @@ with Logger("superspinsim-generate") as logger:
             block: dict, operator_labels: set) -> (tuple, np.ndarray):
         """
             Add a new spin system to the Hilbert/operator space.
+            See Sakurai 3ed Section 3.5.3.
         """
 
         spin_dimension = int(2*spin + 1)
         hilbert_space_shape.append(spin_dimension)
 
-        # Spin matrix elements (Sakurai 3ed Section 3.5.3)
         magnetic = np.linspace(
             spin, -spin, spin_dimension,
             dtype=meta_datatype
