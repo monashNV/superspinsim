@@ -73,29 +73,6 @@ with Logger("superspinsim-generate") as logger:
                         (spin_zx, spin_zy, spin_zz)
                     ) = quadratic
 
-                    # spin_xx = _mult(spin_x, spin_x)
-                    # spin_xy = _mult(spin_x, spin_y)
-                    # spin_xz = _mult(spin_x, spin_z)
-                    # spin_yx = _mult(spin_y, spin_x)
-                    # spin_yy = _mult(spin_y, spin_y)
-                    # spin_yz = _mult(spin_y, spin_z)
-                    # spin_zx = _mult(spin_z, spin_x)
-                    # spin_zy = _mult(spin_z, spin_y)
-                    # spin_zz = _mult(spin_z, spin_z)
-
-                    # atom["Sx Sx"] = spin_xx
-                    # atom["Sx Sy"] = spin_xy
-                    # atom["Sx Sz"] = spin_xz
-                    # atom["Sy Sx"] = spin_yx
-                    # atom["Sy Sy"] = spin_yy
-                    # atom["Sy Sz"] = spin_yz
-                    # atom["Sz Sx"] = spin_zx
-                    # atom["Sz Sy"] = spin_zy
-                    # atom["Sz Sz"] = spin_zz
-                    # operator_labels |= {"Sx Sx", "Sx Sy", "Sx Sz"}
-                    # operator_labels |= {"Sy Sx", "Sy Sy", "Sy Sz"}
-                    # operator_labels |= {"Sz Sx", "Sz Sy", "Sz Sz"}
-
                     zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
                         + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
                         + zfs[1, 1]*spin_yy + zfs[1, 2]*spin_yz \
@@ -161,28 +138,15 @@ with Logger("superspinsim-generate") as logger:
                         zfs[2, 2] = zfs_longitudinal*2/3
 
                     if np.sum(np.abs(zfs)) > 0:
-                        spin_xx = _mult(spin_x, spin_x)
-                        spin_xy = _mult(spin_x, spin_y)
-                        spin_xz = _mult(spin_x, spin_z)
-                        spin_yx = _mult(spin_y, spin_x)
-                        spin_yy = _mult(spin_y, spin_y)
-                        spin_yz = _mult(spin_y, spin_z)
-                        spin_zx = _mult(spin_z, spin_x)
-                        spin_zy = _mult(spin_z, spin_y)
-                        spin_zz = _mult(spin_z, spin_z)
+                        quadratic = _quadratic_outer(spin_vec, spin_vec)
+                        _record_spin_quadratic(
+                            "I", "I", quadratic, atom, [operator_labels])
 
-                        atom["Ix Ix"] = spin_xx
-                        atom["Ix Iy"] = spin_xy
-                        atom["Ix Iz"] = spin_xz
-                        atom["Iy Ix"] = spin_yx
-                        atom["Iy Iy"] = spin_yy
-                        atom["Iy Iz"] = spin_yz
-                        atom["Iz Ix"] = spin_zx
-                        atom["Iz Iy"] = spin_zy
-                        atom["Iz Iz"] = spin_zz
-                        operator_labels |= {"Ix Ix", "Ix Iy", "Ix Iz"}
-                        operator_labels |= {"Iy Ix", "Iy Iy", "Iy Iz"}
-                        operator_labels |= {"Iz Ix", "Iz Iy", "Iz Iz"}
+                        (
+                            (spin_xx, spin_xy, spin_xz),
+                            (spin_yx, spin_yy, spin_yz),
+                            (spin_zx, spin_zy, spin_zz)
+                        ) = quadratic
 
                         zfs_generator = zfs[0, 0]*spin_xx + zfs[0, 1]*spin_xy \
                             + zfs[0, 2]*spin_xz + zfs[1, 0]*spin_yx \
@@ -244,40 +208,21 @@ with Logger("superspinsim-generate") as logger:
                         atom["Aten"] = a_hyperfine
                         tensor_labels.add("Aten")
 
-                        electron_spin_x = atom["Sx"]
-                        electron_spin_y = atom["Sy"]
-                        electron_spin_z = atom["Sz"]
+                        electron_spin_vec = _read_spin_vec("S", atom)
+                        quadratic = _quadratic_outer(
+                            electron_spin_vec, spin_vec)
+                        _record_spin_quadratic(
+                            "S", "I", quadratic, atom, [operator_labels])
 
-                        hyperfine_x = spin_x + electron_spin_x
-                        hyperfine_y = spin_y + electron_spin_y
-                        hyperfine_z = spin_z + electron_spin_z
-                        hyperfine_xx = _mult(electron_spin_x, spin_x)
-                        hyperfine_xy = _mult(electron_spin_x, spin_y)
-                        hyperfine_xz = _mult(electron_spin_x, spin_z)
-                        hyperfine_yx = _mult(electron_spin_y, spin_x)
-                        hyperfine_yy = _mult(electron_spin_y, spin_y)
-                        hyperfine_yz = _mult(electron_spin_y, spin_z)
-                        hyperfine_zx = _mult(electron_spin_z, spin_x)
-                        hyperfine_zy = _mult(electron_spin_z, spin_y)
-                        hyperfine_zz = _mult(electron_spin_z, spin_z)
+                        (
+                            (hyperfine_xx, hyperfine_xy, hyperfine_xz),
+                            (hyperfine_yx, hyperfine_yy, hyperfine_yz),
+                            (hyperfine_zx, hyperfine_zy, hyperfine_zz)
+                        ) = quadratic
 
-                        atom["Fx"] = hyperfine_x
-                        atom["Fy"] = hyperfine_y
-                        atom["Fz"] = hyperfine_z
-                        operator_labels |= {"Fx", "Fy", "Fz"}
-
-                        atom["Sx Ix"] = hyperfine_xx
-                        atom["Sx Iy"] = hyperfine_xy
-                        atom["Sx Iz"] = hyperfine_xz
-                        atom["Sy Ix"] = hyperfine_yx
-                        atom["Sy Iy"] = hyperfine_yy
-                        atom["Sy Iz"] = hyperfine_yz
-                        atom["Sz Ix"] = hyperfine_zx
-                        atom["Sz Iy"] = hyperfine_zy
-                        atom["Sz Iz"] = hyperfine_zz
-                        operator_labels |= {"Sx Ix", "Sx Iy", "Sx Iz"}
-                        operator_labels |= {"Sy Ix", "Sy Iy", "Sy Iz"}
-                        operator_labels |= {"Sz Ix", "Sz Iy", "Sz Iz"}
+                        hyperfine_vec = _add_vec(electron_spin_vec, spin_vec)
+                        _record_spin_vec(
+                            "F", hyperfine_vec, atom, [operator_labels])
 
                         hyperfine_generator = a_hyperfine[0, 0]*hyperfine_xx \
                             + a_hyperfine[0, 1]*hyperfine_xy \
@@ -293,47 +238,36 @@ with Logger("superspinsim-generate") as logger:
                         zero_field_labels.add("Agen")
 
                 # Magnetic generators
-                generator_x = np.empty_like(previous_identity)
-                generator_y = np.empty_like(previous_identity)
-                generator_z = np.empty_like(previous_identity)
-
                 if electron_spin > 0:
-                    spin_x = atom["Sx"]
-                    spin_y = atom["Sy"]
-                    spin_z = atom["Sz"]
                     spin_gyro = atom["gyroS"]
 
-                    generator_x += spin_gyro[0, 0]*spin_x \
-                        + spin_gyro[0, 1]*spin_y \
-                        + spin_gyro[0, 2]*spin_z
-                    generator_y += spin_gyro[1, 0]*spin_x \
-                        + spin_gyro[1, 1]*spin_y \
-                        + spin_gyro[1, 2]*spin_z
-                    generator_z += spin_gyro[2, 0]*spin_x \
-                        + spin_gyro[2, 1]*spin_y \
-                        + spin_gyro[2, 2]*spin_z
+                    spin_vec = _read_spin_vec("S", atom)
+                    electron_generator_vec = _linear_transform(
+                        spin_gyro, spin_vec)
 
                 if nuclear_spin > 0:
-                    spin_x = atom["Ix"]
-                    spin_y = atom["Iy"]
-                    spin_z = atom["Iz"]
                     spin_gyro = atom["gyroI"]
 
-                    generator_x += spin_gyro[0, 0]*spin_x \
-                        + spin_gyro[0, 1]*spin_y \
-                        + spin_gyro[0, 2]*spin_z
-                    generator_y += spin_gyro[1, 0]*spin_x \
-                        + spin_gyro[1, 1]*spin_y \
-                        + spin_gyro[1, 2]*spin_z
-                    generator_z += spin_gyro[2, 0]*spin_x \
-                        + spin_gyro[2, 1]*spin_y \
-                        + spin_gyro[2, 2]*spin_z
+                    spin_vec = _read_spin_vec("I", atom)
+                    nuclear_generator_vec = _linear_transform(
+                        spin_gyro, spin_vec)
 
-                atom["Gx"] = generator_x
-                atom["Gy"] = generator_y
-                atom["Gz"] = generator_z
-                operator_labels |= {"Gx", "Gy", "Gz"}
-                field_labels |= {"Gx", "Gy", "Gz"}
+                if nuclear_spin > 0:
+                    if electron_spin > 0:
+                        generator_vec = _add_vec(
+                            electron_generator_vec, nuclear_generator_vec)
+                    else:
+                        generator_vec = nuclear_generator_vec
+                elif electron_spin > 0:
+                    generator_vec = electron_spin
+                else:
+                    generator_vec = None
+
+                if generator_vec is not None:
+                    _record_spin_vec(
+                        "G", generator_vec, atom,
+                        [operator_labels, field_labels]
+                    )
 
                 # Zero-field total
                 zfs_generator = None
@@ -375,57 +309,59 @@ with Logger("superspinsim-generate") as logger:
                 atom_a = block[index_a]
                 atom_b = block[index_b]
 
-                if "S" in atom_a:
-                    spin_xa = atom_a["Sx"]
-                    spin_ya = atom_a["Sy"]
-                    spin_za = atom_a["Sz"]
-                    label_a = "S"
-                elif "I" in atom_a:
-                    spin_xa = atom_a["Ix"]
-                    spin_ya = atom_a["Iy"]
-                    spin_za = atom_a["Iz"]
-                    label_a = "I"
+                for label in ["S", "I"]:
+                    if label in atom_a.keys():
+                        label_a = label
+                        break
+                for label in ["S", "I"]:
+                    if label in atom_b.keys():
+                        label_b = label
+                        break
 
-                if "S" in atom_b:
-                    spin_xb = atom_b["Sx"]
-                    spin_yb = atom_b["Sy"]
-                    spin_zb = atom_b["Sz"]
-                    label_b = "S"
-                elif "I" in atom_b:
-                    spin_xb = atom_b["Ix"]
-                    spin_yb = atom_b["Iy"]
-                    spin_zb = atom_b["Iz"]
-                    label_b = "I"
+                spin_a_vec = _read_spin_vec(label_a, atom_a)
+                spin_b_vec = _read_spin_vec(label_b, atom_b)
 
-                spin_xx = _mult(spin_xa, spin_xb)
-                spin_xy = _mult(spin_xa, spin_yb)
-                spin_xz = _mult(spin_xa, spin_zb)
-                spin_yx = _mult(spin_ya, spin_xb)
-                spin_yy = _mult(spin_ya, spin_yb)
-                spin_yz = _mult(spin_ya, spin_zb)
-                spin_zx = _mult(spin_za, spin_xb)
-                spin_zy = _mult(spin_za, spin_yb)
-                spin_zz = _mult(spin_za, spin_zb)
+                quadratic = _quadratic_outer(spin_a_vec, spin_b_vec)
+                _record_spin_quadratic(
+                    label_a, label_b, quadratic,
+                    j_description, [operator_labels]
+                )
 
-                j_description[f"{label_a}x {label_b}x"] = spin_xx
-                j_description[f"{label_a}x {label_b}y"] = spin_xy
-                j_description[f"{label_a}x {label_b}z"] = spin_xz
-                j_description[f"{label_a}y {label_b}x"] = spin_yx
-                j_description[f"{label_a}y {label_b}y"] = spin_yy
-                j_description[f"{label_a}y {label_b}z"] = spin_yz
-                j_description[f"{label_a}z {label_b}x"] = spin_zx
-                j_description[f"{label_a}z {label_b}y"] = spin_zy
-                j_description[f"{label_a}z {label_b}z"] = spin_zz
+                (
+                    (spin_xx, spin_xy, spin_xz),
+                    (spin_yx, spin_yy, spin_yz),
+                    (spin_zx, spin_zy, spin_zz)
+                ) = quadratic
 
-                operator_labels.add(f"{label_a}x {label_b}x")
-                operator_labels.add(f"{label_a}x {label_b}y")
-                operator_labels.add(f"{label_a}x {label_b}z")
-                operator_labels.add(f"{label_a}y {label_b}x")
-                operator_labels.add(f"{label_a}y {label_b}y")
-                operator_labels.add(f"{label_a}y {label_b}z")
-                operator_labels.add(f"{label_a}z {label_b}x")
-                operator_labels.add(f"{label_a}z {label_b}y")
-                operator_labels.add(f"{label_a}z {label_b}z")
+                # spin_xx = _mult(spin_xa, spin_xb)
+                # spin_xy = _mult(spin_xa, spin_yb)
+                # spin_xz = _mult(spin_xa, spin_zb)
+                # spin_yx = _mult(spin_ya, spin_xb)
+                # spin_yy = _mult(spin_ya, spin_yb)
+                # spin_yz = _mult(spin_ya, spin_zb)
+                # spin_zx = _mult(spin_za, spin_xb)
+                # spin_zy = _mult(spin_za, spin_yb)
+                # spin_zz = _mult(spin_za, spin_zb)
+
+                # j_description[f"{label_a}x {label_b}x"] = spin_xx
+                # j_description[f"{label_a}x {label_b}y"] = spin_xy
+                # j_description[f"{label_a}x {label_b}z"] = spin_xz
+                # j_description[f"{label_a}y {label_b}x"] = spin_yx
+                # j_description[f"{label_a}y {label_b}y"] = spin_yy
+                # j_description[f"{label_a}y {label_b}z"] = spin_yz
+                # j_description[f"{label_a}z {label_b}x"] = spin_zx
+                # j_description[f"{label_a}z {label_b}y"] = spin_zy
+                # j_description[f"{label_a}z {label_b}z"] = spin_zz
+
+                # operator_labels.add(f"{label_a}x {label_b}x")
+                # operator_labels.add(f"{label_a}x {label_b}y")
+                # operator_labels.add(f"{label_a}x {label_b}z")
+                # operator_labels.add(f"{label_a}y {label_b}x")
+                # operator_labels.add(f"{label_a}y {label_b}y")
+                # operator_labels.add(f"{label_a}y {label_b}z")
+                # operator_labels.add(f"{label_a}z {label_b}x")
+                # operator_labels.add(f"{label_a}z {label_b}y")
+                # operator_labels.add(f"{label_a}z {label_b}z")
 
                 spin_generator = j_tensor[0, 0]*spin_xx \
                     + j_tensor[0, 1]*spin_xy + j_tensor[0, 2]*spin_xz \
@@ -612,7 +548,7 @@ with Logger("superspinsim-generate") as logger:
 
         return operator_dict, tensor_dict
 
-    def _mult(left, right):
+    def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
         """
             Multiply two complex matrices.
         """
@@ -624,8 +560,8 @@ with Logger("superspinsim-generate") as logger:
         return operator_out
 
     def add_spin(
-            spin, hilbert_space_shape, previous_identity,
-            description, operator_labels):
+        spin: int, hilbert_space_shape: tuple, previous_identity: np.ndarray,
+            description: dict, operator_labels: set) -> (tuple, np.ndarray):
         """
             Add a new spin system to the Hilbert/operator space.
         """
@@ -690,7 +626,7 @@ with Logger("superspinsim-generate") as logger:
 
         return (spin_x, spin_y, spin_z), previous_identity
 
-    def kroneker_product(inner: np.ndarray, outer: np.ndarray):
+    def kroneker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
         """
             Take the Kroneker product between two operators.
         """
@@ -720,7 +656,13 @@ with Logger("superspinsim-generate") as logger:
                     + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
         return product
 
-    def _linear_transform(trans: np.ndarray, inp: tuple):
+    def _add_vec(left: tuple, right: tuple) -> tuple:
+        out = []
+        for left_spin, right_spin in zip(left, right):
+            out.append(left_spin + right_spin)
+        return tuple(out)
+
+    def _linear_transform(trans: np.ndarray, inp: tuple) -> tuple:
         """
             Apply a linear transform to a spin vector.
             The typical case would be the g tensor.
@@ -734,7 +676,7 @@ with Logger("superspinsim-generate") as logger:
                     out[y_index] += trans[y_index, x_index]*inp[x_index]
         return tuple(out)
 
-    def _quadratic_outer(left: tuple, right: tuple):
+    def _quadratic_outer(left: tuple, right: tuple) -> tuple:
         quadratic = []
         for y_index in range(3):
             sub_quadratic = []
@@ -754,6 +696,21 @@ with Logger("superspinsim-generate") as logger:
             atom[operator_label] = spin_operator
             for label_set in label_sets:
                 label_set.add(operator_label)
+
+    def _read_spin_vec(label: str, atom: dict) -> tuple:
+        """
+            Read a spin vector from a dictionary.
+        """
+        directions = ("x", "y", "z")
+        spin_vec = []
+        for direction in directions:
+            operator_label = label + direction
+            if operator_label in atom.keys():
+                spin_vec.append(atom[operator_label])
+            else:
+                raise KeyError(
+                    f"Label \"{operator_label}\" not found in dict.")
+        return tuple(spin_vec)
 
     def _record_spin_quadratic(
             label_left: str, label_right: str,  quadratic: tuple,
