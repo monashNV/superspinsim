@@ -181,6 +181,48 @@ with Logger("superspinsim-generate") as logger:
             atom["gyroS"] = g_spin*constants["bohr_gyro"]["value"]
             tensor_labels.add("gyroS")
 
+            generator_vec = _linear_transform(g_spin, spin_vec)
+            _record_spin_vec("GS", generator_vec, atom, [operator_labels])
+
+            quiescent_magnetic_generator = None
+            if "B0" in atom.keys():
+                quiescent_magnetic_field = atom["B0"]
+                quiescent_magnetic_generator = \
+                    quiescent_magnetic_field[0]*generator_vec[0] \
+                    + quiescent_magnetic_field[1]*generator_vec[1] \
+                    + quiescent_magnetic_field[2]*generator_vec[2]
+
+                # Dephasing:
+                # Dephasing modelled as fluctuations of magnetic field in its
+                # current direction, meaning that only changes due to the
+                # Zeeman effect matter.
+                # See 1D from sup mat of [Hapuarachchi et al. Opt. Express 32,
+                # 22352-22361 (2024)]
+                if "TS2" in atom.keys():
+                    dephasing_time = atom["TS2"]
+                    l2 = np.max(
+                        np.linalg.eigvalsh(
+                            quiescent_magnetic_generator[:, :, 0]
+                            + 1j*quiescent_magnetic_generator[:, :, 1]))
+                    jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
+                        * quiescent_magnetic_generator
+                    _record_operator(
+                        "LS2", jump_dephasing, atom, [operator_labels])
+
+            # # Themalisation
+            # if quiescent_magnetic_generator is None:
+            #     quiescent_generator = zfs_generator.copy()
+            # else:
+            #     quiescent_generator = quiescent_magnetic_generator \
+            #         + zfs_generator
+            # quiescent_energies, quiescent_states = \
+            #     np.linalg.eigh(quiescent_generator)
+            # temperature = 0
+            # if temperature > 0:
+            #     boltzmann_factors = np.exp(quiescent_energies/(
+            #         constants["boltzmann_gyro"]["value"]*temperature
+            #     ))
+
         return spin, previous_identity
 
     def _add_nucleus(
@@ -257,6 +299,34 @@ with Logger("superspinsim-generate") as logger:
 
             atom["gyroI"] = -g_spin*constants["nuclear_gyro"]["value"]
             tensor_labels |= {"gyroI"}
+
+            generator_vec = _linear_transform(g_spin, spin_vec)
+            _record_spin_vec("GI", generator_vec, atom, [operator_labels])
+
+            quiescent_magnetic_generator = None
+            if "B0" in atom.keys():
+                quiescent_magnetic_field = atom["B0"]
+                quiescent_magnetic_generator = \
+                    quiescent_magnetic_field[0]*generator_vec[0] \
+                    + quiescent_magnetic_field[1]*generator_vec[1] \
+                    + quiescent_magnetic_field[2]*generator_vec[2]
+
+                # Dephasing:
+                # Dephasing modelled as fluctuations of magnetic field in its
+                # current direction, meaning that only changes due to the
+                # Zeeman effect matter.
+                # See 1D from sup mat of [Hapuarachchi et al. Opt. Express 32,
+                # 22352-22361 (2024)]
+                if "TI2" in atom.keys():
+                    dephasing_time = atom["TI2"]
+                    l2 = np.max(
+                        np.linalg.eigvalsh(
+                            quiescent_magnetic_generator[:, :, 0]
+                            + 1j*quiescent_magnetic_generator[:, :, 1]))
+                    jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
+                        * quiescent_magnetic_generator
+                    _record_operator(
+                        "LI2", jump_dephasing, atom, [operator_labels])
 
         return spin, previous_identity
 
@@ -968,9 +1038,10 @@ with Logger("superspinsim-generate") as logger:
     quiescent_magnetic_field = np.array([0.1, 0.1, 1])*1e-10
     operator_dicts = generate_atoms([[
         {
-            "S": 1, "g": 2, "g_perp": 2.1, "D": 50, "I": 1, "P": 10, "A": 5,
+            "S": 1, "g": 2, "g_perp": 2.1, "D": 50, "TS1": 1e-3, "TS2": 1e-6,
+            "I": 1, "P": 10, "TI2": 1e-3, "A": 5,
             "B0": quiescent_magnetic_field
-        }, {"I": 1/2, "B0": quiescent_magnetic_field}
+        }, {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], [{(0, 1): {"J": 4}}])
     _plot_operators(*operator_dicts)
