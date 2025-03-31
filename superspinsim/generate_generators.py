@@ -867,7 +867,8 @@ with Logger("superspinsim-generate") as logger:
     @logger.record(("operators", "tensors"))
     def _plot_operators(
             operator_dict: dict, composite_operator_dict: dict,
-            block_operator_list: list, tensor_dict: dict):
+            block_operator_list: list, tensor_dict: dict,
+            superoperator_dict: dict = None):
         """
             Generates heat maps of all the operators and tensors generated.
         """
@@ -889,6 +890,25 @@ with Logger("superspinsim-generate") as logger:
             plt.yticks([], [])
             plt.tight_layout()
         plt.draw()
+
+        if superoperator_dict is not None:
+            plt.figure(
+                figsize=(6.4, 24*4.8),
+                label="superoperators"
+            )
+            plot_columns = \
+                min(2, int(math.ceil(math.sqrt(len(superoperator_dict)))))
+            plot_rows = math.ceil(len(superoperator_dict)/plot_columns)
+            for operator_index, (operator_name, operator) in \
+                    enumerate(superoperator_dict.items()):
+                plt.subplot(plot_rows, plot_columns, operator_index + 1)
+                plt.imshow(colour_complex_matrix(
+                    operator/(np.max(np.abs(operator)))))
+                plt.title(operator_name)
+                plt.xticks([], [])
+                plt.yticks([], [])
+                plt.tight_layout()
+            plt.draw()
 
         plt.figure(
             figsize=(6.4, 6.4),
@@ -942,22 +962,36 @@ with Logger("superspinsim-generate") as logger:
 
         return operator_dict, tensor_dict
 
+    def _generate_superoperators(
+            operator_dict: dict, valid_indices: np.ndarray) -> dict:
+        superoperator_dict = {}
+        for label, operator in operator_dict.items():
+            if "L" in label:
+                superoperator = _generate_dissipator(operator, valid_indices)
+            else:
+                superoperator = _generate_von_neumann(operator, valid_indices)
+
+            superoperator_dict[label] = superoperator
+        return superoperator_dict
+
     # Legacy code start =======================================================
 
-    def _generate_valid_indices():
-        valid_mask = np.zeros((7, 7), dtype=meta_datatype)
-        valid_mask[:3, :3] = 1
-        valid_mask[3:6, 3:6] = 1
-        valid_mask[6, 6] = 1
+    def _generate_valid_indices(valid_mask: np.ndarray = None):
+        if valid_mask is None:
+            valid_mask = np.zeros((7, 7), dtype=meta_datatype)
+            valid_mask[:3, :3] = 1
+            valid_mask[3:6, 3:6] = 1
+            valid_mask[6, 6] = 1
 
         valid_indices = []
 
-        for y_index in range(7):
+        hilbert_size = valid_mask.shape[0]
+        for y_index in range(hilbert_size):
             if valid_mask[y_index, y_index]:
                 valid_indices.append([y_index, y_index, 0])
 
-        for y_index in range(6):
-            for x_index in range(y_index + 1, 7):
+        for y_index in range(hilbert_size - 1):
+            for x_index in range(y_index + 1, hilbert_size):
                 if valid_mask[y_index, x_index]:
                     valid_indices.append([y_index, x_index, 0])
                     valid_indices.append([y_index, x_index, 1])
@@ -967,6 +1001,7 @@ with Logger("superspinsim-generate") as logger:
 
     def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
         operator_dimension = valid_indices.shape[0]
+        hilbert_size = operator.shape[0]
         superoperator = np.empty(
             (operator_dimension, operator_dimension),
             dtype=meta_datatype
@@ -977,7 +1012,8 @@ with Logger("superspinsim-generate") as logger:
             x_in_index = valid_indices[in_index, 1]
             c_in_index = valid_indices[in_index, 2]
 
-            density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
+            density_matrix = np.zeros(
+                (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
             density_matrix[y_in_index, x_in_index, c_in_index] = 1
             if y_in_index != x_in_index:
                 if c_in_index:
@@ -999,9 +1035,9 @@ with Logger("superspinsim-generate") as logger:
                     operator_out[y_out_index, x_out_index, c_out_index]
         return superoperator
 
-
     def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
         operator_dimension = valid_indices.shape[0]
+        hilbert_size = operator.shape[0]
         superoperator = np.empty(
             (operator_dimension, operator_dimension),
             dtype=meta_datatype
@@ -1012,7 +1048,8 @@ with Logger("superspinsim-generate") as logger:
             x_in_index = valid_indices[in_index, 1]
             c_in_index = valid_indices[in_index, 2]
 
-            density_matrix = np.zeros((7, 7, 2), dtype=meta_datatype)
+            density_matrix = np.zeros(
+                (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
             density_matrix[y_in_index, x_in_index, c_in_index] = 1
 
             operator_transpose = np.transpose(operator, axes=(1, 0, 2))
@@ -1044,6 +1081,16 @@ with Logger("superspinsim-generate") as logger:
         }, {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
     ]], [{(0, 1): {"J": 4}}])
+
+    valid_mask = np.ones_like(
+        operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
+    valid_indices = _generate_valid_indices(valid_mask)
+    superoperators = _generate_superoperators(operator_dicts[0], valid_indices)
+
+    operator_dicts = list(operator_dicts)
+    operator_dicts.append(superoperators)
+    operator_dicts = tuple(operator_dicts)
+
     _plot_operators(*operator_dicts)
 
     plt.draw()
