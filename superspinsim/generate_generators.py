@@ -116,6 +116,8 @@ with Logger("superspinsim-generate") as logger:
         (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
             label_sets
 
+        temp_labels = set()
+
         # Electron spin
         if "S" in atom.keys():
             spin = atom["S"]
@@ -123,11 +125,9 @@ with Logger("superspinsim-generate") as logger:
             spin = 0
 
         if spin > 0:
-            spin_vec, previous_identity = add_spin(
-                spin, hilbert_space_shape, previous_identity,
-                block, operator_labels
-            )
-            _record_spin_vec("S", spin_vec, atom, [operator_labels])
+            spin_vec, spin_identity = add_spin(spin, hilbert_space_shape)
+            _record_spin_vec(
+                "S", spin_vec, atom, [temp_labels, operator_labels])
             (spin_x, spin_y, spin_z) = spin_vec
 
         # Electron ZFS
@@ -146,12 +146,12 @@ with Logger("superspinsim-generate") as logger:
 
             quadratic = _quadratic_outer(spin_vec, spin_vec)
             _record_spin_quadratic(
-                "S", "S", quadratic, atom, [operator_labels])
+                "S", "S", quadratic, atom, [temp_labels, operator_labels])
 
             zfs_generator = _quadratic_transform(zfs, quadratic)
             _record_operator(
                 "Dgen", zfs_generator, atom,
-                [operator_labels, zero_field_labels]
+                [temp_labels, operator_labels, zero_field_labels]
             )
 
             atom["Dten"] = zfs
@@ -178,11 +178,13 @@ with Logger("superspinsim-generate") as logger:
             g_spin[1, 1] = g_iso - g_dipole
             g_spin[2, 2] = g_iso + 2*g_dipole
 
-            atom["gyroS"] = g_spin*constants["bohr_gyro"]["value"]
+            electron_gyro = g_spin*constants["bohr_gyro"]["value"]
+            atom["gyroS"] = electron_gyro
             tensor_labels.add("gyroS")
 
-            generator_vec = _linear_transform(g_spin, spin_vec)
-            _record_spin_vec("GS", generator_vec, atom, [operator_labels])
+            generator_vec = _linear_transform(electron_gyro, spin_vec)
+            _record_spin_vec(
+                "GS", generator_vec, atom, [temp_labels, operator_labels])
 
             quiescent_magnetic_generator = None
             if "B0" in atom.keys():
@@ -207,21 +209,69 @@ with Logger("superspinsim-generate") as logger:
                     jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
                         * quiescent_magnetic_generator
                     _record_operator(
-                        "LS2", jump_dephasing, atom, [operator_labels])
+                        "LS2", jump_dephasing, atom,
+                        [temp_labels, operator_labels]
+                    )
 
-            # # Themalisation
-            # if quiescent_magnetic_generator is None:
-            #     quiescent_generator = zfs_generator.copy()
-            # else:
-            #     quiescent_generator = quiescent_magnetic_generator \
-            #         + zfs_generator
-            # quiescent_energies, quiescent_states = \
-            #     np.linalg.eigh(quiescent_generator)
-            # temperature = 0
-            # if temperature > 0:
-            #     boltzmann_factors = np.exp(quiescent_energies/(
-            #         constants["boltzmann_gyro"]["value"]*temperature
-            #     ))
+            # Themalisation:
+            # Model: The rate of flow out of an energy eigenstate is
+            # proportional to its Boltzmann factor.
+            # The rate of absorption from another state is proportional
+            # to its Boltzmann factor.
+            # See Equation (VIII.9) from [Abragam "The Principles of Nuclear
+            # Magnetism", 1961, ISBN 0198512368]
+            if "TS1" in atom.keys():
+                thermalisation_time = atom["TS1"]
+
+                if quiescent_magnetic_generator is None:
+                    quiescent_generator = zfs_generator.copy()
+                else:
+                    quiescent_generator = quiescent_magnetic_generator \
+                        + zfs_generator
+                quiescent_energies, quiescent_states = np.linalg.eigh(
+                    quiescent_generator[:, :, 0]
+                    + 1j*quiescent_generator[:, :, 1]
+                )
+                temperature = 300
+                print(quiescent_energies)
+                if temperature > 0:
+                    boltzmann_factors = np.exp(quiescent_energies/(
+                        constants["boltzmann_gyro"]["value"]*temperature
+                    ))
+                else:
+                    boltzmann_factors = np.zeros_like(quiescent_energies)
+                print(boltzmann_factors)
+                print(quiescent_states)
+                boltzmann_factors = np.sqrt(
+                    boltzmann_factors/(
+                    len(boltzmann_factors)
+                    * thermalisation_time
+                    * np.min(boltzmann_factors))
+                )
+                print(boltzmann_factors)
+                for state_index_init, boltzmann_factor in \
+                        enumerate(boltzmann_factors):
+                    for state_index_final in range(len(boltzmann_factors)):
+                        jump_temp = boltzmann_factor*np.outer(
+                            quiescent_states[:, state_index_final],
+                            np.conj(quiescent_states[:, state_index_init]),
+                        )
+                        jump = np.empty(
+                            (jump_temp.shape[0], jump_temp.shape[1], 2),
+                            dtype=meta_datatype
+                        )
+                        jump[:, :, 0] = np.real(jump_temp)
+                        jump[:, :, 1] = np.imag(jump_temp)
+
+                        _record_operator(
+                            f"LS1 {state_index_final} {state_index_init}",
+                            jump, atom, [temp_labels, operator_labels]
+                        )
+
+            previous_identity = _product_spin_state(
+                previous_identity, spin_identity, block, atom,
+                temp_labels, operator_labels
+            )
 
         return spin, previous_identity
 
@@ -237,14 +287,14 @@ with Logger("superspinsim-generate") as logger:
             label_sets
 
         if "I" in atom.keys():
+            temp_labels = set()
+
             spin = atom["I"]
 
-            spin_vec, previous_identity = add_spin(
-                spin, hilbert_space_shape, previous_identity,
-                block, operator_labels
-            )
+            spin_vec, spin_identity = add_spin(spin, hilbert_space_shape)
 
-            _record_spin_vec("I", spin_vec, atom, [operator_labels])
+            _record_spin_vec(
+                "I", spin_vec, atom, [temp_labels, operator_labels])
 
             # Nuclear quadrupole
             zfs = np.zeros((3, 3), dtype=meta_datatype)
@@ -262,12 +312,12 @@ with Logger("superspinsim-generate") as logger:
             if np.sum(np.abs(zfs)) > 0:
                 quadratic = _quadratic_outer(spin_vec, spin_vec)
                 _record_spin_quadratic(
-                    "I", "I", quadratic, atom, [operator_labels])
+                    "I", "I", quadratic, atom, [temp_labels, operator_labels])
 
                 zfs_generator = _quadratic_transform(zfs, quadratic)
                 _record_operator(
                     "Pgen", zfs_generator, atom,
-                    [operator_labels, zero_field_labels]
+                    [temp_labels, operator_labels, zero_field_labels]
                 )
 
                 atom["Pten"] = zfs
@@ -301,7 +351,8 @@ with Logger("superspinsim-generate") as logger:
             tensor_labels |= {"gyroI"}
 
             generator_vec = _linear_transform(g_spin, spin_vec)
-            _record_spin_vec("GI", generator_vec, atom, [operator_labels])
+            _record_spin_vec(
+                "GI", generator_vec, atom, [temp_labels, operator_labels])
 
             quiescent_magnetic_generator = None
             if "B0" in atom.keys():
@@ -326,7 +377,14 @@ with Logger("superspinsim-generate") as logger:
                     jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
                         * quiescent_magnetic_generator
                     _record_operator(
-                        "LI2", jump_dephasing, atom, [operator_labels])
+                        "LI2", jump_dephasing, atom,
+                        [temp_labels, operator_labels]
+                    )
+
+            previous_identity = _product_spin_state(
+                previous_identity, spin_identity, block, atom,
+                temp_labels, operator_labels
+            )
 
         return spin, previous_identity
 
@@ -659,9 +717,7 @@ with Logger("superspinsim-generate") as logger:
             + left[:, :, 1]@right[:, :, 0]
         return operator_out
 
-    def add_spin(
-        spin: int, hilbert_space_shape: tuple, previous_identity: np.ndarray,
-            block: dict, operator_labels: set) -> (tuple, np.ndarray):
+    def add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
         """
             Add a new spin system to the Hilbert/operator space.
             See Sakurai 3ed Section 3.5.3.
@@ -694,30 +750,33 @@ with Logger("superspinsim-generate") as logger:
         spin_z[:, :, 0] = np.diag(magnetic)
 
         spin_identity = np.zeros_like(spin_x)
-        spin_identity[:, :, 0] = \
-            np.eye(spin_x.shape[0])
+        spin_identity[:, :, 0] = np.eye(spin_x.shape[0])
 
+        return (spin_x, spin_y, spin_z), spin_identity
+
+    def _product_spin_state(
+            previous_identity: np.ndarray, spin_identity: np.ndarray,
+            block: list, atom_current: dict, temp_labels: set,
+            operator_labels: set) -> np.ndarray:
         if previous_identity is not None:
             for atom in block:
                 for operator_label in operator_labels:
                     if operator_label in atom.keys():
-                        operator = atom[operator_label]
-                        operator_new = kroneker_product(
-                            spin_identity, operator)
-                        atom[operator_label] = operator_new
+                        if operator_label in temp_labels and \
+                                atom is atom_current:
+                            operator = atom[operator_label]
+                            operator_new = kroneker_product(
+                                operator, previous_identity)
+                            atom[operator_label] = operator_new
+                        else:
+                            operator = atom[operator_label]
+                            operator_new = kroneker_product(
+                                spin_identity, operator)
+                            atom[operator_label] = operator_new
 
-            spin_x = kroneker_product(
-                spin_x, previous_identity)
-            spin_y = kroneker_product(
-                spin_y, previous_identity)
-            spin_z = kroneker_product(
-                spin_z, previous_identity)
-            spin_identity = kroneker_product(
-                previous_identity, spin_identity)
+            spin_identity = kroneker_product(spin_identity, previous_identity)
 
-        previous_identity = spin_identity
-
-        return (spin_x, spin_y, spin_z), previous_identity
+        return spin_identity
 
     def kroneker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
         """
@@ -864,7 +923,7 @@ with Logger("superspinsim-generate") as logger:
                 for label_set in label_sets:
                     label_set.add(operator_label)
 
-    @logger.record(("operators", "tensors"))
+    @logger.record(("operators", "superoperators", "tensors"))
     def _plot_operators(
             operator_dict: dict, composite_operator_dict: dict,
             block_operator_list: list, tensor_dict: dict,
@@ -960,7 +1019,7 @@ with Logger("superspinsim-generate") as logger:
             plt.yticks([], [])
         plt.draw()
 
-        return operator_dict, tensor_dict
+        return operator_dict, superoperator_dict, tensor_dict
 
     def _generate_superoperators(
             operator_dict: dict, valid_indices: np.ndarray) -> dict:
@@ -973,6 +1032,25 @@ with Logger("superspinsim-generate") as logger:
 
             superoperator_dict[label] = superoperator
         return superoperator_dict
+
+    def _combine_superoperators(superoperator_dict: dict):
+        superoperator_combine_labels = ["LS1", "LI1"]
+        superoperator_dict_add = {}
+
+        for label, superoperator in superoperator_dict.items():
+            atom_label, operator_label = label.split("] ", 1)
+            atom_label += "] "
+            for combine_label in superoperator_combine_labels:
+                if len(operator_label) > len(combine_label):
+                    if operator_label[:len(combine_label)] == combine_label:
+                        atom_combine_label = atom_label + combine_label
+                        if atom_combine_label in superoperator_dict_add.keys():
+                            superoperator_dict_add[atom_combine_label] += \
+                                superoperator
+                        else:
+                            superoperator_dict_add[atom_combine_label] = \
+                                superoperator
+        superoperator_dict.update(superoperator_dict_add)
 
     # Legacy code start =======================================================
 
@@ -1072,20 +1150,24 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
 
-    quiescent_magnetic_field = np.array([0.1, 0.1, 1])*1e-10
+    quiescent_magnetic_field = np.array([0.1, 0.1, 1])*1e-20
     operator_dicts = generate_atoms([[
         {
-            "S": 1, "g": 2, "g_perp": 2.1, "D": 50, "TS1": 1e-3, "TS2": 1e-6,
+            "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9, "TS1": 1e-3, "TS2": 1e-6,
             "I": 1, "P": 10, "TI2": 1e-3, "A": 5,
             "B0": quiescent_magnetic_field
-        }, {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-        # {"S": 1/2, "g": 2, "g_perp": 2.1, "I": 3/2}
-    ]], [{(0, 1): {"J": 4}}])
+        }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+        # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+    ]], [
+        {}
+        # {(0, 1): {"J": 4}}
+    ])
 
     valid_mask = np.ones_like(
         operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
     valid_indices = _generate_valid_indices(valid_mask)
     superoperators = _generate_superoperators(operator_dicts[0], valid_indices)
+    _combine_superoperators(superoperators)
 
     operator_dicts = list(operator_dicts)
     operator_dicts.append(superoperators)
