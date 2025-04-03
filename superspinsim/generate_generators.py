@@ -232,7 +232,7 @@ with Logger("superspinsim-generate") as logger:
                     quiescent_generator[:, :, 0]
                     + 1j*quiescent_generator[:, :, 1]
                 )
-                temperature = 300
+                temperature = 0.001
                 print(quiescent_energies)
                 if temperature > 0:
                     boltzmann_factors = np.exp(quiescent_energies/(
@@ -584,13 +584,15 @@ with Logger("superspinsim-generate") as logger:
         for block in description:
             for atom in block:
                 for operator_label in operator_labels:
-                    if operator_label in atom.keys():
-                        operator = atom[operator_label]
-                        trace = np.trace(operator[:, :, 0])
-                        operator_new = operator.copy()
-                        operator_new[:, :, 0] -= \
-                            trace*np.eye(operator.shape[0])/operator.shape[0]
-                        atom[operator_label] = operator_new
+                    if "L" not in operator_label:
+                        if operator_label in atom.keys():
+                            operator = atom[operator_label]
+                            trace = np.trace(operator[:, :, 0])
+                            operator_new = operator.copy()
+                            operator_new[:, :, 0] -= \
+                                trace*np.eye(operator.shape[0]) \
+                                / operator.shape[0]
+                            atom[operator_label] = operator_new
 
     def _combine_in_block(
             description: list[dict], atom_interactions: list[dict],
@@ -1049,7 +1051,7 @@ with Logger("superspinsim-generate") as logger:
                                 superoperator
                         else:
                             superoperator_dict_add[atom_combine_label] = \
-                                superoperator
+                                superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
 
     # Legacy code start =======================================================
@@ -1129,14 +1131,19 @@ with Logger("superspinsim-generate") as logger:
             density_matrix = np.zeros(
                 (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
             density_matrix[y_in_index, x_in_index, c_in_index] = 1
+            if y_in_index != x_in_index:
+                if c_in_index:
+                    density_matrix[x_in_index, y_in_index, c_in_index] = -1
+                else:
+                    density_matrix[x_in_index, y_in_index, c_in_index] = 1
 
-            operator_transpose = np.transpose(operator, axes=(1, 0, 2))
+            operator_transpose = np.transpose(operator.copy(), axes=(1, 0, 2))
+            operator_transpose[:, :, 1] = -operator_transpose[:, :, 1]
             operator_out = _mult(_mult(operator, density_matrix),
                                  operator_transpose)
-            operator_out -= 0.5*_mult(_mult(operator_transpose, operator),
-                                      density_matrix)
-            operator_out -= 0.5*_mult(density_matrix,
-                                      _mult(operator_transpose, operator))
+            proj = _mult(operator_transpose, operator)
+            operator_out -= 0.5*_mult(proj, density_matrix)
+            operator_out -= 0.5*_mult(density_matrix, proj)
 
             for out_index in range(operator_dimension):
                 y_out_index = valid_indices[out_index, 0]
@@ -1150,7 +1157,9 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
 
-    quiescent_magnetic_field = np.array([0.1, 0.1, 1])*1e-20
+    quiescent_magnetic_field = np.array([0, 0, 1])*1e-20
+    # quiescent_magnetic_field = np.array([0.01, 0.02, 1])*1e-1
+    # quiescent_magnetic_field = np.array([0, 0, 1])*1e-1
     operator_dicts = generate_atoms([[
         {
             "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9, "TS1": 1e-3, "TS2": 1e-6,
