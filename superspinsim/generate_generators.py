@@ -218,71 +218,6 @@ with Logger("superspinsim-generate") as logger:
                 label_sets
             )
 
-            # # Themalisation (T1 time):
-            # # Model: The rate of flow into an energy eigenstate is proportional
-            # # to its Boltzmann factor.
-            # # See Equation (VIII.9) from [Abragam "The Principles of Nuclear
-            # # Magnetism", 1961, ISBN 0198512368]
-            # if "TS1" in atom.keys():
-            #     thermalisation_time = atom["TS1"]
-
-            #     # Find quiescent energy eigstates and values
-            #     if quiescent_magnetic_generator is None:
-            #         quiescent_generator = zfs_generator.copy()
-            #     else:
-            #         quiescent_generator = quiescent_magnetic_generator \
-            #             + zfs_generator
-            #     quiescent_energies, quiescent_states = np.linalg.eigh(
-            #         quiescent_generator[:, :, 0]
-            #         + 1j*quiescent_generator[:, :, 1]
-            #     )
-
-                # # Find Boltzmann factors
-                # if "T" in atom.keys():
-                #     temperature = atom["T"]
-                # else:
-                #     temperature = 293.15
-                # if temperature > 0:
-                #     boltzmann_factors = np.exp(-quiescent_energies/(
-                #         constants["boltzmann_gyro"]["value"]*temperature
-                #     ))
-                # else:
-                #     boltzmann_factors = np.zeros_like(
-                #         quiescent_energies, dtype=meta_datatype)
-                #     boltzmann_factors[np.argmin(quiescent_energies)] = 1
-
-                # # Normalise rate by T1
-                # markov_matrix = np.empty(
-                #     quiescent_states.shape, dtype=meta_datatype)
-                # for state_index, boltzmann_factor in \
-                #         enumerate(boltzmann_factors):
-                #     markov_matrix[state_index, :] = boltzmann_factors
-                #     markov_matrix[state_index, state_index] -= \
-                #         np.sum(boltzmann_factors)
-                # norm = np.linalg.norm(markov_matrix, ord=2)
-                # boltzmann_factors /= norm*thermalisation_time
-                # boltzmann_factors = np.sqrt(boltzmann_factors)
-                # 
-                # # Generate the jump operators
-                # for state_index_init in range(len(boltzmann_factors)):
-                #     for state_index_final, boltzmann_factor in \
-                #         enumerate(boltzmann_factors):
-                #         jump_temp = boltzmann_factor*np.outer(
-                #             quiescent_states[:, state_index_final],
-                #             np.conj(quiescent_states[:, state_index_init]),
-                #         )
-                #         jump = np.empty(
-                #             (jump_temp.shape[0], jump_temp.shape[1], 2),
-                #             dtype=meta_datatype
-                #         )
-                #         jump[:, :, 0] = np.real(jump_temp)
-                #         jump[:, :, 1] = np.imag(jump_temp)
-
-                #         _record_operator(
-                #             f"LS1 {state_index_final} {state_index_init}",
-                #             jump, atom, [temp_labels, operator_labels]
-                #         )
-
             previous_identity = _product_spin_state(
                 previous_identity, spin_identity, block, atom,
                 temp_labels, operator_labels
@@ -1136,7 +1071,6 @@ with Logger("superspinsim-generate") as logger:
     def _combine_superoperators(superoperator_dict: dict):
         superoperator_combine_labels = ["LS1", "LI1"]
         superoperator_dict_add = {}
-
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
             atom_label += "] "
@@ -1150,6 +1084,23 @@ with Logger("superspinsim-generate") as logger:
                         else:
                             superoperator_dict_add[atom_combine_label] = \
                                 superoperator.copy()
+        superoperator_dict.update(superoperator_dict_add)
+
+        superoperator_combine_labels = ["LS1", "LI1", "LS2", "LI2"]
+        combined_label = "D"
+        superoperator_dict_add = {}
+        for label, superoperator in superoperator_dict.items():
+            atom_label, operator_label = label.split("] ", 1)
+            atom_label += "] "
+            for combine_label in superoperator_combine_labels:
+                if operator_label == combine_label:
+                    atom_combine_label = atom_label + combined_label
+                    if atom_combine_label in superoperator_dict_add.keys():
+                        superoperator_dict_add[atom_combine_label] += \
+                            superoperator
+                    else:
+                        superoperator_dict_add[atom_combine_label] = \
+                            superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
 
     # Legacy code start =======================================================
