@@ -64,6 +64,8 @@ with Logger("superspinsim-generate") as logger:
                 _add_spin_spin_coupling(
                     block, j_description, index_a, index_b, label_sets)
 
+            previous_identity = None
+
         # Make traceless
         _remove_trace(description, operator_labels)
 
@@ -72,13 +74,14 @@ with Logger("superspinsim-generate") as logger:
             description, atom_interactions, field_labels)
 
         # Create lists of operators
-        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
+        _, composite_operator_dict, tensor_dict = _list_operators(
             description, atom_interactions, label_sets)
+        operator_dict, allowed = _combine_blocks(description, label_sets)
 
         return (
             operator_dict, composite_operator_dict,
             block_operator_list, tensor_dict
-        )
+        ), allowed
 
     def _add_atom(
             block: list[dict], atom: dict, label_sets: list[set[str]],
@@ -511,7 +514,7 @@ with Logger("superspinsim-generate") as logger:
             else:
                 generator_vec = nuclear_generator_vec
         elif electron_spin > 0:
-            generator_vec = electron_spin
+            generator_vec = electron_generator_vec
         else:
             generator_vec = None
 
@@ -844,6 +847,17 @@ with Logger("superspinsim-generate") as logger:
                     + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
         return product
 
+    def _direct_sum(upper: np.ndarray, lower: np.ndarray) -> np.ndarray:
+        """
+            Combining incoherent systems
+        """
+
+        sum_size = upper.shape[0] + lower.shape[0]
+        direct_sum = np.zeros((sum_size, sum_size, 2), dtype=meta_datatype)
+        direct_sum[:upper.shape[0], :upper.shape[0], :] = upper
+        direct_sum[upper.shape[0]:, upper.shape[0]:] = lower
+        return direct_sum
+
     def _add_vec(left: tuple, right: tuple) -> tuple:
         """
             Add two vector operators together.
@@ -946,17 +960,74 @@ with Logger("superspinsim-generate") as logger:
             Write a quadratic expansion of a spin vector to an atom dictionary.
         """
 
-        directions = ("x", "y", "z")
-        for quadratic_vec, direction_left in zip(quadratic, directions):
-            operator_label_left = label_left + direction_left
-            for quadratic_operator, direction_right in \
-                    zip(quadratic_vec, directions):
+        # directions = ("x", "y", "z")
+        # for quadratic_vec, direction_left in zip(quadratic, directions):
+        #     operator_label_left = label_left + direction_left
+        #     for quadratic_operator, direction_right in \
+        #             zip(quadratic_vec, directions):
 
-                operator_label = operator_label_left + " " \
-                    + label_right + direction_right
-                atom[operator_label] = quadratic_operator
-                for label_set in label_sets:
-                    label_set.add(operator_label)
+        #         operator_label = operator_label_left + " " \
+        #             + label_right + direction_right
+        #         atom[operator_label] = quadratic_operator
+        #         for label_set in label_sets:
+        #             label_set.add(operator_label)
+
+        return
+
+    def _combine_blocks(
+            description: list[list[dict]], label_sets: list[set[str]]):
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        operators = {}
+        combined_size = 0
+        combined_zero = None
+        combined_allowed = None
+        for block_index, block in enumerate(description):
+            operators_add = {}
+            current_size = 0
+            current_zero = None
+            if combined_size > 0:
+                combined_zero = np.zeros(
+                    (combined_size, combined_size, 2),
+                    dtype=meta_datatype
+                )
+
+            for atom_index, atom in enumerate(block):
+                for operator_label in operator_labels:
+                    if operator_label in atom.keys():
+                        operator = atom[operator_label]
+                        if current_size == 0:
+                            current_size = operator.shape[0]
+                            current_zero = np.zeros(
+                                (current_size, current_size, 2),
+                                dtype=meta_datatype
+                            )
+                            current_allowed = np.zeros_like(current_zero)
+                            current_allowed[:, :, 0] = np.ones(
+                                (current_size, current_size),
+                                dtype=meta_datatype
+                            )
+
+                        if combined_size > 0:
+                            operator = _direct_sum(combined_zero, operator)
+                        atom_label = f"[{block_index} {atom_index}] "
+                        operators_add[atom_label + operator_label] = operator
+
+            for operator_label, operator in operators.items():
+                operator = _direct_sum(operator, current_zero)
+                operators_add[operator_label] = operator
+
+            operators = operators_add
+            if combined_size == 0:
+                combined_allowed = current_allowed
+            else:
+                combined_allowed = _direct_sum(
+                    combined_allowed, current_allowed)
+            combined_size += current_size
+
+        return operators, combined_allowed[:, :, 0]
+
 
     @logger.record(("operators", "superoperators", "tensors"))
     def _plot_operators(
@@ -1209,20 +1280,31 @@ with Logger("superspinsim-generate") as logger:
     quiescent_magnetic_field = np.array([0, 0, 1])*1e-0
     # quiescent_magnetic_field = np.array([0.01, 0.02, 1])*1e-1
     # quiescent_magnetic_field = np.array([0, 0, 1])*1e-1
-    operator_dicts = generate_atoms([[
-        {
-            "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9, "TS1": 1e-3, "TS2": 1e-6,
-            "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
-            "B0": quiescent_magnetic_field, "T": 300
-        }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-        # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
-    ]], [
-        {}
+    operator_dicts, valid_mask = generate_atoms([
+        [
+            {
+                "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
+                "TS1": 1e-3, "TS2": 1e-6,
+                "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
+                "B0": quiescent_magnetic_field, "T": 300
+            }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+            # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+        ], [
+            {
+                "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
+                "TS1": 1e-3, "TS2": 1e-6,
+                "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
+                "B0": quiescent_magnetic_field, "T": 300
+            }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+            # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+        ], 
+    ], [
+        {}, {}
         # {(0, 1): {"J": 4}}
     ])
 
-    valid_mask = np.ones_like(
-        operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
+    # valid_mask = np.ones_like(
+    #     operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
     valid_indices = _generate_valid_indices(valid_mask)
     superoperators = _generate_superoperators(operator_dicts[0], valid_indices)
     _combine_superoperators(superoperators)
