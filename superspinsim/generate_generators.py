@@ -213,60 +213,75 @@ with Logger("superspinsim-generate") as logger:
                         [temp_labels, operator_labels]
                     )
 
-            # Themalisation:
-            # Model: The rate of flow out of an energy eigenstate is
-            # proportional to its Boltzmann factor.
-            # The rate of absorption from another state is proportional
-            # to its Boltzmann factor.
-            # See Equation (VIII.9) from [Abragam "The Principles of Nuclear
-            # Magnetism", 1961, ISBN 0198512368]
-            if "TS1" in atom.keys():
-                thermalisation_time = atom["TS1"]
+            temp_labels |= _add_thermalisation(
+                "S", atom, quiescent_magnetic_generator, zfs_generator,
+                label_sets
+            )
 
-                if quiescent_magnetic_generator is None:
-                    quiescent_generator = zfs_generator.copy()
-                else:
-                    quiescent_generator = quiescent_magnetic_generator \
-                        + zfs_generator
-                quiescent_energies, quiescent_states = np.linalg.eigh(
-                    quiescent_generator[:, :, 0]
-                    + 1j*quiescent_generator[:, :, 1]
-                )
-                temperature = 0.001
-                print(quiescent_energies)
-                if temperature > 0:
-                    boltzmann_factors = np.exp(quiescent_energies/(
-                        constants["boltzmann_gyro"]["value"]*temperature
-                    ))
-                else:
-                    boltzmann_factors = np.zeros_like(quiescent_energies)
-                print(boltzmann_factors)
-                print(quiescent_states)
-                boltzmann_factors = np.sqrt(
-                    boltzmann_factors/(
-                    len(boltzmann_factors)
-                    * thermalisation_time
-                    * np.min(boltzmann_factors))
-                )
-                print(boltzmann_factors)
-                for state_index_init, boltzmann_factor in \
-                        enumerate(boltzmann_factors):
-                    for state_index_final in range(len(boltzmann_factors)):
-                        jump_temp = boltzmann_factor*np.outer(
-                            quiescent_states[:, state_index_final],
-                            np.conj(quiescent_states[:, state_index_init]),
-                        )
-                        jump = np.empty(
-                            (jump_temp.shape[0], jump_temp.shape[1], 2),
-                            dtype=meta_datatype
-                        )
-                        jump[:, :, 0] = np.real(jump_temp)
-                        jump[:, :, 1] = np.imag(jump_temp)
+            # # Themalisation (T1 time):
+            # # Model: The rate of flow into an energy eigenstate is proportional
+            # # to its Boltzmann factor.
+            # # See Equation (VIII.9) from [Abragam "The Principles of Nuclear
+            # # Magnetism", 1961, ISBN 0198512368]
+            # if "TS1" in atom.keys():
+            #     thermalisation_time = atom["TS1"]
 
-                        _record_operator(
-                            f"LS1 {state_index_final} {state_index_init}",
-                            jump, atom, [temp_labels, operator_labels]
-                        )
+            #     # Find quiescent energy eigstates and values
+            #     if quiescent_magnetic_generator is None:
+            #         quiescent_generator = zfs_generator.copy()
+            #     else:
+            #         quiescent_generator = quiescent_magnetic_generator \
+            #             + zfs_generator
+            #     quiescent_energies, quiescent_states = np.linalg.eigh(
+            #         quiescent_generator[:, :, 0]
+            #         + 1j*quiescent_generator[:, :, 1]
+            #     )
+
+                # # Find Boltzmann factors
+                # if "T" in atom.keys():
+                #     temperature = atom["T"]
+                # else:
+                #     temperature = 293.15
+                # if temperature > 0:
+                #     boltzmann_factors = np.exp(-quiescent_energies/(
+                #         constants["boltzmann_gyro"]["value"]*temperature
+                #     ))
+                # else:
+                #     boltzmann_factors = np.zeros_like(
+                #         quiescent_energies, dtype=meta_datatype)
+                #     boltzmann_factors[np.argmin(quiescent_energies)] = 1
+
+                # # Normalise rate by T1
+                # markov_matrix = np.empty(
+                #     quiescent_states.shape, dtype=meta_datatype)
+                # for state_index, boltzmann_factor in \
+                #         enumerate(boltzmann_factors):
+                #     markov_matrix[state_index, :] = boltzmann_factors
+                #     markov_matrix[state_index, state_index] -= \
+                #         np.sum(boltzmann_factors)
+                # norm = np.linalg.norm(markov_matrix, ord=2)
+                # boltzmann_factors /= norm*thermalisation_time
+                # boltzmann_factors = np.sqrt(boltzmann_factors)
+                # 
+                # # Generate the jump operators
+                # for state_index_init in range(len(boltzmann_factors)):
+                #     for state_index_final, boltzmann_factor in \
+                #         enumerate(boltzmann_factors):
+                #         jump_temp = boltzmann_factor*np.outer(
+                #             quiescent_states[:, state_index_final],
+                #             np.conj(quiescent_states[:, state_index_init]),
+                #         )
+                #         jump = np.empty(
+                #             (jump_temp.shape[0], jump_temp.shape[1], 2),
+                #             dtype=meta_datatype
+                #         )
+                #         jump[:, :, 0] = np.real(jump_temp)
+                #         jump[:, :, 1] = np.imag(jump_temp)
+
+                #         _record_operator(
+                #             f"LS1 {state_index_final} {state_index_init}",
+                #             jump, atom, [temp_labels, operator_labels]
+                #         )
 
             previous_identity = _product_spin_state(
                 previous_identity, spin_identity, block, atom,
@@ -381,12 +396,95 @@ with Logger("superspinsim-generate") as logger:
                         [temp_labels, operator_labels]
                     )
 
+            temp_labels |= _add_thermalisation(
+                "I", atom, quiescent_magnetic_generator, zfs_generator,
+                label_sets
+            )
+
             previous_identity = _product_spin_state(
                 previous_identity, spin_identity, block, atom,
                 temp_labels, operator_labels
             )
 
         return spin, previous_identity
+
+    def _add_thermalisation(
+            spin_label: str, atom: dict,
+            quiescent_magnetic_generator: np.ndarray,
+            zfs_generator: np.ndarray, label_sets: list[set[str]]) -> set[str]:
+        """
+            Themalisation (T1 time):
+            Model: The rate of flow into an energy eigenstate is proportional
+            to its Boltzmann factor.
+            See Equation (VIII.9) from [Abragam "The Principles of Nuclear
+            Magnetism", 1961, ISBN 0198512368]
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+        temp_labels = set()
+
+        if f"T{spin_label}1" in atom.keys():
+            thermalisation_time = atom[f"T{spin_label}1"]
+
+            # Find quiescent energy eigstates and values
+            if quiescent_magnetic_generator is None:
+                quiescent_generator = zfs_generator.copy()
+            else:
+                quiescent_generator = quiescent_magnetic_generator \
+                    + zfs_generator
+            quiescent_energies, quiescent_states = np.linalg.eigh(
+                quiescent_generator[:, :, 0]
+                + 1j*quiescent_generator[:, :, 1]
+            )
+
+            # Find Boltzmann factors
+            if "T" in atom.keys():
+                temperature = atom["T"]
+            else:
+                temperature = 293.15
+            if temperature > 0:
+                boltzmann_factors = np.exp(-quiescent_energies/(
+                    constants["boltzmann_gyro"]["value"]*temperature
+                ))
+            else:
+                boltzmann_factors = np.zeros_like(
+                    quiescent_energies, dtype=meta_datatype)
+                boltzmann_factors[np.argmin(quiescent_energies)] = 1
+
+            # Normalise rate by T1
+            markov_matrix = np.empty(
+                quiescent_states.shape, dtype=meta_datatype)
+            for state_index, boltzmann_factor in \
+                    enumerate(boltzmann_factors):
+                markov_matrix[state_index, :] = boltzmann_factors
+                markov_matrix[state_index, state_index] -= \
+                    np.sum(boltzmann_factors)
+            norm = np.linalg.norm(markov_matrix, ord=2)
+            boltzmann_factors /= norm*thermalisation_time
+            boltzmann_factors = np.sqrt(boltzmann_factors)
+            
+            # Generate the jump operators
+            for state_index_init in range(len(boltzmann_factors)):
+                for state_index_final, boltzmann_factor in \
+                    enumerate(boltzmann_factors):
+                    jump_temp = boltzmann_factor*np.outer(
+                        quiescent_states[:, state_index_final],
+                        np.conj(quiescent_states[:, state_index_init]),
+                    )
+                    jump = np.empty(
+                        (jump_temp.shape[0], jump_temp.shape[1], 2),
+                        dtype=meta_datatype
+                    )
+                    jump[:, :, 0] = np.real(jump_temp)
+                    jump[:, :, 1] = np.imag(jump_temp)
+
+                    _record_operator(
+                        f"L{spin_label}1"
+                        + f"{state_index_final} {state_index_init}",
+                        jump, atom, [temp_labels, operator_labels]
+                    )
+        return temp_labels
 
     def _add_hyperfine(
             electron_spin: float, nuclear_spin: float, atom: dict,
@@ -1157,14 +1255,14 @@ with Logger("superspinsim-generate") as logger:
 
     logger.set_context("spins")
 
-    quiescent_magnetic_field = np.array([0, 0, 1])*1e-20
+    quiescent_magnetic_field = np.array([0, 0, 1])*1e-0
     # quiescent_magnetic_field = np.array([0.01, 0.02, 1])*1e-1
     # quiescent_magnetic_field = np.array([0, 0, 1])*1e-1
     operator_dicts = generate_atoms([[
         {
             "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9, "TS1": 1e-3, "TS2": 1e-6,
-            "I": 1, "P": 10, "TI2": 1e-3, "A": 5,
-            "B0": quiescent_magnetic_field
+            "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
+            "B0": quiescent_magnetic_field, "T": 300
         }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
         # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
     ]], [
