@@ -79,6 +79,14 @@ with Logger("superspinsim-generate") as logger:
             description, atom_interactions, label_sets)
         operator_dict, allowed = _combine_blocks(description, label_sets)
 
+        for ((block_a, atom_a), (block_b, atom_b)), interaction in \
+                block_interactions.items():
+            _add_block_interaction(
+                block_a, atom_a, block_b, atom_b, interaction, description,
+                label_sets
+            )
+
+
         return (
             operator_dict, composite_operator_dict,
             block_operator_list, tensor_dict
@@ -1036,6 +1044,29 @@ with Logger("superspinsim-generate") as logger:
 
         return operators, combined_allowed[:, :, 0]
 
+    def _add_block_interaction(
+            block_a: int, atom_a: int, block_b: int, atom_b: int,
+            interaction: dict, description: list[list[dict]],
+            label_sets: list[set[str]]):
+        """
+            Add incoherent interactions between blocks.
+        """
+
+        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
+            label_sets
+
+        atom_a_dict = description[block_a][atom_a]
+        atom_b_dict = description[block_b][atom_b]
+
+        spin_a = None
+        spin_b = None
+        if "S" in atom_a_dict.keys():
+            spin_a = atom_a_dict["S"]
+        if "S" in atom_b_dict.keys():
+            spin_b = atom_b_dict["S"]
+        if spin_a is not None and spin_b is not None:
+            if spin_a == spin_b:
+                pass
 
     @logger.record(("operators", "superoperators", "tensors"))
     def _plot_operators(
@@ -1314,7 +1345,7 @@ with Logger("superspinsim-generate") as logger:
             {}, {}
             # {(0, 1): {"J": 4}}
         ], {
-
+            ((0, 0), (1, 0)): {}
         }
     )
 
