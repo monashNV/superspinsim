@@ -32,8 +32,9 @@ constants = {
 
 with Logger("superspinsim-generate") as logger:
     def generate_atoms(
-            description: list[list[dict]], atom_interactions: list[dict],
-            verbose=False) -> [dict, dict, list[dict], dict]:
+        description: list[list[dict]], atom_interactions: list[dict],
+        block_interactions: dict, verbose=False
+    ) -> [dict, dict, list[dict], dict]:
         """
             Define a system of multiple spins.
         """
@@ -1013,6 +1014,13 @@ with Logger("superspinsim-generate") as logger:
                             operator = _direct_sum(combined_zero, operator)
                         atom_label = f"[{block_index} {atom_index}] "
                         operators_add[atom_label + operator_label] = operator
+            if current_size == 0:
+                current_size = 1
+                current_zero = np.zeros(
+                    (current_size, current_size, 2), dtype=meta_datatype)
+                current_allowed = np.zeros_like(current_zero)
+                current_allowed[:, :, 0] = np.ones(
+                    (current_size, current_size), dtype=meta_datatype)
 
             for operator_label, operator in operators.items():
                 operator = _direct_sum(operator, current_zero)
@@ -1280,28 +1288,35 @@ with Logger("superspinsim-generate") as logger:
     quiescent_magnetic_field = np.array([0, 0, 1])*1e-0
     # quiescent_magnetic_field = np.array([0.01, 0.02, 1])*1e-1
     # quiescent_magnetic_field = np.array([0, 0, 1])*1e-1
-    operator_dicts, valid_mask = generate_atoms([
+    operator_dicts, valid_mask = generate_atoms(
         [
-            {
-                "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
-                "TS1": 1e-3, "TS2": 1e-6,
-                "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
-                "B0": quiescent_magnetic_field, "T": 300
-            }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-            # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+            [
+                {
+                    "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
+                    "TS1": 1e-3, "TS2": 1e-6,
+                    # "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
+                    "B0": quiescent_magnetic_field, "T": 300
+                }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+                # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+            ], [
+                {
+                    "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
+                    "TS1": 1e-3, "TS2": 1e-6,
+                    # "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
+                    "B0": quiescent_magnetic_field, "T": 300
+                }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+                # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+            ], 
+            [
+                {"S": 0}
+            ]
         ], [
-            {
-                "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
-                "TS1": 1e-3, "TS2": 1e-6,
-                "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
-                "B0": quiescent_magnetic_field, "T": 300
-            }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-            # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
-        ], 
-    ], [
-        {}, {}
-        # {(0, 1): {"J": 4}}
-    ])
+            {}, {}
+            # {(0, 1): {"J": 4}}
+        ], {
+
+        }
+    )
 
     # valid_mask = np.ones_like(
     #     operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
