@@ -1,5 +1,5 @@
 import math
-import superspinsim.nv.parameters as parameters
+import superspinsim.params.nv as parameters
 
 
 def laser(time, coefficient):

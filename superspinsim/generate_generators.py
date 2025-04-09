@@ -5,7 +5,7 @@ import copy
 import matplotlib.pyplot as plt
 from pogger import Pogger as Logger
 
-import superspinsim.nv.parameters as nvp
+import superspinsim.params as s3p
 from superspinsim.util import colour_complex_matrix
 
 meta_datatype = np.float64
@@ -174,7 +174,7 @@ with Logger("superspinsim-generate") as logger:
             g_spin[1, 1] = g_iso - g_dipole
             g_spin[2, 2] = g_iso + 2*g_dipole
 
-            electron_gyro = g_spin*nvp.bohr_magneton_gyro
+            electron_gyro = g_spin*s3p.general.bohr_magneton_gyro
             atom["gyroS"] = electron_gyro
             tensor_labels.add("gyroS")
 
@@ -293,7 +293,7 @@ with Logger("superspinsim-generate") as logger:
             g_spin[1, 1] = g_iso - g_dipole
             g_spin[2, 2] = g_iso + 2*g_dipole
 
-            atom["gyroI"] = -g_spin*nvp.nuclear_magneton_gyro
+            atom["gyroI"] = -g_spin*s3p.general.nuclear_magneton_gyro
             tensor_labels |= {"gyroI"}
 
             generator_vec = _linear_transform(g_spin, spin_vec)
@@ -376,7 +376,7 @@ with Logger("superspinsim-generate") as logger:
                 temperature = 293.15
             if temperature > 0:
                 boltzmann_factors = np.exp(-quiescent_energies/(
-                    nvp.boltzmann_gyro*temperature
+                    s3p.general.boltzmann_gyro*temperature
                 ))
             else:
                 boltzmann_factors = np.zeros_like(
@@ -1306,11 +1306,11 @@ with Logger("superspinsim-generate") as logger:
 
     nv_ground = {
         "S": 1,
-        "g": nvp.longitudinal_g_factor_ground,
-        "g_perp": nvp.transverse_g_factor_ground,
-        "D": nvp.zero_field_splitting_ground,
-        "TS1": nvp.spin_lattice_relaxation_time_ground,
-        "TS2": nvp.spin_spin_relaxation_time_ground,
+        "g": s3p.nv.longitudinal_g_factor_ground,
+        "g_perp": s3p.nv.transverse_g_factor_ground,
+        "D": s3p.nv.zero_field_splitting_ground,
+        "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
+        "TS2": s3p.nv.spin_spin_relaxation_time_ground,
 
         # "I": 1,
         # "P": 10,
@@ -1319,15 +1319,15 @@ with Logger("superspinsim-generate") as logger:
         # "A": 5,
 
         "B0": quiescent_magnetic_field,
-        "T": nvp.room_temperature
+        "T": s3p.general.room_temperature
     }
 
     nv_excited = {
         "S": 1,
-        "g": nvp.g_factor_excited,
-        "D": nvp.zero_field_splitting_excited,
-        "TS1": nvp.spin_lattice_relaxation_time_excited,
-        "TS2": nvp.spin_spin_relaxation_time_excited,
+        "g": s3p.nv.g_factor_excited,
+        "D": s3p.nv.zero_field_splitting_excited,
+        "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
+        "TS2": s3p.nv.spin_spin_relaxation_time_excited,
 
         # "I": 1,
         # "P": 10,
@@ -1336,7 +1336,7 @@ with Logger("superspinsim-generate") as logger:
         # "A": 5,
 
         "B0": quiescent_magnetic_field,
-        "T": nvp.room_temperature
+        "T": s3p.general.room_temperature
     }
 
     nv_singlet = {
