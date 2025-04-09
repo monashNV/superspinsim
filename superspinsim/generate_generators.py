@@ -120,11 +120,14 @@ with Logger("superspinsim-generate") as logger:
         else:
             spin = 0
 
+        spin_vec, projectors, spin_identity = add_spin(
+            spin, hilbert_space_shape)
+        for key, projector in projectors.items():
+            _record_operator(
+                key, projector, atom, [temp_labels, operator_labels])
         if spin > 0:
-            spin_vec, spin_identity = add_spin(spin, hilbert_space_shape)
             _record_spin_vec(
                 "S", spin_vec, atom, [temp_labels, operator_labels])
-            (spin_x, spin_y, spin_z) = spin_vec
 
         # Electron ZFS
         if spin > 1/2:
@@ -237,7 +240,8 @@ with Logger("superspinsim-generate") as logger:
 
             spin = atom["I"]
 
-            spin_vec, spin_identity = add_spin(spin, hilbert_space_shape)
+            spin_vec, projectors, spin_identity = add_spin(
+                spin, hilbert_space_shape)
 
             _record_spin_vec(
                 "I", spin_vec, atom, [temp_labels, operator_labels])
@@ -613,7 +617,7 @@ with Logger("superspinsim-generate") as logger:
         for block in description:
             for atom in block:
                 for operator_label in operator_labels:
-                    if "L" not in operator_label:
+                    if "L" not in operator_label and "|" not in operator_label:
                         if operator_label in atom.keys():
                             operator = atom[operator_label]
                             trace = np.trace(operator[:, :, 0])
@@ -783,7 +787,20 @@ with Logger("superspinsim-generate") as logger:
         spin_identity = np.zeros_like(spin_x)
         spin_identity[:, :, 0] = np.eye(spin_x.shape[0])
 
-        return (spin_x, spin_y, spin_z), spin_identity
+        projectors = {}
+        for magnetic_index, magnetic_number in \
+                enumerate(np.arange(-spin, spin + 0.1)):
+            projector = np.zeros_like(spin_identity)
+            projector[magnetic_index, magnetic_index, 0] = 1
+            if magnetic_number != 0:
+                magnetic_number *= -1
+            if np.isclose(np.fmod(spin, 1), 0):
+                key = f"|mS{magnetic_number:.0f}>"
+            else:
+                key = f"|mS{magnetic_number:.1f}>"
+            projectors[key] = projector
+
+        return (spin_x, spin_y, spin_z), projectors, spin_identity
 
     def _product_spin_state(
             previous_identity: np.ndarray, spin_identity: np.ndarray,
@@ -1098,39 +1115,39 @@ with Logger("superspinsim-generate") as logger:
                 plt.tight_layout()
             plt.draw()
 
-        plt.figure(
-            figsize=(6.4, 6.4),
-            label="composite_operators"
-        )
-        plot_columns = \
-            min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
-        plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
-        for operator_index, (operator_name, operator) in \
-                enumerate(composite_operator_dict.items()):
-            plt.subplot(plot_rows, plot_columns, operator_index + 1)
-            plt.imshow(colour_complex_matrix(
-                operator/(2*np.max(np.abs(operator)))))
-            plt.title(operator_name)
-            plt.xticks([], [])
-            plt.yticks([], [])
-        plt.draw()
+        # plt.figure(
+        #     figsize=(6.4, 6.4),
+        #     label="composite_operators"
+        # )
+        # plot_columns = \
+        #     min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
+        # plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
+        # for operator_index, (operator_name, operator) in \
+        #         enumerate(composite_operator_dict.items()):
+        #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        #     plt.imshow(colour_complex_matrix(
+        #         operator/(2*np.max(np.abs(operator)))))
+        #     plt.title(operator_name)
+        #     plt.xticks([], [])
+        #     plt.yticks([], [])
+        # plt.draw()
 
-        plt.figure(
-            figsize=(6.4, 6.4),
-            label="blocks"
-        )
-        plot_columns = \
-            min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
-        plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
-        for operator_index, (operator_name, operator) in \
-                enumerate(block_operator_list[0].items()):
-            plt.subplot(plot_rows, plot_columns, operator_index + 1)
-            plt.imshow(colour_complex_matrix(
-                operator/(2*np.max(np.abs(operator)))))
-            plt.title(operator_name)
-            plt.xticks([], [])
-            plt.yticks([], [])
-        plt.draw()
+        # plt.figure(
+        #     figsize=(6.4, 6.4),
+        #     label="blocks"
+        # )
+        # plot_columns = \
+        #     min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
+        # plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
+        # for operator_index, (operator_name, operator) in \
+        #         enumerate(block_operator_list[0].items()):
+        #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        #     plt.imshow(colour_complex_matrix(
+        #         operator/(2*np.max(np.abs(operator)))))
+        #     plt.title(operator_name)
+        #     plt.xticks([], [])
+        #     plt.yticks([], [])
+        # plt.draw()
 
         plt.figure(
             figsize=(6.4, 4.8),
@@ -1154,12 +1171,14 @@ with Logger("superspinsim-generate") as logger:
             operator_dict: dict, valid_indices: np.ndarray) -> dict:
         superoperator_dict = {}
         for label, operator in operator_dict.items():
-            if "L" in label:
-                superoperator = _generate_dissipator(operator, valid_indices)
-            else:
-                superoperator = _generate_von_neumann(operator, valid_indices)
-
-            superoperator_dict[label] = superoperator
+            if "|" not in label:
+                if "L" in label:
+                    superoperator = _generate_dissipator(
+                        operator, valid_indices)
+                else:
+                    superoperator = _generate_von_neumann(
+                        operator, valid_indices)
+                superoperator_dict[label] = superoperator
         return superoperator_dict
 
     def _combine_superoperators(superoperator_dict: dict):
@@ -1340,23 +1359,22 @@ with Logger("superspinsim-generate") as logger:
     }
 
     nv_singlet = {
-        "S": 1
+        "S": 0
     }
 
     operator_dicts, valid_mask = generate_atoms(
         [
             [
-                nv_ground,
+                nv_ground
                 # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
             ], [
                 nv_excited,
                 # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-            ],
-            [
+            ], [
                 nv_singlet
             ]
         ], [
-            {}, {}
+            {}, {}, {}
             # {(0, 1): {"J": 4}}
         ], {
             ((0, 0), (1, 0)): {}
