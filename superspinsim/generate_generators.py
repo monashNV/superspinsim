@@ -1,34 +1,14 @@
 import numpy as np
 import math
+import copy
 
 import matplotlib.pyplot as plt
-from util import colour_complex_matrix
 from pogger import Pogger as Logger
 
+import superspinsim.nv.parameters as nvp
+from superspinsim.util import colour_complex_matrix
+
 meta_datatype = np.float64
-
-constants = {
-    "bohr_gyro": {
-        "value": math.tau*13.9962449171e9,
-        "units": "rad/s/T",
-        "citation": "CODATA Recommended Values of the "
-                    + "Fundamental Physical Constants: 2022"
-    },
-
-    "nuclear_gyro": {
-        "value": math.tau*7.6225932188e6,
-        "units": "rad/s/T",
-        "citation": "CODATA Recommended Values of the "
-                    + "Fundamental Physical Constants: 2022"
-    },
-
-    "boltzmann_gyro": {
-        "value": math.tau*20.83661912e9,
-        "units": "rad/s/K",
-        "citation": "CODATA Recommended Values of the "
-                    + "Fundamental Physical Constants: 2022"
-    }
-}
 
 with Logger("superspinsim-generate") as logger:
     def generate_atoms(
@@ -38,6 +18,11 @@ with Logger("superspinsim-generate") as logger:
         """
             Define a system of multiple spins.
         """
+
+        # We're going to add to these instructions, so it's best to deep copy.
+        description = copy.deepcopy(description)
+        atom_interactions = copy.deepcopy(atom_interactions)
+        block_interactions = copy.deepcopy(block_interactions)
 
         hilbert_space_shape = []
         operator_labels = set()
@@ -85,7 +70,6 @@ with Logger("superspinsim-generate") as logger:
                 block_a, atom_a, block_b, atom_b, interaction, description,
                 label_sets
             )
-
 
         return (
             operator_dict, composite_operator_dict,
@@ -190,7 +174,7 @@ with Logger("superspinsim-generate") as logger:
             g_spin[1, 1] = g_iso - g_dipole
             g_spin[2, 2] = g_iso + 2*g_dipole
 
-            electron_gyro = g_spin*constants["bohr_gyro"]["value"]
+            electron_gyro = g_spin*nvp.bohr_magneton_gyro
             atom["gyroS"] = electron_gyro
             tensor_labels.add("gyroS")
 
@@ -309,7 +293,7 @@ with Logger("superspinsim-generate") as logger:
             g_spin[1, 1] = g_iso - g_dipole
             g_spin[2, 2] = g_iso + 2*g_dipole
 
-            atom["gyroI"] = -g_spin*constants["nuclear_gyro"]["value"]
+            atom["gyroI"] = -g_spin*nvp.nuclear_magneton_gyro
             tensor_labels |= {"gyroI"}
 
             generator_vec = _linear_transform(g_spin, spin_vec)
@@ -392,7 +376,7 @@ with Logger("superspinsim-generate") as logger:
                 temperature = 293.15
             if temperature > 0:
                 boltzmann_factors = np.exp(-quiescent_energies/(
-                    constants["boltzmann_gyro"]["value"]*temperature
+                    nvp.boltzmann_gyro*temperature
                 ))
             else:
                 boltzmann_factors = np.zeros_like(
@@ -410,11 +394,11 @@ with Logger("superspinsim-generate") as logger:
             norm = np.linalg.norm(markov_matrix, ord=2)
             boltzmann_factors /= norm*thermalisation_time
             boltzmann_factors = np.sqrt(boltzmann_factors)
-            
+
             # Generate the jump operators
             for state_index_init in range(len(boltzmann_factors)):
                 for state_index_final, boltzmann_factor in \
-                    enumerate(boltzmann_factors):
+                        enumerate(boltzmann_factors):
                     jump_temp = boltzmann_factor*np.outer(
                         quiescent_states[:, state_index_final],
                         np.conj(quiescent_states[:, state_index_init]),
@@ -1319,27 +1303,57 @@ with Logger("superspinsim-generate") as logger:
     quiescent_magnetic_field = np.array([0, 0, 1])*1e-0
     # quiescent_magnetic_field = np.array([0.01, 0.02, 1])*1e-1
     # quiescent_magnetic_field = np.array([0, 0, 1])*1e-1
+
+    nv_ground = {
+        "S": 1,
+        "g": nvp.longitudinal_g_factor_ground,
+        "g_perp": nvp.transverse_g_factor_ground,
+        "D": nvp.zero_field_splitting_ground,
+        "TS1": nvp.spin_lattice_relaxation_time_ground,
+        "TS2": nvp.spin_spin_relaxation_time_ground,
+
+        # "I": 1,
+        # "P": 10,
+        # "TI1": 1e-1,
+        # "TI2": 1e-3,
+        # "A": 5,
+
+        "B0": quiescent_magnetic_field,
+        "T": nvp.room_temperature
+    }
+
+    nv_excited = {
+        "S": 1,
+        "g": nvp.g_factor_excited,
+        "D": nvp.zero_field_splitting_excited,
+        "TS1": nvp.spin_lattice_relaxation_time_excited,
+        "TS2": nvp.spin_spin_relaxation_time_excited,
+
+        # "I": 1,
+        # "P": 10,
+        # "TI1": 1e-1,
+        # "TI2": 1e-3,
+        # "A": 5,
+
+        "B0": quiescent_magnetic_field,
+        "T": nvp.room_temperature
+    }
+
+    nv_singlet = {
+        "S": 1
+    }
+
     operator_dicts, valid_mask = generate_atoms(
         [
             [
-                {
-                    "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
-                    "TS1": 1e-3, "TS2": 1e-6,
-                    # "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
-                    "B0": quiescent_magnetic_field, "T": 300
-                }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-                # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
+                nv_ground,
+                # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
             ], [
-                {
-                    "S": 1, "g": 2, "g_perp": 2.1, "D": math.tau*2.8e9,
-                    "TS1": 1e-3, "TS2": 1e-6,
-                    # "I": 1, "P": 10, "TI1": 1e-1, "TI2": 1e-3, "A": 5,
-                    "B0": quiescent_magnetic_field, "T": 300
-                }, # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-                # {"S": 1/2, "g": 2, "g_perp": 2.1, "TS1": 1e-3, "D": 10e9}
-            ], 
+                nv_excited,
+                # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
+            ],
             [
-                {"S": 0}
+                nv_singlet
             ]
         ], [
             {}, {}

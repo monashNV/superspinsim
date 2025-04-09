@@ -1,15 +1,22 @@
 import math
 
-
 nv_parameters = {}
 
-bohr_magneton_gyro = math.tau*13.9962449171e6
+# Fundamental -----------------------------------------------------------------
+
+bohr_magneton_gyro = math.tau*13.9962449171e9
 r"""
 The Bohr magneton divided by the reduced Plank constant.
+
+Value
+-----
+2\pi \times 13.9962449171 10^9.
+
 
 Units
 -----
 Radians per second per Tesla.
+
 
 Reference
 ---------
@@ -24,15 +31,115 @@ nv_parameters["bohr_magneton_gyro"] = {
     ]
 }
 
+nuclear_magneton_gyro = math.tau*7.6225932188e6
+r"""
+The nuclear magneton divided by the reduced Plank constant.
+
+Value
+-----
+2\pi \times 7.6225932188 10^6.
+
+
+Units
+-----
+Radians per second per Tesla.
+
+
+Reference
+---------
+Table XXXIII, 2022 CODATA recommended values
+"""
+
+nv_parameters["nuclear_magneton_gyro"] = {
+    "value": nuclear_magneton_gyro,
+    "units": "Radians per second per Tesla",
+    "references": [
+        "Table XXXIII, 2022 CODATA recommended values"
+    ]
+}
+
+boltzmann_gyro = math.tau*20.83661912e9
+r"""
+The Boltzmann constant divided by the reduced Plank constant.
+
+Value
+-----
+2\pi \times 20.83661912 10^9.
+
+
+Units
+-----
+Radians per second per Kelvin.
+
+
+Reference
+---------
+Table XXXIII, 2022 CODATA recommended values
+"""
+
+nv_parameters["nuclear_magneton_gyro"] = {
+    "value": boltzmann_gyro,
+    "units": "Radians per second per Kelvin",
+    "references": [
+        "Table XXXIII, 2022 CODATA recommended values"
+    ]
+}
+
+# Temperature -----------------------------------------------------------------
+
+room_temperature = 293.15
+r"""
+Normal temperature (from normal temperature and pressure, NTP).
+
+Value
+-----
+293.15
+
+
+Units
+-----
+Kelvin
+"""
+
+nv_parameters["room_temperature"] = {
+    "value": room_temperature,
+    "units": "Kelvin"
+}
+
+standard_temperature = 273.15
+r"""
+Standard temperature.
+
+Value
+-----
+273.15
+
+
+Units
+-----
+Kelvin
+"""
+
+nv_parameters["standard_temperature"] = {
+    "value": standard_temperature,
+    "units": "Kelvin"
+}
+
 # Ground state ----------------------------------------------------------------
 
 zero_field_splitting_ground = math.tau*2.872e9
 r"""
 D_g
 
+Value
+-----
+2\pi \times 2.872 10^9
+
+
 Units
 -----
 Radians per second.
+
 
 Reference
 ---------
@@ -51,8 +158,13 @@ longitudinal_g_factor_ground = 2.0029
 r"""
 g_g^\parallel
 
-References
-----------
+Value
+-----
+2.0029
+
+
+Reference
+---------
 Section IV, Phys. Rev. B 79 075203
 Table 2, Physics Reports 528 1–45
 """
@@ -85,8 +197,13 @@ transverse_g_factor_ground = 2.0031
 r"""
 g_g^\perp
 
-References
-----------
+Value
+-----
+2.0031
+
+
+Reference
+---------
 Section IV, Phys. Rev. B 79 075203
 Table 2, Physics Reports 528 1–45
 """
@@ -119,12 +236,18 @@ spin_lattice_relaxation_time_ground = 7.7e-3
 r"""
 T_{1, g}
 
+Value
+-----
+7.7 10^{-3}
+
+
 Units
 -----
 Seconds
 
-References
-----------
+
+Reference
+---------
 Page 3, Phys. Rev. Lett. 101 047601
 Table 11, Physics Reports 528 1–45
 """
@@ -142,12 +265,18 @@ spin_spin_relaxation_time_ground = 6.7e-6
 r"""
 T_{2, g}
 
+Value
+-----
+6.7 10^{-6}
+
+
 Units
 -----
 Seconds
 
-References
-----------
+
+Reference
+---------
 Page 3, Phys. Rev. Lett. 101 047601
 Table 11, Physics Reports 528 1–45
 """
@@ -167,12 +296,18 @@ zero_field_splitting_excited = math.tau*1.42e9
 r"""
 D_e
 
+Value
+-----
+2\pi \times 1.42 10^9
+
+
 Units
 -----
 Radians per second
 
-References
-----------
+
+Reference
+---------
 Figure 2, New J. Phys. 11 013017
 Table 4, Physics Reports 528 1–45
 """
@@ -190,8 +325,13 @@ g_factor_excited = 2.01
 r"""
 g_e
 
-References
-----------
+Value
+-----
+2.01
+
+
+Reference
+---------
 Figure 2, New J. Phys. 11 013017
 Section 3.3, Physics Reports 528 1–45
 """
@@ -223,12 +363,18 @@ spin_lattice_relaxation_time_excited = 1e-3
 r"""
 T_{1, e}
 
+Value
+-----
+1 10^{-3}
+
+
 Units
 -----
 Seconds
 
-References
-----------
+
+Reference
+---------
 Table I, Phys. Rev. B 102, 224101
 Table S2, Supp. Mat. of Optics Express, 32, 22352-22361
 """
@@ -246,12 +392,18 @@ spin_spin_relaxation_time_excited = 10.9e-9
 r"""
 T_{2, e}
 
+Value
+-----
+10.9 10^{-9}
+
+
 Units
 -----
 Seconds
 
-References
-----------
+
+Reference
+---------
 Page 669, Nature Phys. 6 668-672
 Section 5.3, Physics Reports 528 1–45
 """
@@ -271,9 +423,15 @@ spin_conserving_decay_rate = 77e6
 r"""
 \Gamma_{gX\gets eX}
 
+Value
+-----
+77 10^6
+
+
 Units
 -----
 Per second
+
 
 Reference
 ---------
@@ -293,9 +451,15 @@ radiative_mixing_angle = 0.193
 r"""
 \theta
 
+Value
+-----
+193 10^{-3}
+
+
 Units
 -----
 Radians
+
 
 Reference
 ---------
@@ -320,6 +484,7 @@ Units
 -----
 Per second
 
+
 Reference
 ---------
 Section 1.4.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
@@ -338,9 +503,15 @@ pm_to_singlet_decay_rate = 91.6e6
 r"""
 \Gamma_{s\gets\pm}
 
+Value
+-----
+91.6 10^6
+
+
 Units
 -----
 Per second
+
 
 Reference
 ---------
@@ -359,9 +530,15 @@ z_to_singlet_decay_rate = 9.9e6
 r"""
 \Gamma_{s\gets0}
 
+Value
+-----
+9.9 10^6
+
+
 Units
 -----
 Per second
+
 
 Reference
 ---------
@@ -380,9 +557,15 @@ singlet_to_pm_decay_rate = 2.11e6
 r"""
 \Gamma_{0\gets s}
 
+Value
+-----
+2.11 10^6
+
+
 Units
 -----
 Per second
+
 
 Reference
 ---------
@@ -401,9 +584,15 @@ singlet_to_z_decay_rate = 4.83e6
 r"""
 \Gamma_{0\gets s}
 
+Value
+-----
+4.83 10^6
+
+
 Units
 -----
 Per second
+
 
 Reference
 ---------
