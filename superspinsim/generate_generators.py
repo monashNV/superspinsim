@@ -19,7 +19,7 @@ with Logger("superspinsim-generate") as logger:
             Define a system of multiple spins.
         """
 
-        # We're going to add to these instructions, so it's best to deep copy.
+        # We're going to add to these structures, so it's best to deep copy.
         description = copy.deepcopy(description)
         atom_interactions = copy.deepcopy(atom_interactions)
         block_interactions = copy.deepcopy(block_interactions)
@@ -60,9 +60,9 @@ with Logger("superspinsim-generate") as logger:
             description, atom_interactions, field_labels)
 
         # Create lists of operators
-        _, composite_operator_dict, tensor_dict = _list_operators(
+        allowed = _combine_blocks(description, label_sets)
+        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
             description, atom_interactions, label_sets)
-        operator_dict, allowed = _combine_blocks(description, label_sets)
 
         for ((block_a, atom_a), (block_b, atom_b)), interaction in \
                 block_interactions.items():
@@ -124,7 +124,7 @@ with Logger("superspinsim-generate") as logger:
             spin, hilbert_space_shape)
         for key, projector in projectors.items():
             _record_operator(
-                key, projector, atom, [temp_labels, operator_labels])
+                f"S{key}", projector, atom, [temp_labels, operator_labels])
         if spin > 0:
             _record_spin_vec(
                 "S", spin_vec, atom, [temp_labels, operator_labels])
@@ -795,9 +795,9 @@ with Logger("superspinsim-generate") as logger:
             if magnetic_number != 0:
                 magnetic_number *= -1
             if np.isclose(np.fmod(spin, 1), 0):
-                key = f"|mS{magnetic_number:.0f}>"
+                key = f"|{magnetic_number:.0f})({magnetic_number:.0f}|"
             else:
-                key = f"|mS{magnetic_number:.1f}>"
+                key = f"|{magnetic_number:.1f})({magnetic_number:.1f}|"
             projectors[key] = projector
 
         return (spin_x, spin_y, spin_z), projectors, spin_identity
@@ -989,12 +989,12 @@ with Logger("superspinsim-generate") as logger:
         (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
             label_sets
 
-        operators = {}
+        # operators = {}
         combined_size = 0
         combined_zero = None
         combined_allowed = None
         for block_index, block in enumerate(description):
-            operators_add = {}
+            # operators_add = {}
             current_size = 0
             current_zero = None
             if combined_size > 0:
@@ -1021,8 +1021,9 @@ with Logger("superspinsim-generate") as logger:
 
                         if combined_size > 0:
                             operator = _direct_sum(combined_zero, operator)
-                        atom_label = f"[{block_index} {atom_index}] "
-                        operators_add[atom_label + operator_label] = operator
+                        atom[operator_label] = operator
+                        # atom_label = f"[{block_index} {atom_index}] "
+                        # operators_add[atom_label + operator_label] = operator
             if current_size == 0:
                 current_size = 1
                 current_zero = np.zeros(
@@ -1031,11 +1032,20 @@ with Logger("superspinsim-generate") as logger:
                 current_allowed[:, :, 0] = np.ones(
                     (current_size, current_size), dtype=meta_datatype)
 
-            for operator_label, operator in operators.items():
-                operator = _direct_sum(operator, current_zero)
-                operators_add[operator_label] = operator
+            for block_previous_index, block_previous in enumerate(description):
+                if block_previous_index < block_index:
+                    for atom_previous in block_previous:
+                        for operator_label in operator_labels:
+                            if operator_label in atom_previous.keys():
+                                operator = atom_previous[operator_label]
+                                operator = _direct_sum(operator, current_zero)
+                                atom_previous[operator_label] = operator
 
-            operators = operators_add
+            # for operator_label, operator in operators.items():
+            #     operator = _direct_sum(operator, current_zero)
+            #     operators_add[operator_label] = operator
+
+            # operators = operators_add
             if combined_size == 0:
                 combined_allowed = current_allowed
             else:
@@ -1043,7 +1053,7 @@ with Logger("superspinsim-generate") as logger:
                     combined_allowed, current_allowed)
             combined_size += current_size
 
-        return operators, combined_allowed[:, :, 0]
+        return combined_allowed[:, :, 0]
 
     def _add_block_interaction(
             block_a: int, atom_a: int, block_b: int, atom_b: int,
