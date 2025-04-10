@@ -823,20 +823,37 @@ with Logger("superspinsim-generate") as logger:
             block: list, atom_current: dict, temp_labels: set,
             operator_labels: set) -> np.ndarray:
         if previous_identity is not None:
+            operator_labels_add = set()
             for atom in block:
                 for operator_label in operator_labels:
                     if operator_label in atom.keys():
-                        if operator_label in temp_labels and \
-                                atom is atom_current:
-                            operator = atom[operator_label]
-                            operator_new = kroneker_product(
-                                operator, previous_identity)
-                            atom[operator_label] = operator_new
+                        operator = atom[operator_label]
+                        if "L" in operator_label:
+                            atom.pop(operator_label)
+                            if operator_label in temp_labels and \
+                                    atom is atom_current:
+                                operators_new = kroneker_jump(
+                                    operator, previous_identity)
+                            else:
+                                operators_new = kroneker_jump(
+                                    spin_identity, operator)
+                            for index, operator_new in \
+                                    enumerate(operators_new):
+                                label_extend = f"{operator_label} {index}"
+                                atom[label_extend] = operator_new
+                                operator_labels_add.add(label_extend)
+
                         else:
-                            operator = atom[operator_label]
-                            operator_new = kroneker_product(
-                                spin_identity, operator)
+                            if operator_label in temp_labels and \
+                                    atom is atom_current:
+                                operator_new = kroneker_product(
+                                    operator, previous_identity)
+                            else:
+                                operator_new = kroneker_product(
+                                    spin_identity, operator)
                             atom[operator_label] = operator_new
+
+            operator_labels |= operator_labels_add
 
             spin_identity = kroneker_product(spin_identity, previous_identity)
 
@@ -872,6 +889,39 @@ with Logger("superspinsim-generate") as logger:
                 ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 1] \
                     + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
         return product
+
+    def kroneker_jump(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
+        products = []
+
+        for outer_index_y in range(outer.shape[0]):
+            for outer_index_x in range(outer.shape[1]):
+                product = np.zeros(
+                    (
+                        outer.shape[0]*inner.shape[0],
+                        outer.shape[1]*inner.shape[1], outer.shape[2]
+                    ),
+                    dtype=meta_datatype
+                )
+
+                product[
+                    outer_index_y*inner.shape[0]
+                    :(outer_index_y + 1)*inner.shape[0],
+                    outer_index_x*inner.shape[1]
+                    :(outer_index_x + 1)*inner.shape[1], 0
+                ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 0] \
+                    - outer[outer_index_y, outer_index_x, 1]*inner[:, :, 1]
+                product[
+                    outer_index_y*inner.shape[0]
+                    :(outer_index_y + 1)*inner.shape[0],
+                    outer_index_x*inner.shape[1]
+                    :(outer_index_x + 1)*inner.shape[1], 1
+                ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 1] \
+                    + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
+
+                if not np.isclose(np.sum(product**2), 0):
+                    products.append(product)
+
+        return products
 
     def _direct_sum(upper: np.ndarray, lower: np.ndarray) -> np.ndarray:
         """
