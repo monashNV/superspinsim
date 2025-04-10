@@ -59,10 +59,7 @@ with Logger("superspinsim-generate") as logger:
         block_operator_list = _combine_in_block(
             description, atom_interactions, field_labels)
 
-        # Create lists of operators
         allowed = _combine_blocks(description, label_sets)
-        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
-            description, atom_interactions, label_sets)
 
         for ((block_a, atom_a), (block_b, atom_b)), interaction in \
                 block_interactions.items():
@@ -70,6 +67,10 @@ with Logger("superspinsim-generate") as logger:
                 block_a, atom_a, block_b, atom_b, interaction, description,
                 label_sets
             )
+
+        # Create lists of operators
+        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
+            description, atom_interactions, block_interactions, label_sets)
 
         return (
             operator_dict, composite_operator_dict,
@@ -670,8 +671,9 @@ with Logger("superspinsim-generate") as logger:
         return block_operator_list
 
     def _list_operators(
-            description: list[list[dict]], atom_interactions: list[dict],
-            label_sets: list[set[str]]) -> [dict, dict, dict]:
+        description: list[list[dict]], atom_interactions: list[dict],
+        block_interactions: dict, label_sets: list[set[str]]
+    ) -> [dict, dict, dict]:
         """
             Put all generated operators into global lists.
         """
@@ -737,6 +739,20 @@ with Logger("superspinsim-generate") as logger:
                             + f" {tensor_label}"
                         tensor_dict[tensor_name] = \
                             j_description[tensor_label]
+
+        for (
+            (block_index_a, atom_index_a),
+            (block_index_b, atom_index_b)
+        ), block_interaction in block_interactions.items():
+            # Operators
+            for operator_label in operator_labels:
+                if operator_label in block_interaction.keys():
+                    operator_name = \
+                        f"[{block_index_a}, {atom_index_a}," \
+                        + f" {block_index_b}, {atom_index_b}]" \
+                        + f" {operator_label}"
+                    operator_dict[operator_name] = \
+                        block_interaction[operator_label]
 
         return operator_dict, composite_operator_dict, tensor_dict
 
@@ -989,12 +1005,10 @@ with Logger("superspinsim-generate") as logger:
         (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
             label_sets
 
-        # operators = {}
         combined_size = 0
         combined_zero = None
         combined_allowed = None
         for block_index, block in enumerate(description):
-            # operators_add = {}
             current_size = 0
             current_zero = None
             if combined_size > 0:
@@ -1041,11 +1055,6 @@ with Logger("superspinsim-generate") as logger:
                                 operator = _direct_sum(operator, current_zero)
                                 atom_previous[operator_label] = operator
 
-            # for operator_label, operator in operators.items():
-            #     operator = _direct_sum(operator, current_zero)
-            #     operators_add[operator_label] = operator
-
-            # operators = operators_add
             if combined_size == 0:
                 combined_allowed = current_allowed
             else:
@@ -1077,7 +1086,43 @@ with Logger("superspinsim-generate") as logger:
             spin_b = atom_b_dict["S"]
         if spin_a is not None and spin_b is not None:
             if spin_a == spin_b:
-                pass
+                spin = spin_a
+                if "rel_c" in interaction.keys():
+                    relaxation_rate = np.sqrt(interaction["rel_c"])
+                else:
+                    return
+                for magnetic_number in np.arange(-spin, spin + 0.1):
+                    if magnetic_number != 0:
+                        magnetic_number *= -1
+                    if np.isclose(math.fmod(spin, 1), 0):
+                        magnetic_label = \
+                            f"S|{magnetic_number:.0f})({magnetic_number:.0f}|"
+                        operator_label = \
+                            f"{magnetic_number:.0f} {magnetic_number:.0f}"
+                    else:
+                        magnetic_label = \
+                            f"S|{magnetic_number:.1f})({magnetic_number:.1f}|"
+                        operator_label = \
+                            f"{magnetic_number:.1f} {magnetic_number:.1f}"
+
+                    ground = np.sum(atom_a_dict[magnetic_label], axis=(0, 2))
+                    excited = np.sum(atom_b_dict[magnetic_label], axis=(0, 2))
+
+                    raise_conserve = np.zeros_like(atom_a_dict[magnetic_label])
+                    raise_conserve[:, :, 0] = np.outer(excited, ground)
+                    raise_conserve *= relaxation_rate
+                    _record_operator(
+                        f"Lr{operator_label}", raise_conserve, interaction,
+                        [operator_labels]
+                    )
+
+                    lower_conserve = np.zeros_like(atom_a_dict[magnetic_label])
+                    lower_conserve[:, :, 0] = np.outer(ground, excited)
+                    lower_conserve *= relaxation_rate
+                    _record_operator(
+                        f"Ll{operator_label}", lower_conserve, interaction,
+                        [operator_labels]
+                    )
 
     @logger.record(("operators", "superoperators", "tensors"))
     def _plot_operators(
@@ -1087,6 +1132,8 @@ with Logger("superspinsim-generate") as logger:
         """
             Generates heat maps of all the operators and tensors generated.
         """
+
+        print("Plotting")
 
         plt.figure(
             figsize=(6.4, 6*4.8),
@@ -1192,7 +1239,7 @@ with Logger("superspinsim-generate") as logger:
         return superoperator_dict
 
     def _combine_superoperators(superoperator_dict: dict):
-        superoperator_combine_labels = ["LS1", "LI1"]
+        superoperator_combine_labels = ["LS1", "LI1", "Lr", "Ll"]
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
@@ -1209,7 +1256,7 @@ with Logger("superspinsim-generate") as logger:
                                 superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
 
-        superoperator_combine_labels = ["LS1", "LI1", "LS2", "LI2"]
+        superoperator_combine_labels = ["LS1", "LI1", "LS2", "LI2", "Ll"]
         combined_label = "D"
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
@@ -1225,6 +1272,17 @@ with Logger("superspinsim-generate") as logger:
                         superoperator_dict_add[atom_combine_label] = \
                             superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
+
+        dissipator = None
+        for label, superoperator in superoperator_dict.items():
+            atom_label, operator_label = label.split("] ", 1)
+            if operator_label == "D":
+                if dissipator is None:
+                    dissipator = superoperator.copy()
+                else:
+                    dissipator += superoperator
+        if dissipator is not None:
+            superoperator_dict["D"] = dissipator
 
     # Legacy code start =======================================================
 
@@ -1372,6 +1430,13 @@ with Logger("superspinsim-generate") as logger:
         "S": 0
     }
 
+    nv_orbitals = {
+        # Optical transitions
+        ((0, 0), (1, 0)): {
+            "rel_c": s3p.nv.spin_conserving_relaxation_rate
+        }
+    }
+
     operator_dicts, valid_mask = generate_atoms(
         [
             [
@@ -1386,9 +1451,7 @@ with Logger("superspinsim-generate") as logger:
         ], [
             {}, {}, {}
             # {(0, 1): {"J": 4}}
-        ], {
-            ((0, 0), (1, 0)): {}
-        }
+        ], nv_orbitals
     )
 
     # valid_mask = np.ones_like(

@@ -298,7 +298,7 @@ parameters["spin_spin_relaxation_time_excited"] = {
 
 # Intersystem -----------------------------------------------------------------
 
-spin_conserving_decay_rate = 77e6
+spin_conserving_relaxation_rate = 77e6
 r"""
 \Gamma_{gX\gets eX}
 
@@ -317,8 +317,8 @@ Reference
 Table 1.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
 """
 
-parameters["spin_conserving_decay_rate"] = {
-    "value": spin_conserving_decay_rate,
+parameters["spin_conserving_relaxation_rate"] = {
+    "value": spin_conserving_relaxation_rate,
     "units": "Per second",
     "references": [
         "Table 1.1, Santiago Hernandez Gomez, "
@@ -354,8 +354,8 @@ parameters["radiative_mixing_angle"] = {
     ]
 }
 
-spin_nonconserving_decay_rate = \
-    spin_conserving_decay_rate*math.tan(radiative_mixing_angle)**2
+spin_nonconserving_relaxation_rate = \
+    spin_conserving_relaxation_rate*math.tan(radiative_mixing_angle)**2
 r"""
 \Gamma_{gY\gets eX}
 
@@ -369,8 +369,8 @@ Reference
 Section 1.4.1, Santiago Hernandez Gomez, PhD Thesis, Universita di Firenze
 """
 
-parameters["spin_nonconserving_decay_rate"] = {
-    "value": spin_nonconserving_decay_rate,
+parameters["spin_nonconserving_relaxation_rate"] = {
+    "value": spin_nonconserving_relaxation_rate,
     "units": "Per second",
     "references": [
         "Section 1.4.1, Santiago Hernandez Gomez, "
@@ -378,7 +378,7 @@ parameters["spin_nonconserving_decay_rate"] = {
     ]
 }
 
-pm_to_singlet_decay_rate = 91.6e6
+pm_to_singlet_relaxation_rate = 91.6e6
 r"""
 \Gamma_{s\gets\pm}
 
@@ -397,15 +397,15 @@ Reference
 Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
-parameters["pm_to_singlet_decay_rate"] = {
-    "value": pm_to_singlet_decay_rate,
+parameters["pm_to_singlet_relaxation_rate"] = {
+    "value": pm_to_singlet_relaxation_rate,
     "units": "Per second",
     "references": [
         "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
-z_to_singlet_decay_rate = 9.9e6
+z_to_singlet_relaxation_rate = 9.9e6
 r"""
 \Gamma_{s\gets0}
 
@@ -424,15 +424,15 @@ Reference
 Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
-parameters["z_to_singlet_decay_rate"] = {
-    "value": z_to_singlet_decay_rate,
+parameters["z_to_singlet_relaxation_rate"] = {
+    "value": z_to_singlet_relaxation_rate,
     "units": "Per second",
     "references": [
         "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
-singlet_to_pm_decay_rate = 2.11e6
+singlet_to_pm_relaxation_rate = 2.11e6
 r"""
 \Gamma_{0\gets s}
 
@@ -451,15 +451,15 @@ Reference
 Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
-parameters["singlet_to_pm_decay_rate"] = {
-    "value": singlet_to_pm_decay_rate,
+parameters["singlet_to_pm_relaxation_rate"] = {
+    "value": singlet_to_pm_relaxation_rate,
     "units": "Per second",
     "references": [
         "Table 1, Journal of the Optical Society of America B 33 B28-B34"
     ]
 }
 
-singlet_to_z_decay_rate = 4.83e6
+singlet_to_z_relaxation_rate = 4.83e6
 r"""
 \Gamma_{0\gets s}
 
@@ -478,8 +478,8 @@ Reference
 Table 1, Journal of the Optical Society of America B 33 B28-B34
 """
 
-parameters["singlet_to_z_decay_rate"] = {
-    "value": singlet_to_z_decay_rate,
+parameters["singlet_to_z_relaxation_rate"] = {
+    "value": singlet_to_z_relaxation_rate,
     "units": "Per second",
     "references": [
         "Table 1, Journal of the Optical Society of America B 33 B28-B34"
