@@ -1087,8 +1087,12 @@ with Logger("superspinsim-generate") as logger:
         if spin_a is not None and spin_b is not None:
             if spin_a == spin_b:
                 spin = spin_a
-                if "rel_c" in interaction.keys():
-                    relaxation_rate = np.sqrt(interaction["rel_c"])
+                if "rel_n" in interaction.keys():
+                    relaxation_rate_nonconserve = interaction["rel_n"]
+                else:
+                    relaxation_rate_nonconserve = None
+                if "rel" in interaction.keys():
+                    relaxation_rate = interaction["rel"]
                 else:
                     return
                 for magnetic_number in np.arange(-spin, spin + 0.1):
@@ -1105,24 +1109,127 @@ with Logger("superspinsim-generate") as logger:
                         operator_label = \
                             f"{magnetic_number:.1f} {magnetic_number:.1f}"
 
-                    ground = np.sum(atom_a_dict[magnetic_label], axis=(0, 2))
-                    excited = np.sum(atom_b_dict[magnetic_label], axis=(0, 2))
-
-                    raise_conserve = np.zeros_like(atom_a_dict[magnetic_label])
-                    raise_conserve[:, :, 0] = np.outer(excited, ground)
-                    raise_conserve *= relaxation_rate
-                    _record_operator(
-                        f"Lr{operator_label}", raise_conserve, interaction,
-                        [operator_labels]
+                    raise_conserves = _couple_incoherent(
+                        atom_a_dict[magnetic_label],
+                        atom_b_dict[magnetic_label],
+                        np.zeros_like(atom_a_dict[magnetic_label])
                     )
+                    for index, raise_conserve in enumerate(raise_conserves):
+                        raise_conserve *= math.sqrt(relaxation_rate)
+                        _record_operator(
+                            f"Lrc{operator_label} {index}", raise_conserve,
+                            interaction, [operator_labels]
+                        )
 
-                    lower_conserve = np.zeros_like(atom_a_dict[magnetic_label])
-                    lower_conserve[:, :, 0] = np.outer(ground, excited)
-                    lower_conserve *= relaxation_rate
-                    _record_operator(
-                        f"Ll{operator_label}", lower_conserve, interaction,
-                        [operator_labels]
+                    lower_conserves = _couple_incoherent(
+                        atom_b_dict[magnetic_label],
+                        atom_a_dict[magnetic_label],
+                        np.zeros_like(atom_a_dict[magnetic_label])
                     )
+                    for index, lower_conserve in enumerate(lower_conserves):
+                        lower_conserve *= math.sqrt(relaxation_rate)
+                        _record_operator(
+                            f"Llc{operator_label} {index}", lower_conserve,
+                            interaction, [operator_labels]
+                        )
+
+                    if relaxation_rate_nonconserve is None:
+                        continue
+
+                    for magnetic_number_excited in \
+                            np.arange(-spin, spin + 0.1):
+
+                        if magnetic_number_excited != 0:
+                            magnetic_number_excited *= -1
+
+                        if np.isclose(
+                            magnetic_number,
+                            magnetic_number_excited + 1
+                        ) or np.isclose(
+                            magnetic_number,
+                            magnetic_number_excited - 1
+                        ):
+                            if np.isclose(math.fmod(spin, 1), 0):
+                                magnetic_label_excited = \
+                                    f"S|{magnetic_number_excited:.0f})" \
+                                    + f"({magnetic_number_excited:.0f}|"
+                                operator_label_raise = \
+                                    f"{magnetic_number_excited:.0f}" \
+                                    + f" {magnetic_number:.0f}"
+                                operator_label_lower = \
+                                    f"{magnetic_number:.0f}" \
+                                    + f" {magnetic_number_excited:.0f}"
+                            else:
+                                magnetic_label_excited = \
+                                    f"S|{magnetic_number_excited:.1f})" \
+                                    + f"({magnetic_number_excited:.1f}|"
+                                operator_label_raise = \
+                                    f"{magnetic_number_excited:.1f}" \
+                                    + f" {magnetic_number:.1f}"
+                                operator_label_lower = \
+                                    f"{magnetic_number:.1f}" \
+                                    + f" {magnetic_number_excited:.1f}"
+
+                            raise_nonconserves = _couple_incoherent(
+                                atom_a_dict[magnetic_label],
+                                atom_b_dict[magnetic_label_excited],
+                                np.zeros_like(atom_a_dict[magnetic_label])
+                            )
+                            for index, raise_nonconserve in \
+                                    enumerate(raise_nonconserves):
+                                if np.isclose(abs(magnetic_number), spin):
+                                    raise_nonconserve *= math.sqrt(
+                                        relaxation_rate_nonconserve/2)
+                                else:
+                                    raise_nonconserve *= math.sqrt(
+                                        relaxation_rate_nonconserve)
+                                _record_operator(
+                                    f"Lrn{operator_label_raise} {index}",
+                                    raise_nonconserve, interaction,
+                                    [operator_labels]
+                                )
+
+                            lower_nonconserves = _couple_incoherent(
+                                atom_b_dict[magnetic_label_excited],
+                                atom_a_dict[magnetic_label],
+                                np.zeros_like(atom_a_dict[magnetic_label])
+                            )
+                            for index, lower_nonconserve in \
+                                    enumerate(lower_nonconserves):
+                                if np.isclose(
+                                        abs(magnetic_number_excited), spin):
+                                    lower_nonconserve *= math.sqrt(
+                                        relaxation_rate_nonconserve/2)
+                                else:
+                                    lower_nonconserve *= math.sqrt(
+                                        relaxation_rate_nonconserve)
+                                _record_operator(
+                                    f"Lln{operator_label_lower} {index}",
+                                    lower_nonconserve, interaction,
+                                    [operator_labels]
+                                )
+
+    def _couple_incoherent(
+            ground_projector: np.ndarray, excited_projector: np.ndarray,
+            template: np.ndarray) -> list[np.ndarray]:
+        ground = np.sum(ground_projector, axis=(0, 2))
+        excited = np.sum(excited_projector, axis=(0, 2))
+
+        if np.isclose(np.sum(ground), np.sum(excited)):
+            out = []
+            indices_ground = np.where(ground > 0)[0]
+            indices_excited = np.where(excited > 0)[0]
+            for index_ground, index_excited in \
+                    zip(indices_ground, indices_excited):
+                raise_conserve = np.zeros_like(template)
+                raise_conserve[index_ground, index_excited, 0] \
+                    = 1
+                out.append(raise_conserve)
+        else:
+            raise_conserve = np.zeros_like(template)
+            raise_conserve[:, :, 0] = np.outer(excited, ground)
+            out = [raise_conserve]
+        return out
 
     @logger.record(("operators", "superoperators", "tensors"))
     def _plot_operators(
@@ -1136,7 +1243,7 @@ with Logger("superspinsim-generate") as logger:
         print("Plotting")
 
         plt.figure(
-            figsize=(6.4, 6*4.8),
+            figsize=(6.4, 12*4.8),
             label="operators"
         )
         plot_columns = \
@@ -1155,7 +1262,7 @@ with Logger("superspinsim-generate") as logger:
 
         if superoperator_dict is not None:
             plt.figure(
-                figsize=(6.4, 24*4.8),
+                figsize=(6.4, 48*4.8),
                 label="superoperators"
             )
             plot_columns = \
@@ -1239,7 +1346,8 @@ with Logger("superspinsim-generate") as logger:
         return superoperator_dict
 
     def _combine_superoperators(superoperator_dict: dict):
-        superoperator_combine_labels = ["LS1", "LI1", "Lr", "Ll"]
+        superoperator_combine_labels = \
+            ["LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln"]
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
@@ -1256,7 +1364,8 @@ with Logger("superspinsim-generate") as logger:
                                 superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
 
-        superoperator_combine_labels = ["LS1", "LI1", "LS2", "LI2", "Ll"]
+        superoperator_combine_labels = \
+            ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln"]
         combined_label = "D"
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
@@ -1399,11 +1508,11 @@ with Logger("superspinsim-generate") as logger:
         "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
         "TS2": s3p.nv.spin_spin_relaxation_time_ground,
 
-        # "I": 1,
-        # "P": 10,
-        # "TI1": 1e-1,
-        # "TI2": 1e-3,
-        # "A": 5,
+        "I": 1,
+        "P": 10,
+        "TI1": 1e-1,
+        "TI2": 1e-3,
+        "A": 5,
 
         "B0": quiescent_magnetic_field,
         "T": s3p.general.room_temperature
@@ -1416,24 +1525,31 @@ with Logger("superspinsim-generate") as logger:
         "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
         "TS2": s3p.nv.spin_spin_relaxation_time_excited,
 
-        # "I": 1,
-        # "P": 10,
-        # "TI1": 1e-1,
-        # "TI2": 1e-3,
-        # "A": 5,
+        "I": 1,
+        "P": 10,
+        "TI1": 1e-1,
+        "TI2": 1e-3,
+        "A": 5,
 
         "B0": quiescent_magnetic_field,
         "T": s3p.general.room_temperature
     }
 
     nv_singlet = {
-        "S": 0
+        "S": 0,
+
+        "I": 1,
+        "P": 10,
+        "TI1": 1e-1,
+        "TI2": 1e-3,
+        "A": 5,
     }
 
     nv_orbitals = {
         # Optical transitions
         ((0, 0), (1, 0)): {
-            "rel_c": s3p.nv.spin_conserving_relaxation_rate
+            "rel": s3p.nv.spin_conserving_relaxation_rate,
+            "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
         }
     }
 
