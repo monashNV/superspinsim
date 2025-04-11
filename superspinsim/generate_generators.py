@@ -825,23 +825,26 @@ with Logger("superspinsim-generate") as logger:
         if previous_identity is not None:
             operator_labels_add = set()
             for atom in block:
+                ignore = []
                 for operator_label in operator_labels:
-                    if operator_label in atom.keys():
+                    if operator_label in atom.keys() \
+                            and operator_label not in ignore:
                         operator = atom[operator_label]
                         if "L" in operator_label:
                             atom.pop(operator_label)
                             if operator_label in temp_labels and \
                                     atom is atom_current:
-                                operators_new = kroneker_jump(
+                                operators_new = kroneker_jump_inner(
                                     operator, previous_identity)
                             else:
-                                operators_new = kroneker_jump(
+                                operators_new = kroneker_jump_outer(
                                     spin_identity, operator)
                             for index, operator_new in \
                                     enumerate(operators_new):
                                 label_extend = f"{operator_label} {index}"
                                 atom[label_extend] = operator_new
                                 operator_labels_add.add(label_extend)
+                                ignore.append(label_extend)
 
                         else:
                             if operator_label in temp_labels and \
@@ -890,36 +893,51 @@ with Logger("superspinsim-generate") as logger:
                     + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
         return product
 
-    def kroneker_jump(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
+    def kroneker_jump_inner(
+            inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
         products = []
 
-        for outer_index_y in range(outer.shape[0]):
-            for outer_index_x in range(outer.shape[1]):
-                product = np.zeros(
-                    (
-                        outer.shape[0]*inner.shape[0],
-                        outer.shape[1]*inner.shape[1], outer.shape[2]
-                    ),
-                    dtype=meta_datatype
-                )
+        for outer_index in range(outer.shape[0]):
+            product = np.zeros(
+                (
+                    outer.shape[0]*inner.shape[0],
+                    outer.shape[1]*inner.shape[1], outer.shape[2]
+                ),
+                dtype=meta_datatype
+            )
 
-                product[
-                    outer_index_y*inner.shape[0]
-                    :(outer_index_y + 1)*inner.shape[0],
-                    outer_index_x*inner.shape[1]
-                    :(outer_index_x + 1)*inner.shape[1], 0
-                ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 0] \
-                    - outer[outer_index_y, outer_index_x, 1]*inner[:, :, 1]
-                product[
-                    outer_index_y*inner.shape[0]
-                    :(outer_index_y + 1)*inner.shape[0],
-                    outer_index_x*inner.shape[1]
-                    :(outer_index_x + 1)*inner.shape[1], 1
-                ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 1] \
-                    + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
+            product[
+                outer_index*inner.shape[0]
+                :(outer_index + 1)*inner.shape[0],
+                outer_index*inner.shape[1]
+                :(outer_index + 1)*inner.shape[1], :
+            ] = inner
 
-                if not np.isclose(np.sum(product**2), 0):
-                    products.append(product)
+            if not np.isclose(np.sum(product**2), 0):
+                products.append(product)
+
+        return products
+
+    def kroneker_jump_outer(
+            inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
+        products = []
+
+        for inner_index in range(outer.shape[0]):
+            product = np.zeros(
+                (
+                    outer.shape[0]*inner.shape[0],
+                    outer.shape[1]*inner.shape[1], outer.shape[2]
+                ),
+                dtype=meta_datatype
+            )
+
+            product[
+                inner_index::inner.shape[0],
+                inner_index::inner.shape[1], :
+            ] = inner
+
+            if not np.isclose(np.sum(product**2), 0):
+                products.append(product)
 
         return products
 
@@ -1293,7 +1311,7 @@ with Logger("superspinsim-generate") as logger:
         print("Plotting")
 
         plt.figure(
-            figsize=(6.4, 12*4.8),
+            figsize=(6.4, 24*4.8),
             label="operators"
         )
         plot_columns = \
@@ -1312,7 +1330,7 @@ with Logger("superspinsim-generate") as logger:
 
         if superoperator_dict is not None:
             plt.figure(
-                figsize=(6.4, 48*4.8),
+                figsize=(6.4, 96*4.8),
                 label="superoperators"
             )
             plot_columns = \
