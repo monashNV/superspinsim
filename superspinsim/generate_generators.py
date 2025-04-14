@@ -1416,15 +1416,25 @@ with Logger("superspinsim-generate") as logger:
 
         print("Plotting")
 
-        interesting_operators = ["dissipators"]
+        interesting_operators = ["dissipators", "composite"]
         for interesting_operator in interesting_operators:
             operator_dict = operator_dicts[interesting_operator]
+            if interesting_operator in ["dissipators"]:
+                number_of_columns_min = 1
+                plot_extension_scale = 1
+            else:
+                number_of_columns_min = 6
+                plot_extension_scale = 12
+
             plt.figure(
-                figsize=(6.4, 18*4.8),
+                figsize=
+                (6.4, len(operator_dict)*4.8/plot_extension_scale),
                 label=interesting_operator
             )
-            plot_columns = \
-                min(1, int(math.ceil(math.sqrt(len(operator_dict)))))
+            plot_columns = min(
+                number_of_columns_min,
+                int(math.ceil(math.sqrt(len(operator_dict))))
+            )
             plot_rows = math.ceil(len(operator_dict)/plot_columns)
             for operator_index, (operator_name, operator) in \
                     enumerate(operator_dict.items()):
@@ -1771,24 +1781,8 @@ with Logger("superspinsim-generate") as logger:
     }
 
     operator_dicts, valid_mask = generate_atoms(
-        [
-            [
-                nv_ground
-                # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-            ], [
-                nv_excited,
-                # {"I": 1/2, "TI2": 1e-3, "B0": quiescent_magnetic_field}
-            ], [
-                nv_singlet
-            ]
-        ], [
-            {}, {}, {}
-            # {(0, 1): {"J": 4}}
-        ], nv_orbitals
-    )
+        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals)
 
-    # valid_mask = np.ones_like(
-    #     operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
     valid_indices = _generate_valid_indices(valid_mask)
     superoperators = _generate_superoperators(
         operator_dicts["all"], valid_indices)
