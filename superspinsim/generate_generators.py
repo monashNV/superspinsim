@@ -1192,6 +1192,19 @@ with Logger("superspinsim-generate") as logger:
                         relaxation_rate_1, interaction, label_sets
                     )
 
+            elif spin_a == 0 and spin_b == 1:
+                # ISC ground
+                if "0_gets_s" in interaction.keys():
+                    relaxation_rate_0 = interaction["0_gets_s"]
+                if "1_gets_s" in interaction.keys():
+                    relaxation_rate_1 = interaction["1_gets_s"]
+                if relaxation_rate_0 is not None \
+                        or relaxation_rate_1 is not None:
+                    _couple_isc_ground(
+                        atom_a_dict, atom_b_dict, relaxation_rate_0,
+                        relaxation_rate_1, interaction, label_sets
+                    )
+
     def _couple_optical(
             atom_a_dict: dict, atom_b_dict: dict, spin_a: float, spin_b: float,
             interaction: dict, relaxation_rate: float,
@@ -1307,6 +1320,41 @@ with Logger("superspinsim-generate") as logger:
                 atom_a_dict[magnetic_label],
                 atom_b_dict[magnetic_label_singlet],
                 np.zeros_like(atom_a_dict[magnetic_label])
+            )
+
+            for index, dissipator in enumerate(dissipators):
+                if np.isclose(magnetic_number, 0):
+                    if relaxation_rate_0 is None:
+                        break
+                    dissipator *= np.sqrt(relaxation_rate_0)
+                else:
+                    if relaxation_rate_1 is None:
+                        break
+                    dissipator *= np.sqrt(relaxation_rate_1)
+                _record_operator(
+                    f"Lisc{operator_label} {index}",
+                    dissipator, interaction, [operator_labels]
+                )
+
+    def _couple_isc_ground(
+            atom_a_dict: dict, atom_b_dict: dict, relaxation_rate_0: float,
+            relaxation_rate_1: float, interaction: dict,
+            label_sets: dict[str, dict[str, np.ndarray]]):
+
+        operator_labels = label_sets["operator_labels"]
+
+        spin = 1
+        for magnetic_number in np.arange(-spin, spin + 0.1):
+            magnetic_number, magnetic_label, operator_label_triplet = \
+                _get_spin_labels(spin, magnetic_number)
+            _, magnetic_label_singlet, _ = _get_spin_labels(
+                0, 0)
+            operator_label = f"{operator_label_triplet} s"
+
+            dissipators = _couple_incoherent(
+                atom_a_dict[magnetic_label_singlet],
+                atom_b_dict[magnetic_label],
+                np.zeros_like(atom_b_dict[magnetic_label])
             )
 
             for index, dissipator in enumerate(dissipators):
@@ -1713,6 +1761,12 @@ with Logger("superspinsim-generate") as logger:
         ((1, 0), (2, 0)): {
             "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
             "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
+        },
+
+        # ISC ground
+        ((2, 0), (0, 0)): {
+            "0_gets_s": s3p.nv.singlet_to_z_relaxation_rate,
+            "1_gets_s": s3p.nv.singlet_to_pm_relaxation_rate
         }
     }
 
