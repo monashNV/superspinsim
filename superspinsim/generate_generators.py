@@ -29,10 +29,14 @@ with Logger("superspinsim-generate") as logger:
         tensor_labels = set()
         zero_field_labels = set()
         field_labels = set()
-        label_sets = [
-            operator_labels, tensor_labels,
-            zero_field_labels, field_labels
-        ]
+        dissipator_labels = set()
+        label_sets = {
+            "operator_labels": operator_labels,
+            "tensor_labels": tensor_labels,
+            "zero_field_labels": zero_field_labels,
+            "field_labels": field_labels,
+            "dissipator_labels": dissipator_labels
+        }
         previous_identity = None
 
         for block, atom_interaction in \
@@ -69,23 +73,18 @@ with Logger("superspinsim-generate") as logger:
             )
 
         # Create lists of operators
-        operator_dict, composite_operator_dict, tensor_dict = _list_operators(
+        operator_dicts = _list_operators(
             description, atom_interactions, block_interactions, label_sets)
+        operator_dicts["block"] = block_operator_list
 
-        return (
-            operator_dict, composite_operator_dict,
-            block_operator_list, tensor_dict
-        ), allowed
+        return operator_dicts, allowed
 
     def _add_atom(
-            block: list[dict], atom: dict, label_sets: list[set[str]],
+            block: list[dict], atom: dict, label_sets: dict[str, set[str]],
             previous_identity: np.ndarray, hilbert_space_shape: list[int]):
         """
             Define an atom.
         """
-
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
 
         electron_spin, previous_identity = _add_electron(
             block, atom, label_sets, previous_identity, hilbert_space_shape)
@@ -103,15 +102,16 @@ with Logger("superspinsim-generate") as logger:
         return previous_identity
 
     def _add_electron(
-                block: list[dict], atom: dict, label_sets: list[set[str]],
+                block: list[dict], atom: dict, label_sets: dict[str, set[str]],
                 previous_identity: np.ndarray, hilbert_space_shape: list[int]
             ) -> [int, np.ndarray]:
         """
             Defines the electron spin system.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        zero_field_labels = label_sets["zero_field_labels"]
+        tensor_labels = label_sets["tensor_labels"]
 
         temp_labels = set()
 
@@ -226,15 +226,16 @@ with Logger("superspinsim-generate") as logger:
         return spin, previous_identity
 
     def _add_nucleus(
-                block: list[dict], atom: dict, label_sets: list[set[str]],
+                block: list[dict], atom: dict, label_sets: dict[str, set[str]],
                 previous_identity: np.ndarray, hilbert_space_shape: list[int]
             ) -> [int, np.ndarray]:
         """
             Generates a nucleus.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        zero_field_labels = label_sets["zero_field_labels"]
+        tensor_labels = label_sets["tensor_labels"]
 
         if "I" in atom.keys():
             temp_labels = set()
@@ -345,9 +346,9 @@ with Logger("superspinsim-generate") as logger:
         return spin, previous_identity
 
     def _add_thermalisation(
-            spin_label: str, atom: dict,
-            quiescent_magnetic_generator: np.ndarray,
-            zfs_generator: np.ndarray, label_sets: list[set[str]]) -> set[str]:
+        spin_label: str, atom: dict, quiescent_magnetic_generator: np.ndarray,
+        zfs_generator: np.ndarray, label_sets: dict[str, set[str]]
+    ) -> set[str]:
         """
             Themalisation (T1 time):
             Model: The rate of flow into an energy eigenstate is proportional
@@ -356,8 +357,7 @@ with Logger("superspinsim-generate") as logger:
             Magnetism", 1961, ISBN 0198512368]
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
         temp_labels = set()
 
         if f"T{spin_label}1" in atom.keys():
@@ -424,13 +424,14 @@ with Logger("superspinsim-generate") as logger:
 
     def _add_hyperfine(
             electron_spin: float, nuclear_spin: float, atom: dict,
-            label_sets: list[set[str]]):
+            label_sets: dict[str, set[str]]):
         """
             Add hyperfine interactions to the atom.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        zero_field_labels = label_sets["zero_field_labels"]
+        tensor_labels = label_sets["tensor_labels"]
 
         if electron_spin > 0 and nuclear_spin > 0:
             a_hyperfine = np.zeros((3, 3), dtype=meta_datatype)
@@ -482,13 +483,14 @@ with Logger("superspinsim-generate") as logger:
 
     def _combine_in_atom(
             electron_spin: float, nuclear_spin: float, atom: dict,
-            label_sets: list[set[str]]):
+            label_sets: dict[str, set[str]]):
         """
             Zeeman and ZFS.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        field_labels = label_sets["field_labels"]
+        zero_field_labels = label_sets["zero_field_labels"]
 
         # Magnetic generators
         if electron_spin > 0:
@@ -555,13 +557,13 @@ with Logger("superspinsim-generate") as logger:
 
     def _add_spin_spin_coupling(
             block: list[dict], j_description: dict, index_a: int, index_b: int,
-            label_sets: list[set[str]]):
+            label_sets: dict[str, set[str]]):
         """
         Adds spin-spin coupling to the model.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        tensor_labels = label_sets["tensor_labels"]
 
         j_tensor = np.zeros((3, 3), dtype=meta_datatype)
         if "J" in j_description.keys():
@@ -672,14 +674,16 @@ with Logger("superspinsim-generate") as logger:
 
     def _list_operators(
         description: list[list[dict]], atom_interactions: list[dict],
-        block_interactions: dict, label_sets: list[set[str]]
-    ) -> [dict, dict, dict]:
+        block_interactions: dict, label_sets: dict[str, set[str]]
+    ) -> dict[str, dict[str, np.ndarray]]:
         """
             Put all generated operators into global lists.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
+        field_labels = label_sets["field_labels"]
+        zero_field_labels = label_sets["zero_field_labels"]
+        tensor_labels = label_sets["tensor_labels"]
 
         operator_dict = {}
         composite_operator_dict = {}
@@ -754,7 +758,12 @@ with Logger("superspinsim-generate") as logger:
                     operator_dict[operator_name] = \
                         block_interaction[operator_label]
 
-        return operator_dict, composite_operator_dict, tensor_dict
+        operator_dicts = {
+                "all": operator_dict,
+                "composite": composite_operator_dict,
+                "tensor": tensor_dict
+        }
+        return operator_dicts
 
     def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
         """
@@ -1069,9 +1078,12 @@ with Logger("superspinsim-generate") as logger:
         return
 
     def _combine_blocks(
-            description: list[list[dict]], label_sets: list[set[str]]):
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+            description: list[list[dict]], label_sets: dict[str, set[str]]):
+        """
+            Direct sum the incoherent blocks together.
+        """
+
+        operator_labels = label_sets["operator_labels"]
 
         combined_size = 0
         combined_zero = None
@@ -1135,13 +1147,12 @@ with Logger("superspinsim-generate") as logger:
     def _add_block_interaction(
             block_a: int, atom_a: int, block_b: int, atom_b: int,
             interaction: dict, description: list[list[dict]],
-            label_sets: list[set[str]]):
+            label_sets: dict[str, set[str]]):
         """
             Add incoherent interactions between blocks.
         """
 
-        (operator_labels, tensor_labels, zero_field_labels, field_labels) = \
-            label_sets
+        operator_labels = label_sets["operator_labels"]
 
         atom_a_dict = description[block_a][atom_a]
         atom_b_dict = description[block_b][atom_b]
@@ -1299,48 +1310,30 @@ with Logger("superspinsim-generate") as logger:
             out = [raise_conserve]
         return out
 
-    @logger.record(("operators", "superoperators", "tensors"))
-    def _plot_operators(
-            operator_dict: dict, composite_operator_dict: dict,
-            block_operator_list: list, tensor_dict: dict,
-            superoperator_dict: dict = None):
+    @logger.record(("operators"))
+    def _plot_operators(operator_dicts: dict[str, dict[str, np.ndarray]]):
         """
             Generates heat maps of all the operators and tensors generated.
         """
 
         print("Plotting")
 
-        plt.figure(
-            figsize=(6.4, 24*4.8),
-            label="operators"
-        )
-        plot_columns = \
-            min(4, int(math.ceil(math.sqrt(len(operator_dict)))))
-        plot_rows = math.ceil(len(operator_dict)/plot_columns)
-        for operator_index, (operator_name, operator) in \
-                enumerate(operator_dict.items()):
-            plt.subplot(plot_rows, plot_columns, operator_index + 1)
-            plt.imshow(colour_complex_matrix(
-                operator/(2*np.max(np.abs(operator)))))
-            plt.title(operator_name)
-            plt.xticks([], [])
-            plt.yticks([], [])
-            plt.tight_layout()
-        plt.draw()
-
-        if superoperator_dict is not None:
+        interesting_operators = ["dissipators"]
+        for interesting_operator in interesting_operators:
+            operator_dict = operator_dicts[interesting_operator]
             plt.figure(
-                figsize=(6.4, 96*4.8),
-                label="superoperators"
+                figsize=(6.4, 18*4.8),
+                label=interesting_operator
             )
             plot_columns = \
-                min(2, int(math.ceil(math.sqrt(len(superoperator_dict)))))
-            plot_rows = math.ceil(len(superoperator_dict)/plot_columns)
+                min(1, int(math.ceil(math.sqrt(len(operator_dict)))))
+            plot_rows = math.ceil(len(operator_dict)/plot_columns)
             for operator_index, (operator_name, operator) in \
-                    enumerate(superoperator_dict.items()):
+                    enumerate(operator_dict.items()):
                 plt.subplot(plot_rows, plot_columns, operator_index + 1)
                 plt.imshow(colour_complex_matrix(
-                    operator/(np.max(np.abs(operator)))))
+                    operator/(2*np.max(np.abs(operator)))),
+                           interpolation="nearest")
                 plt.title(operator_name)
                 plt.xticks([], [])
                 plt.yticks([], [])
@@ -1348,56 +1341,96 @@ with Logger("superspinsim-generate") as logger:
             plt.draw()
 
         # plt.figure(
-        #     figsize=(6.4, 6.4),
-        #     label="composite_operators"
+        #     figsize=(6.4, 24*4.8),
+        #     label="operators"
         # )
         # plot_columns = \
-        #     min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
-        # plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
+        #     min(4, int(math.ceil(math.sqrt(len(operator_dict)))))
+        # plot_rows = math.ceil(len(operator_dict)/plot_columns)
         # for operator_index, (operator_name, operator) in \
-        #         enumerate(composite_operator_dict.items()):
+        #         enumerate(operator_dict.items()):
         #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
         #     plt.imshow(colour_complex_matrix(
         #         operator/(2*np.max(np.abs(operator)))))
         #     plt.title(operator_name)
         #     plt.xticks([], [])
         #     plt.yticks([], [])
+        #     plt.tight_layout()
         # plt.draw()
+
+        # if superoperator_dict is not None:
+        #     plt.figure(
+        #         figsize=(6.4, 96*4.8),
+        #         label="superoperators"
+        #     )
+        #     plot_columns = \
+        #         min(2, int(math.ceil(math.sqrt(len(superoperator_dict)))))
+        #     plot_rows = math.ceil(len(superoperator_dict)/plot_columns)
+        #     for operator_index, (operator_name, operator) in \
+        #             enumerate(superoperator_dict.items()):
+        #         plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        #         plt.imshow(colour_complex_matrix(
+        #             operator/(np.max(np.abs(operator)))))
+        #         plt.title(operator_name)
+        #         plt.xticks([], [])
+        #         plt.yticks([], [])
+        #         plt.tight_layout()
+        #     plt.draw()
+
+        # # plt.figure(
+        # #     figsize=(6.4, 6.4),
+        # #     label="composite_operators"
+        # # )
+        # # plot_columns = \
+        # #     min(4, int(math.ceil(math.sqrt(len(composite_operator_dict)))))
+        # # plot_rows = math.ceil(len(composite_operator_dict)/plot_columns)
+        # # for operator_index, (operator_name, operator) in \
+        # #         enumerate(composite_operator_dict.items()):
+        # #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        # #     plt.imshow(colour_complex_matrix(
+        # #         operator/(2*np.max(np.abs(operator)))))
+        # #     plt.title(operator_name)
+        # #     plt.xticks([], [])
+        # #     plt.yticks([], [])
+        # # plt.draw()
+
+        # # plt.figure(
+        # #     figsize=(6.4, 6.4),
+        # #     label="blocks"
+        # # )
+        # # plot_columns = \
+        # #     min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
+        # # plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
+        # # for operator_index, (operator_name, operator) in \
+        # #         enumerate(block_operator_list[0].items()):
+        # #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        # #     plt.imshow(colour_complex_matrix(
+        # #         operator/(2*np.max(np.abs(operator)))))
+        # #     plt.title(operator_name)
+        # #     plt.xticks([], [])
+        # #     plt.yticks([], [])
+        # # plt.draw()
 
         # plt.figure(
-        #     figsize=(6.4, 6.4),
-        #     label="blocks"
+        #     figsize=(6.4, 4.8),
+        #     label="tensors"
         # )
-        # plot_columns = \
-        #     min(5, int(math.ceil(math.sqrt(len(block_operator_list[0])))))
-        # plot_rows = math.ceil(len(block_operator_list[0])/plot_columns)
-        # for operator_index, (operator_name, operator) in \
-        #         enumerate(block_operator_list[0].items()):
-        #     plt.subplot(plot_rows, plot_columns, operator_index + 1)
+        # plot_columns = int(math.ceil(math.sqrt(len(tensor_dict))))
+        # plot_rows = math.ceil(len(tensor_dict)/plot_columns)
+        # for tensor_index, (tensor_name, tensor) in \
+        #         enumerate(tensor_dict.items()):
+        #     plt.subplot(plot_rows, plot_columns, tensor_index + 1)
         #     plt.imshow(colour_complex_matrix(
-        #         operator/(2*np.max(np.abs(operator)))))
-        #     plt.title(operator_name)
+        #         tensor/(2*np.max(np.abs(tensor)))))
+        #     plt.title(tensor_name)
         #     plt.xticks([], [])
         #     plt.yticks([], [])
         # plt.draw()
 
-        plt.figure(
-            figsize=(6.4, 4.8),
-            label="tensors"
-        )
-        plot_columns = int(math.ceil(math.sqrt(len(tensor_dict))))
-        plot_rows = math.ceil(len(tensor_dict)/plot_columns)
-        for tensor_index, (tensor_name, tensor) in \
-                enumerate(tensor_dict.items()):
-            plt.subplot(plot_rows, plot_columns, tensor_index + 1)
-            plt.imshow(colour_complex_matrix(
-                tensor/(2*np.max(np.abs(tensor)))))
-            plt.title(tensor_name)
-            plt.xticks([], [])
-            plt.yticks([], [])
-        plt.draw()
+        copy_dict = copy.copy(operator_dicts)
+        copy_dict.pop("block")
 
-        return operator_dict, superoperator_dict, tensor_dict
+        return copy_dict
 
     def _generate_superoperators(
             operator_dict: dict, valid_indices: np.ndarray) -> dict:
@@ -1414,8 +1447,10 @@ with Logger("superspinsim-generate") as logger:
         return superoperator_dict
 
     def _combine_superoperators(superoperator_dict: dict):
+
+        dissipator_dict = {}
         superoperator_combine_labels = \
-            ["LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln"]
+            {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln"}
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
@@ -1431,6 +1466,7 @@ with Logger("superspinsim-generate") as logger:
                             superoperator_dict_add[atom_combine_label] = \
                                 superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
+        dissipator_dict.update(superoperator_dict_add)
 
         superoperator_combine_labels = \
             ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln"]
@@ -1449,6 +1485,7 @@ with Logger("superspinsim-generate") as logger:
                         superoperator_dict_add[atom_combine_label] = \
                             superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
+        dissipator_dict.update(superoperator_dict_add)
 
         dissipator = None
         for label, superoperator in superoperator_dict.items():
@@ -1460,6 +1497,9 @@ with Logger("superspinsim-generate") as logger:
                     dissipator += superoperator
         if dissipator is not None:
             superoperator_dict["D"] = dissipator
+            dissipator_dict["D"] = dissipator
+
+        return dissipator_dict
 
     # Legacy code start =======================================================
 
@@ -1641,13 +1681,14 @@ with Logger("superspinsim-generate") as logger:
     # valid_mask = np.ones_like(
     #     operator_dicts[0][list(operator_dicts[0].keys())[0]][:, :, 0])
     valid_indices = _generate_valid_indices(valid_mask)
-    superoperators = _generate_superoperators(operator_dicts[0], valid_indices)
-    _combine_superoperators(superoperators)
+    superoperators = _generate_superoperators(
+        operator_dicts["all"], valid_indices)
+    dissipator_dict = _combine_superoperators(superoperators)
 
-    operator_dicts = list(operator_dicts)
-    operator_dicts.append(superoperators)
-    operator_dicts = tuple(operator_dicts)
+    operator_dicts["super_all"] = superoperators
+    operator_dicts["dissipators"] = dissipator_dict
 
-    _plot_operators(*operator_dicts)
+    logger.set_context("operator_generation")
+    _plot_operators(operator_dicts)
 
     plt.draw()
