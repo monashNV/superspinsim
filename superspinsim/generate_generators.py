@@ -218,10 +218,10 @@ with Logger("superspinsim-generate") as logger:
                 label_sets
             )
 
-            previous_identity = _product_spin_state(
-                previous_identity, spin_identity, block, atom,
-                temp_labels, operator_labels
-            )
+        previous_identity = _product_spin_state(
+            previous_identity, spin_identity, block, atom, temp_labels,
+            operator_labels
+        )
 
         return spin, previous_identity
 
@@ -1152,8 +1152,6 @@ with Logger("superspinsim-generate") as logger:
             Add incoherent interactions between blocks.
         """
 
-        operator_labels = label_sets["operator_labels"]
-
         atom_a_dict = description[block_a][atom_a]
         atom_b_dict = description[block_b][atom_b]
 
@@ -1163,9 +1161,10 @@ with Logger("superspinsim-generate") as logger:
             spin_a = atom_a_dict["S"]
         if "S" in atom_b_dict.keys():
             spin_b = atom_b_dict["S"]
+
         if spin_a is not None and spin_b is not None:
             if spin_a == spin_b:
-                spin = spin_a
+                # Optical
                 if "rel_n" in interaction.keys():
                     relaxation_rate_nonconserve = interaction["rel_n"]
                 else:
@@ -1174,141 +1173,192 @@ with Logger("superspinsim-generate") as logger:
                     relaxation_rate = interaction["rel"]
                 else:
                     return
-                for magnetic_number in np.arange(-spin, spin + 0.1):
-                    if magnetic_number != 0:
-                        magnetic_number *= -1
-                    if np.isclose(math.fmod(spin, 1), 0):
-                        magnetic_label = \
-                            f"S|{magnetic_number:.0f})({magnetic_number:.0f}|"
-                        operator_label = \
-                            f"{magnetic_number:.0f} {magnetic_number:.0f}"
-                    else:
-                        magnetic_label = \
-                            f"S|{magnetic_number:.1f})({magnetic_number:.1f}|"
-                        operator_label = \
-                            f"{magnetic_number:.1f} {magnetic_number:.1f}"
 
-                    raise_conserves = _couple_incoherent(
+                _couple_optical(
+                    atom_a_dict, atom_b_dict, spin_a, spin_b, interaction,
+                    relaxation_rate, relaxation_rate_nonconserve, label_sets
+                )
+
+            elif spin_a == 1 and spin_b == 0:
+                # ISC excited
+                if "s_gets_0" in interaction.keys():
+                    relaxation_rate_0 = interaction["s_gets_0"]
+                if "s_gets_1" in interaction.keys():
+                    relaxation_rate_1 = interaction["s_gets_1"]
+                if relaxation_rate_0 is not None \
+                        or relaxation_rate_1 is not None:
+                    _couple_isc_excited(
+                        atom_a_dict, atom_b_dict, relaxation_rate_0,
+                        relaxation_rate_1, interaction, label_sets
+                    )
+
+    def _couple_optical(
+            atom_a_dict: dict, atom_b_dict: dict, spin_a: float, spin_b: float,
+            interaction: dict, relaxation_rate: float,
+            relaxation_rate_nonconserve: float,
+            label_sets: dict[str, set[str]]):
+        """
+            Add NV laser excitations and decay.
+        """
+
+        operator_labels = label_sets["operator_labels"]
+
+        spin = spin_a
+        for magnetic_number in np.arange(-spin, spin + 0.1):
+            magnetic_number, magnetic_label, operator_label_partial = \
+                _get_spin_labels(spin, magnetic_number)
+            operator_label = \
+                f"{operator_label_partial} {operator_label_partial}"
+
+            raise_conserves = _couple_incoherent(
+                atom_a_dict[magnetic_label],
+                atom_b_dict[magnetic_label],
+                np.zeros_like(atom_a_dict[magnetic_label])
+            )
+            for index, raise_conserve in enumerate(raise_conserves):
+                raise_conserve *= math.sqrt(relaxation_rate)
+                _record_operator(
+                    f"Lrc{operator_label} {index}", raise_conserve,
+                    interaction, [operator_labels]
+                )
+
+            lower_conserves = _couple_incoherent(
+                atom_b_dict[magnetic_label],
+                atom_a_dict[magnetic_label],
+                np.zeros_like(atom_a_dict[magnetic_label])
+            )
+            for index, lower_conserve in enumerate(lower_conserves):
+                lower_conserve *= math.sqrt(relaxation_rate)
+                _record_operator(
+                    f"Llc{operator_label} {index}", lower_conserve,
+                    interaction, [operator_labels]
+                )
+
+            if relaxation_rate_nonconserve is None:
+                continue
+
+            for magnetic_number_excited in \
+                    np.arange(-spin, spin + 0.1):
+
+                if np.isclose(
+                        abs(magnetic_number - magnetic_number_excited), 1):
+                    magnetic_number_excited, magnetic_label_excited, \
+                        operator_label_partial_excited = _get_spin_labels(
+                            spin, magnetic_number_excited
+                        )
+                    operator_label_raise = operator_label_partial_excited \
+                        + " " + operator_label_partial
+                    operator_label_lower = operator_label_partial + " " \
+                        + operator_label_partial_excited
+
+                    raise_nonconserves = _couple_incoherent(
                         atom_a_dict[magnetic_label],
-                        atom_b_dict[magnetic_label],
+                        atom_b_dict[magnetic_label_excited],
                         np.zeros_like(atom_a_dict[magnetic_label])
                     )
-                    for index, raise_conserve in enumerate(raise_conserves):
-                        raise_conserve *= math.sqrt(relaxation_rate)
+                    for index, raise_nonconserve in enumerate(
+                            raise_nonconserves):
+                        if np.isclose(abs(magnetic_number), spin):
+                            raise_nonconserve *= math.sqrt(
+                                relaxation_rate_nonconserve/2)
+                        else:
+                            raise_nonconserve *= math.sqrt(
+                                relaxation_rate_nonconserve)
                         _record_operator(
-                            f"Lrc{operator_label} {index}", raise_conserve,
-                            interaction, [operator_labels]
+                            f"Lrn{operator_label_raise} {index}",
+                            raise_nonconserve, interaction, [operator_labels]
                         )
 
-                    lower_conserves = _couple_incoherent(
-                        atom_b_dict[magnetic_label],
+                    lower_nonconserves = _couple_incoherent(
+                        atom_b_dict[magnetic_label_excited],
                         atom_a_dict[magnetic_label],
                         np.zeros_like(atom_a_dict[magnetic_label])
                     )
-                    for index, lower_conserve in enumerate(lower_conserves):
-                        lower_conserve *= math.sqrt(relaxation_rate)
-                        _record_operator(
-                            f"Llc{operator_label} {index}", lower_conserve,
-                            interaction, [operator_labels]
-                        )
-
-                    if relaxation_rate_nonconserve is None:
-                        continue
-
-                    for magnetic_number_excited in \
-                            np.arange(-spin, spin + 0.1):
-
-                        if magnetic_number_excited != 0:
-                            magnetic_number_excited *= -1
-
+                    for index, lower_nonconserve in enumerate(
+                            lower_nonconserves):
                         if np.isclose(
-                            magnetic_number,
-                            magnetic_number_excited + 1
-                        ) or np.isclose(
-                            magnetic_number,
-                            magnetic_number_excited - 1
-                        ):
-                            if np.isclose(math.fmod(spin, 1), 0):
-                                magnetic_label_excited = \
-                                    f"S|{magnetic_number_excited:.0f})" \
-                                    + f"({magnetic_number_excited:.0f}|"
-                                operator_label_raise = \
-                                    f"{magnetic_number_excited:.0f}" \
-                                    + f" {magnetic_number:.0f}"
-                                operator_label_lower = \
-                                    f"{magnetic_number:.0f}" \
-                                    + f" {magnetic_number_excited:.0f}"
-                            else:
-                                magnetic_label_excited = \
-                                    f"S|{magnetic_number_excited:.1f})" \
-                                    + f"({magnetic_number_excited:.1f}|"
-                                operator_label_raise = \
-                                    f"{magnetic_number_excited:.1f}" \
-                                    + f" {magnetic_number:.1f}"
-                                operator_label_lower = \
-                                    f"{magnetic_number:.1f}" \
-                                    + f" {magnetic_number_excited:.1f}"
+                                abs(magnetic_number_excited), spin):
+                            lower_nonconserve *= math.sqrt(
+                                relaxation_rate_nonconserve/2)
+                        else:
+                            lower_nonconserve *= math.sqrt(
+                                relaxation_rate_nonconserve)
+                        _record_operator(
+                            f"Lln{operator_label_lower} {index}",
+                            lower_nonconserve, interaction, [operator_labels]
+                        )
 
-                            raise_nonconserves = _couple_incoherent(
-                                atom_a_dict[magnetic_label],
-                                atom_b_dict[magnetic_label_excited],
-                                np.zeros_like(atom_a_dict[magnetic_label])
-                            )
-                            for index, raise_nonconserve in \
-                                    enumerate(raise_nonconserves):
-                                if np.isclose(abs(magnetic_number), spin):
-                                    raise_nonconserve *= math.sqrt(
-                                        relaxation_rate_nonconserve/2)
-                                else:
-                                    raise_nonconserve *= math.sqrt(
-                                        relaxation_rate_nonconserve)
-                                _record_operator(
-                                    f"Lrn{operator_label_raise} {index}",
-                                    raise_nonconserve, interaction,
-                                    [operator_labels]
-                                )
+    def _couple_isc_excited(
+            atom_a_dict: dict, atom_b_dict: dict, relaxation_rate_0: float,
+            relaxation_rate_1: float, interaction: dict,
+            label_sets: dict[str, dict[str, np.ndarray]]):
 
-                            lower_nonconserves = _couple_incoherent(
-                                atom_b_dict[magnetic_label_excited],
-                                atom_a_dict[magnetic_label],
-                                np.zeros_like(atom_a_dict[magnetic_label])
-                            )
-                            for index, lower_nonconserve in \
-                                    enumerate(lower_nonconserves):
-                                if np.isclose(
-                                        abs(magnetic_number_excited), spin):
-                                    lower_nonconserve *= math.sqrt(
-                                        relaxation_rate_nonconserve/2)
-                                else:
-                                    lower_nonconserve *= math.sqrt(
-                                        relaxation_rate_nonconserve)
-                                _record_operator(
-                                    f"Lln{operator_label_lower} {index}",
-                                    lower_nonconserve, interaction,
-                                    [operator_labels]
-                                )
+        operator_labels = label_sets["operator_labels"]
+
+        spin = 1
+        for magnetic_number in np.arange(-spin, spin + 0.1):
+            magnetic_number, magnetic_label, operator_label_triplet = \
+                _get_spin_labels(spin, magnetic_number)
+            _, magnetic_label_singlet, _ = _get_spin_labels(
+                0, 0)
+            operator_label = f"s {operator_label_triplet}"
+
+            dissipators = _couple_incoherent(
+                atom_a_dict[magnetic_label],
+                atom_b_dict[magnetic_label_singlet],
+                np.zeros_like(atom_a_dict[magnetic_label])
+            )
+
+            for index, dissipator in enumerate(dissipators):
+                if np.isclose(magnetic_number, 0):
+                    if relaxation_rate_0 is None:
+                        break
+                    dissipator *= np.sqrt(relaxation_rate_0)
+                else:
+                    if relaxation_rate_1 is None:
+                        break
+                    dissipator *= np.sqrt(relaxation_rate_1)
+                _record_operator(
+                    f"Lisc{operator_label} {index}",
+                    dissipator, interaction, [operator_labels]
+                )
 
     def _couple_incoherent(
-            ground_projector: np.ndarray, excited_projector: np.ndarray,
+            initial_projector: np.ndarray, final_projector: np.ndarray,
             template: np.ndarray) -> list[np.ndarray]:
-        ground = np.sum(ground_projector, axis=(0, 2))
-        excited = np.sum(excited_projector, axis=(0, 2))
+        initial = np.sum(initial_projector, axis=(0, 2))
+        final = np.sum(final_projector, axis=(0, 2))
 
-        if np.isclose(np.sum(ground), np.sum(excited)):
+        if np.isclose(np.sum(initial), np.sum(final)):
             out = []
-            indices_ground = np.where(ground > 0)[0]
-            indices_excited = np.where(excited > 0)[0]
-            for index_ground, index_excited in \
-                    zip(indices_ground, indices_excited):
-                raise_conserve = np.zeros_like(template)
-                raise_conserve[index_ground, index_excited, 0] \
+            indices_initial = np.where(initial > 0)[0]
+            indices_excited = np.where(final > 0)[0]
+            for index_initial, index_final in \
+                    zip(indices_initial, indices_excited):
+                superoperator = np.zeros_like(template)
+                superoperator[index_final, index_initial, 0] \
                     = 1
-                out.append(raise_conserve)
+                out.append(superoperator)
         else:
-            raise_conserve = np.zeros_like(template)
-            raise_conserve[:, :, 0] = np.outer(excited, ground)
-            out = [raise_conserve]
+            superoperator = np.zeros_like(template)
+            superoperator[:, :, 0] = np.outer(final, initial)
+            out = [superoperator]
         return out
+
+    def _get_spin_labels(
+            spin: float, magnetic_number: float) -> [float, str, str]:
+        if magnetic_number != 0:
+            magnetic_number *= -1
+        if np.isclose(math.fmod(spin, 1), 0):
+            magnetic_label = \
+                f"S|{magnetic_number:.0f})({magnetic_number:.0f}|"
+            operator_label = f"{magnetic_number:.0f}"
+        else:
+            magnetic_label = \
+                f"S|{magnetic_number:.1f})({magnetic_number:.1f}|"
+            operator_label = f"{magnetic_number:.1f}"
+
+        return magnetic_number, magnetic_label, operator_label
 
     @logger.record(("operators"))
     def _plot_operators(operator_dicts: dict[str, dict[str, np.ndarray]]):
@@ -1450,7 +1500,7 @@ with Logger("superspinsim-generate") as logger:
 
         dissipator_dict = {}
         superoperator_combine_labels = \
-            {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln"}
+            {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc"}
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
@@ -1469,7 +1519,7 @@ with Logger("superspinsim-generate") as logger:
         dissipator_dict.update(superoperator_dict_add)
 
         superoperator_combine_labels = \
-            ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln"]
+            ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"]
         combined_label = "D"
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
@@ -1649,8 +1699,7 @@ with Logger("superspinsim-generate") as logger:
         "I": 1,
         "P": 10,
         "TI1": 1e-1,
-        "TI2": 1e-3,
-        "A": 5,
+        "TI2": 1e-3
     }
 
     nv_orbitals = {
@@ -1658,6 +1707,12 @@ with Logger("superspinsim-generate") as logger:
         ((0, 0), (1, 0)): {
             "rel": s3p.nv.spin_conserving_relaxation_rate,
             "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
+        },
+
+        # ISC excited
+        ((1, 0), (2, 0)): {
+            "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
+            "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
         }
     }
 
