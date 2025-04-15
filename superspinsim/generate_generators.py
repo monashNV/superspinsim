@@ -65,9 +65,9 @@ with Logger("superspinsim-generate") as logger:
         coherent_atoms = _combine_coherent_atoms(
             description, atom_interactions, field_labels)
 
-        coherent_blocks = _combine_coherent_blocks(coherent_atoms)
+        allowed = _combine_blocks(description, coherent_atoms, label_sets)
 
-        allowed = _combine_blocks(description, coherent_blocks, label_sets)
+        coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
         for ((block_a, atom_a), (block_b, atom_b)), interaction in \
                 block_interactions.items():
@@ -83,13 +83,21 @@ with Logger("superspinsim-generate") as logger:
         operator_dicts["coherent"] = coherent_blocks
 
         # Generate superoperators
+        operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
         valid_indices = _generate_valid_indices(allowed)
         superoperators = _generate_superoperators(
-            operator_dicts["jump"], valid_indices)
+            operators_to_super, valid_indices)
         dissipator_dict = _combine_superoperators(superoperators)
 
         operator_dicts["super_all"] = superoperators
         operator_dicts["dissipators"] = dissipator_dict
+
+        generators_dict = {}
+        for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
+            if label in superoperators.keys():
+                generators_dict[label] = superoperators[label]
+
+        operator_dicts["generators"] = generators_dict
 
         return operator_dicts
 
@@ -693,7 +701,15 @@ with Logger("superspinsim-generate") as logger:
         return block_operator_list
 
     def _combine_coherent_blocks(coherent_atoms: list[dict]):
-        pass
+
+        coherent_block = {}
+        for coherent_atom in coherent_atoms:
+            for label, operator in coherent_atom.items():
+                if label not in coherent_block.keys():
+                    coherent_block[label] = operator.copy()
+                else:
+                    coherent_block[label] += operator
+        return coherent_block
 
     def _list_operators(
         description: list[list[dict]], atom_interactions: list[dict],
@@ -1122,7 +1138,7 @@ with Logger("superspinsim-generate") as logger:
         return
 
     def _combine_blocks(
-            description: list[list[dict]], generators: dict,
+            description: list[list[dict]], coherent_atoms: list[dict],
             label_sets: dict[str, set[str]]):
         """
             Direct sum the incoherent blocks together.
@@ -1134,7 +1150,8 @@ with Logger("superspinsim-generate") as logger:
         combined_size = 0
         combined_zero = None
         combined_allowed = None
-        for block_index, block in enumerate(description):
+        for block_index, (block, coherent_atom) in \
+                enumerate(zip(description, coherent_atoms)):
             current_size = 0
             current_zero = None
             current_allowed = None
@@ -1163,6 +1180,14 @@ with Logger("superspinsim-generate") as logger:
                                 combined_zero
                             )
 
+            for operator_label in coherent_atom.keys():
+                current_size, current_zero, current_allowed = \
+                    _combine_blocks_operator(
+                        operator_label, coherent_atom, current_size,
+                        current_zero, current_allowed, combined_size,
+                        combined_zero
+                    )
+
             if current_size == 0:
                 current_size = 1
                 current_zero = np.zeros(
@@ -1171,7 +1196,9 @@ with Logger("superspinsim-generate") as logger:
                 current_allowed[:, :, 0] = np.ones(
                     (current_size, current_size), dtype=meta_datatype)
 
-            for block_previous_index, block_previous in enumerate(description):
+            for block_previous_index, \
+                    (block_previous, coherent_atom_previous) \
+                    in enumerate(zip(description, coherent_atoms)):
                 if block_previous_index < block_index:
                     for atom_previous in block_previous:
 
@@ -1186,6 +1213,12 @@ with Logger("superspinsim-generate") as logger:
                                 _combine_blocks_operator_previous(
                                     operator_label, atom_previous, current_zero
                                 )
+
+                        for operator_label in coherent_atom_previous.keys():
+                            _combine_blocks_operator_previous(
+                                operator_label, coherent_atom_previous,
+                                current_zero
+                            )
 
             if combined_size == 0:
                 combined_allowed = current_allowed
@@ -1507,10 +1540,10 @@ with Logger("superspinsim-generate") as logger:
 
         print("Plotting")
 
-        interesting_operators = ["dissipators", "composite"]
+        interesting_operators = ["dissipators", "coherent", "generators"]
         for interesting_operator in interesting_operators:
             operator_dict = operator_dicts[interesting_operator]
-            if interesting_operator in ["dissipators"]:
+            if interesting_operator in ["dissipators", "generators"]:
                 number_of_columns_min = 1
                 plot_extension_scale = 1
             else:
@@ -1652,6 +1685,8 @@ with Logger("superspinsim-generate") as logger:
             {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc"}
         superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
+            if "]" not in label:
+                continue
             atom_label, operator_label = label.split("] ", 1)
             atom_label += "] "
             for combine_label in superoperator_combine_labels:
@@ -1675,6 +1710,8 @@ with Logger("superspinsim-generate") as logger:
         for combined_label, superoperator_combine_labels in \
                 superoperator_combine_labels_dict.items():
             for label, superoperator in superoperator_dict.items():
+                if "]" not in label:
+                    continue
                 atom_label, operator_label = label.split("] ", 1)
                 atom_label += "] "
                 for combine_label in superoperator_combine_labels:
@@ -1691,6 +1728,8 @@ with Logger("superspinsim-generate") as logger:
 
         superoperator_dict_add = {}
         for label, superoperator in dissipator_dict.items():
+            if "]" not in label:
+                continue
             atom_label, operator_label = label.split("] ", 1)
             if operator_label in superoperator_combine_labels_dict.keys():
                 if operator_label in superoperator_dict_add.keys():
@@ -1702,11 +1741,11 @@ with Logger("superspinsim-generate") as logger:
         superoperator_dict.update(superoperator_dict_add)
         dissipator_dict.update(superoperator_dict_add)
 
-        superoperator_combine_labels_dict = {"G0": ["H0", "D"]}
+        superoperator_combine_labels_dict = {"L0": ["H0", "D"]}
         superoperator_dict_add = {}
         for combined_label, superoperator_combine_labels in \
                 superoperator_combine_labels_dict.items():
-            for label, superoperator in dissipator_dict.items():
+            for label, superoperator in superoperator_dict.items():
                 if label in superoperator_combine_labels:
                     if label in superoperator_dict_add.keys():
                         superoperator_dict_add[combined_label] += \
