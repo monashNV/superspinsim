@@ -8,11 +8,15 @@ def main():
 
     from pogger import Pogger as Logger
 
-    quiescent_magnetic_field = np.array([0, 0, 0.1])
+    quiescent_magnetic_field = np.array([0, 0, 1])*1e-24
 
     def coefficient_x(time):
-        if time > 5e-6:
-            return 0.01*math.sin(math.tau*2.8e9*time)
+        if time > 1e-6:
+            # phase = 1e9*math.tau*(
+            #     2.85*(time - 1e-6) + 0.1*((time - 1e-6)**2)/(10e-6 - 1e-6)/2)
+            return 2e-3*math.sin(math.tau*2.89e9*time)
+        else:
+            return 0
 
     def coefficient_y(time):
         return 0
