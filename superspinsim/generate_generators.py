@@ -1874,10 +1874,10 @@ with Logger("superspinsim-generate") as logger:
         "TS2": s3p.nv.spin_spin_relaxation_time_ground,
 
         "I": 1,
-        "P": 10,
-        "TI1": 1e-1,
-        "TI2": 1e-3,
-        "A": 5,
+        "P": math.tau*-4.945e6,
+        "TI1": 10,
+        "TI2": 10e-6,
+        "A": math.tau*-2.16e6,
 
         "B0": quiescent_magnetic_field,
         "T": s3p.general.room_temperature
@@ -1891,10 +1891,10 @@ with Logger("superspinsim-generate") as logger:
         "TS2": s3p.nv.spin_spin_relaxation_time_excited,
 
         "I": 1,
-        "P": 10,
+        "P": math.tau*-4.945e6,
         "TI1": 1e-1,
         "TI2": 1e-3,
-        "A": 5,
+        "A": math.tau*-23e6,
 
         "B0": quiescent_magnetic_field,
         "T": s3p.general.room_temperature
@@ -1904,9 +1904,9 @@ with Logger("superspinsim-generate") as logger:
         "S": 0,
 
         "I": 1,
-        "P": 10,
-        "TI1": 1e-1,
-        "TI2": 1e-3
+        "P": math.tau*-4.945e6,
+        "TI1": 10,
+        "TI2": 10e-6
     }
 
     nv_orbitals = {
