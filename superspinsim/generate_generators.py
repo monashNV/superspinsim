@@ -29,12 +29,14 @@ with Logger("superspinsim-generate") as logger:
         tensor_labels = set()
         zero_field_labels = set()
         field_labels = set()
+        projector_labels = set()
         dissipator_labels = set()
         label_sets = {
             "operator_labels": operator_labels,
             "tensor_labels": tensor_labels,
             "zero_field_labels": zero_field_labels,
             "field_labels": field_labels,
+            "projector_labels": projector_labels,
             "dissipator_labels": dissipator_labels
         }
         previous_identity = None
@@ -60,10 +62,12 @@ with Logger("superspinsim-generate") as logger:
         _remove_trace(description, operator_labels)
 
         # Combine all atoms in blocks
-        block_operator_list = _combine_in_block(
+        coherent_atoms = _combine_coherent_atoms(
             description, atom_interactions, field_labels)
 
-        allowed = _combine_blocks(description, label_sets)
+        coherent_blocks = _combine_coherent_blocks(coherent_atoms)
+
+        allowed = _combine_blocks(description, coherent_blocks, label_sets)
 
         for ((block_a, atom_a), (block_b, atom_b)), interaction in \
                 block_interactions.items():
@@ -75,9 +79,19 @@ with Logger("superspinsim-generate") as logger:
         # Create lists of operators
         operator_dicts = _list_operators(
             description, atom_interactions, block_interactions, label_sets)
-        operator_dicts["block"] = block_operator_list
+        operator_dicts["coherent_atoms"] = coherent_atoms
+        operator_dicts["coherent"] = coherent_blocks
 
-        return operator_dicts, allowed
+        # Generate superoperators
+        valid_indices = _generate_valid_indices(allowed)
+        superoperators = _generate_superoperators(
+            operator_dicts["jump"], valid_indices)
+        dissipator_dict = _combine_superoperators(superoperators)
+
+        operator_dicts["super_all"] = superoperators
+        operator_dicts["dissipators"] = dissipator_dict
+
+        return operator_dicts
 
     def _add_atom(
             block: list[dict], atom: dict, label_sets: dict[str, set[str]],
@@ -112,6 +126,8 @@ with Logger("superspinsim-generate") as logger:
         operator_labels = label_sets["operator_labels"]
         zero_field_labels = label_sets["zero_field_labels"]
         tensor_labels = label_sets["tensor_labels"]
+        projector_labels = label_sets["projector_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         temp_labels = set()
 
@@ -125,7 +141,9 @@ with Logger("superspinsim-generate") as logger:
             spin, hilbert_space_shape)
         for key, projector in projectors.items():
             _record_operator(
-                f"S{key}", projector, atom, [temp_labels, operator_labels])
+                f"S{key}", projector, atom,
+                [temp_labels, operator_labels, projector_labels]
+            )
         if spin > 0:
             _record_spin_vec(
                 "S", spin_vec, atom, [temp_labels, operator_labels])
@@ -150,7 +168,7 @@ with Logger("superspinsim-generate") as logger:
 
             zfs_generator = _quadratic_transform(zfs, quadratic)
             _record_operator(
-                "Dgen", zfs_generator, atom,
+                "HD", zfs_generator, atom,
                 [temp_labels, operator_labels, zero_field_labels]
             )
 
@@ -210,7 +228,7 @@ with Logger("superspinsim-generate") as logger:
                         * quiescent_magnetic_generator
                     _record_operator(
                         "LS2", jump_dephasing, atom,
-                        [temp_labels, operator_labels]
+                        [temp_labels, operator_labels, dissipator_labels]
                     )
 
             temp_labels |= _add_thermalisation(
@@ -220,7 +238,7 @@ with Logger("superspinsim-generate") as logger:
 
         previous_identity = _product_spin_state(
             previous_identity, spin_identity, block, atom, temp_labels,
-            operator_labels
+            operator_labels, dissipator_labels
         )
 
         return spin, previous_identity
@@ -236,6 +254,7 @@ with Logger("superspinsim-generate") as logger:
         operator_labels = label_sets["operator_labels"]
         zero_field_labels = label_sets["zero_field_labels"]
         tensor_labels = label_sets["tensor_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         if "I" in atom.keys():
             temp_labels = set()
@@ -268,7 +287,7 @@ with Logger("superspinsim-generate") as logger:
 
                 zfs_generator = _quadratic_transform(zfs, quadratic)
                 _record_operator(
-                    "Pgen", zfs_generator, atom,
+                    "HP", zfs_generator, atom,
                     [temp_labels, operator_labels, zero_field_labels]
                 )
 
@@ -330,7 +349,7 @@ with Logger("superspinsim-generate") as logger:
                         * quiescent_magnetic_generator
                     _record_operator(
                         "LI2", jump_dephasing, atom,
-                        [temp_labels, operator_labels]
+                        [temp_labels, operator_labels, dissipator_labels]
                     )
 
             temp_labels |= _add_thermalisation(
@@ -340,7 +359,7 @@ with Logger("superspinsim-generate") as logger:
 
             previous_identity = _product_spin_state(
                 previous_identity, spin_identity, block, atom,
-                temp_labels, operator_labels
+                temp_labels, operator_labels, dissipator_labels
             )
 
         return spin, previous_identity
@@ -358,6 +377,7 @@ with Logger("superspinsim-generate") as logger:
         """
 
         operator_labels = label_sets["operator_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
         temp_labels = set()
 
         if f"T{spin_label}1" in atom.keys():
@@ -417,8 +437,8 @@ with Logger("superspinsim-generate") as logger:
 
                     _record_operator(
                         f"L{spin_label}1"
-                        + f"{state_index_final} {state_index_init}",
-                        jump, atom, [temp_labels, operator_labels]
+                        + f"{state_index_final} {state_index_init}", jump,
+                        atom, [temp_labels, operator_labels, dissipator_labels]
                     )
         return temp_labels
 
@@ -477,7 +497,7 @@ with Logger("superspinsim-generate") as logger:
                 hyperfine_generator = _quadratic_transform(
                     a_hyperfine, quadratic)
                 _record_operator(
-                    "Agen", hyperfine_generator, atom,
+                    "HA", hyperfine_generator, atom,
                     [operator_labels, zero_field_labels]
                 )
 
@@ -610,7 +630,7 @@ with Logger("superspinsim-generate") as logger:
 
         spin_generator = _quadratic_transform(j_tensor, quadratic)
         _record_operator(
-            "Jgen", spin_generator, j_description, [operator_labels])
+            "HJ", spin_generator, j_description, [operator_labels])
 
     def _remove_trace(description: list[dict], operator_labels: set[str]):
         """
@@ -630,7 +650,7 @@ with Logger("superspinsim-generate") as logger:
                                 / operator.shape[0]
                             atom[operator_label] = operator_new
 
-    def _combine_in_block(
+    def _combine_coherent_atoms(
             description: list[dict], atom_interactions: list[dict],
             field_labels: set[str]) -> list:
         """
@@ -660,17 +680,20 @@ with Logger("superspinsim-generate") as logger:
                                 atom[operator_label]
 
             for (index_a, index_b), j_description in atom_interaction.items():
-                if "Jgen" in j_description.keys():
+                if "HJ" in j_description.keys():
                     for operator_label in ["Z", "H0"]:
                         if operator_label not in block_operator_dict.keys():
                             block_operator_dict[operator_label] = \
-                                j_description["Jgen"].copy()
+                                j_description["HJ"].copy()
                         else:
                             block_operator_dict[operator_label] += \
-                                j_description["Jgen"]
+                                j_description["HJ"]
             block_operator_list.append(block_operator_dict)
 
         return block_operator_list
+
+    def _combine_coherent_blocks(coherent_atoms: list[dict]):
+        pass
 
     def _list_operators(
         description: list[list[dict]], atom_interactions: list[dict],
@@ -684,8 +707,10 @@ with Logger("superspinsim-generate") as logger:
         field_labels = label_sets["field_labels"]
         zero_field_labels = label_sets["zero_field_labels"]
         tensor_labels = label_sets["tensor_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         operator_dict = {}
+        jump_dict = {}
         composite_operator_dict = {}
         tensor_dict = {}
         for block_index, (block, atom_interaction) in \
@@ -697,6 +722,13 @@ with Logger("superspinsim-generate") as logger:
                         operator_name = f"[{block_index}, {atom_index}]" \
                                         + f" {operator_label}"
                         operator_dict[operator_name] = atom[operator_label]
+
+                # Jump
+                for operator_label in dissipator_labels:
+                    if operator_label in atom.keys():
+                        operator_name = f"[{block_index}, {atom_index}]" \
+                                        + f" {operator_label}"
+                        jump_dict[operator_name] = atom[operator_label]
 
                 # Composite
                 for operator_label in zero_field_labels:
@@ -758,8 +790,19 @@ with Logger("superspinsim-generate") as logger:
                     operator_dict[operator_name] = \
                         block_interaction[operator_label]
 
+            # Operators
+            for operator_label in dissipator_labels:
+                if operator_label in block_interaction.keys():
+                    operator_name = \
+                        f"[{block_index_a}, {atom_index_a}," \
+                        + f" {block_index_b}, {atom_index_b}]" \
+                        + f" {operator_label}"
+                    jump_dict[operator_name] = \
+                        block_interaction[operator_label]
+
         operator_dicts = {
                 "all": operator_dict,
+                "jump": jump_dict,
                 "composite": composite_operator_dict,
                 "tensor": tensor_dict
         }
@@ -830,7 +873,7 @@ with Logger("superspinsim-generate") as logger:
     def _product_spin_state(
             previous_identity: np.ndarray, spin_identity: np.ndarray,
             block: list, atom_current: dict, temp_labels: set,
-            operator_labels: set) -> np.ndarray:
+            operator_labels: set, dissipator_labels: set) -> np.ndarray:
         if previous_identity is not None:
             operator_labels_add = set()
             for atom in block:
@@ -839,7 +882,7 @@ with Logger("superspinsim-generate") as logger:
                     if operator_label in atom.keys() \
                             and operator_label not in ignore:
                         operator = atom[operator_label]
-                        if "L" in operator_label:
+                        if operator_label in dissipator_labels:
                             atom.pop(operator_label)
                             if operator_label in temp_labels and \
                                     atom is atom_current:
@@ -866,6 +909,7 @@ with Logger("superspinsim-generate") as logger:
                             atom[operator_label] = operator_new
 
             operator_labels |= operator_labels_add
+            dissipator_labels |= operator_labels_add
 
             spin_identity = kroneker_product(spin_identity, previous_identity)
 
@@ -1078,12 +1122,14 @@ with Logger("superspinsim-generate") as logger:
         return
 
     def _combine_blocks(
-            description: list[list[dict]], label_sets: dict[str, set[str]]):
+            description: list[list[dict]], generators: dict,
+            label_sets: dict[str, set[str]]):
         """
             Direct sum the incoherent blocks together.
         """
 
-        operator_labels = label_sets["operator_labels"]
+        projector_labels = label_sets["projector_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         combined_size = 0
         combined_zero = None
@@ -1091,33 +1137,32 @@ with Logger("superspinsim-generate") as logger:
         for block_index, block in enumerate(description):
             current_size = 0
             current_zero = None
+            current_allowed = None
             if combined_size > 0:
                 combined_zero = np.zeros(
                     (combined_size, combined_size, 2),
                     dtype=meta_datatype
                 )
-
             for atom_index, atom in enumerate(block):
-                for operator_label in operator_labels:
+
+                for operator_label in dissipator_labels:
                     if operator_label in atom.keys():
-                        operator = atom[operator_label]
-                        if current_size == 0:
-                            current_size = operator.shape[0]
-                            current_zero = np.zeros(
-                                (current_size, current_size, 2),
-                                dtype=meta_datatype
-                            )
-                            current_allowed = np.zeros_like(current_zero)
-                            current_allowed[:, :, 0] = np.ones(
-                                (current_size, current_size),
-                                dtype=meta_datatype
+                        current_size, current_zero, current_allowed = \
+                            _combine_blocks_operator(
+                                operator_label, atom, current_size,
+                                current_zero, current_allowed, combined_size,
+                                combined_zero
                             )
 
-                        if combined_size > 0:
-                            operator = _direct_sum(combined_zero, operator)
-                        atom[operator_label] = operator
-                        # atom_label = f"[{block_index} {atom_index}] "
-                        # operators_add[atom_label + operator_label] = operator
+                for operator_label in projector_labels:
+                    if operator_label in atom.keys():
+                        current_size, current_zero, current_allowed = \
+                            _combine_blocks_operator(
+                                operator_label, atom, current_size,
+                                current_zero, current_allowed, combined_size,
+                                combined_zero
+                            )
+
             if current_size == 0:
                 current_size = 1
                 current_zero = np.zeros(
@@ -1129,11 +1174,18 @@ with Logger("superspinsim-generate") as logger:
             for block_previous_index, block_previous in enumerate(description):
                 if block_previous_index < block_index:
                     for atom_previous in block_previous:
-                        for operator_label in operator_labels:
+
+                        for operator_label in dissipator_labels:
                             if operator_label in atom_previous.keys():
-                                operator = atom_previous[operator_label]
-                                operator = _direct_sum(operator, current_zero)
-                                atom_previous[operator_label] = operator
+                                _combine_blocks_operator_previous(
+                                    operator_label, atom_previous, current_zero
+                                )
+
+                        for operator_label in projector_labels:
+                            if operator_label in atom_previous.keys():
+                                _combine_blocks_operator_previous(
+                                    operator_label, atom_previous, current_zero
+                                )
 
             if combined_size == 0:
                 combined_allowed = current_allowed
@@ -1143,6 +1195,38 @@ with Logger("superspinsim-generate") as logger:
             combined_size += current_size
 
         return combined_allowed[:, :, 0]
+
+    def _combine_blocks_operator(
+            operator_label: str, atom: dict, current_size: int,
+            current_zero: np.ndarray, current_allowed: np.ndarray,
+            combined_size: int, combined_zero: np.ndarray):
+
+        operator = atom[operator_label]
+        if current_size == 0:
+            current_size = operator.shape[0]
+            current_zero = np.zeros(
+                (current_size, current_size, 2),
+                dtype=meta_datatype
+            )
+            current_allowed = np.zeros_like(current_zero)
+            current_allowed[:, :, 0] = np.ones(
+                (current_size, current_size),
+                dtype=meta_datatype
+            )
+
+        if combined_size > 0:
+            operator = _direct_sum(combined_zero, operator)
+        atom[operator_label] = operator
+
+        return current_size, current_zero, current_allowed
+
+    def _combine_blocks_operator_previous(
+            operator_label: str, atom_previous: dict,
+            current_zero: np.ndarray):
+
+        operator = atom_previous[operator_label]
+        operator = _direct_sum(operator, current_zero)
+        atom_previous[operator_label] = operator
 
     def _add_block_interaction(
             block_a: int, atom_a: int, block_b: int, atom_b: int,
@@ -1215,6 +1299,7 @@ with Logger("superspinsim-generate") as logger:
         """
 
         operator_labels = label_sets["operator_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         spin = spin_a
         for magnetic_number in np.arange(-spin, spin + 0.1):
@@ -1232,7 +1317,7 @@ with Logger("superspinsim-generate") as logger:
                 raise_conserve *= math.sqrt(relaxation_rate)
                 _record_operator(
                     f"Lrc{operator_label} {index}", raise_conserve,
-                    interaction, [operator_labels]
+                    interaction, [operator_labels, dissipator_labels]
                 )
 
             lower_conserves = _couple_incoherent(
@@ -1244,7 +1329,7 @@ with Logger("superspinsim-generate") as logger:
                 lower_conserve *= math.sqrt(relaxation_rate)
                 _record_operator(
                     f"Llc{operator_label} {index}", lower_conserve,
-                    interaction, [operator_labels]
+                    interaction, [operator_labels, dissipator_labels]
                 )
 
             if relaxation_rate_nonconserve is None:
@@ -1279,7 +1364,8 @@ with Logger("superspinsim-generate") as logger:
                                 relaxation_rate_nonconserve)
                         _record_operator(
                             f"Lrn{operator_label_raise} {index}",
-                            raise_nonconserve, interaction, [operator_labels]
+                            raise_nonconserve, interaction,
+                            [operator_labels, dissipator_labels]
                         )
 
                     lower_nonconserves = _couple_incoherent(
@@ -1298,7 +1384,8 @@ with Logger("superspinsim-generate") as logger:
                                 relaxation_rate_nonconserve)
                         _record_operator(
                             f"Lln{operator_label_lower} {index}",
-                            lower_nonconserve, interaction, [operator_labels]
+                            lower_nonconserve, interaction,
+                            [operator_labels, dissipator_labels]
                         )
 
     def _couple_isc_excited(
@@ -1307,6 +1394,7 @@ with Logger("superspinsim-generate") as logger:
             label_sets: dict[str, dict[str, np.ndarray]]):
 
         operator_labels = label_sets["operator_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         spin = 1
         for magnetic_number in np.arange(-spin, spin + 0.1):
@@ -1333,7 +1421,8 @@ with Logger("superspinsim-generate") as logger:
                     dissipator *= np.sqrt(relaxation_rate_1)
                 _record_operator(
                     f"Lisc{operator_label} {index}",
-                    dissipator, interaction, [operator_labels]
+                    dissipator, interaction,
+                    [operator_labels, dissipator_labels]
                 )
 
     def _couple_isc_ground(
@@ -1342,6 +1431,7 @@ with Logger("superspinsim-generate") as logger:
             label_sets: dict[str, dict[str, np.ndarray]]):
 
         operator_labels = label_sets["operator_labels"]
+        dissipator_labels = label_sets["dissipator_labels"]
 
         spin = 1
         for magnetic_number in np.arange(-spin, spin + 0.1):
@@ -1368,7 +1458,8 @@ with Logger("superspinsim-generate") as logger:
                     dissipator *= np.sqrt(relaxation_rate_1)
                 _record_operator(
                     f"Lisc{operator_label} {index}",
-                    dissipator, interaction, [operator_labels]
+                    dissipator, interaction,
+                    [operator_labels, dissipator_labels]
                 )
 
     def _couple_incoherent(
@@ -1428,7 +1519,7 @@ with Logger("superspinsim-generate") as logger:
 
             plt.figure(
                 figsize=
-                (6.4, len(operator_dict)*4.8/plot_extension_scale),
+                (6.4, max(len(operator_dict)*4.8/plot_extension_scale, 1)),
                 label=interesting_operator
             )
             plot_columns = min(
@@ -1536,7 +1627,7 @@ with Logger("superspinsim-generate") as logger:
         # plt.draw()
 
         copy_dict = copy.copy(operator_dicts)
-        copy_dict.pop("block")
+        copy_dict.pop("coherent_atoms")
 
         return copy_dict
 
@@ -1576,36 +1667,40 @@ with Logger("superspinsim-generate") as logger:
         superoperator_dict.update(superoperator_dict_add)
         dissipator_dict.update(superoperator_dict_add)
 
-        superoperator_combine_labels = \
-            ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"]
-        combined_label = "D"
+        superoperator_combine_labels_dict = {
+            "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"],
+            "Lr": ["Lrc", "Lrn"]
+        }
         superoperator_dict_add = {}
-        for label, superoperator in superoperator_dict.items():
-            atom_label, operator_label = label.split("] ", 1)
-            atom_label += "] "
-            for combine_label in superoperator_combine_labels:
-                if operator_label == combine_label:
-                    atom_combine_label = atom_label + combined_label
-                    if atom_combine_label in superoperator_dict_add.keys():
-                        superoperator_dict_add[atom_combine_label] += \
-                            superoperator
-                    else:
-                        superoperator_dict_add[atom_combine_label] = \
-                            superoperator.copy()
+        for combined_label, superoperator_combine_labels in \
+                superoperator_combine_labels_dict.items():
+            for label, superoperator in superoperator_dict.items():
+                atom_label, operator_label = label.split("] ", 1)
+                atom_label += "] "
+                for combine_label in superoperator_combine_labels:
+                    if operator_label == combine_label:
+                        atom_combine_label = atom_label + combined_label
+                        if atom_combine_label in superoperator_dict_add.keys():
+                            superoperator_dict_add[atom_combine_label] += \
+                                superoperator
+                        else:
+                            superoperator_dict_add[atom_combine_label] = \
+                                superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
         dissipator_dict.update(superoperator_dict_add)
 
-        dissipator = None
+        superoperator_dict_add = {}
         for label, superoperator in superoperator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
-            if operator_label == "D":
-                if dissipator is None:
-                    dissipator = superoperator.copy()
+            if operator_label in superoperator_combine_labels_dict.keys():
+                if operator_label in superoperator_dict_add.keys():
+                    superoperator_dict_add[operator_label] += \
+                        superoperator
                 else:
-                    dissipator += superoperator
-        if dissipator is not None:
-            superoperator_dict["D"] = dissipator
-            dissipator_dict["D"] = dissipator
+                    superoperator_dict_add[operator_label] = \
+                        superoperator.copy()
+        superoperator_dict.update(superoperator_dict_add)
+        dissipator_dict.update(superoperator_dict_add)
 
         return dissipator_dict
 
@@ -1780,16 +1875,8 @@ with Logger("superspinsim-generate") as logger:
         }
     }
 
-    operator_dicts, valid_mask = generate_atoms(
+    operator_dicts = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals)
-
-    valid_indices = _generate_valid_indices(valid_mask)
-    superoperators = _generate_superoperators(
-        operator_dicts["all"], valid_indices)
-    dissipator_dict = _combine_superoperators(superoperators)
-
-    operator_dicts["super_all"] = superoperators
-    operator_dicts["dissipators"] = dissipator_dict
 
     logger.set_context("operator_generation")
     _plot_operators(operator_dicts)
