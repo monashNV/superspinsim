@@ -1669,7 +1669,7 @@ with Logger("superspinsim-generate") as logger:
 
         superoperator_combine_labels_dict = {
             "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"],
-            "Lr": ["Lrc", "Lrn"]
+            "Gr": ["Lrc", "Lrn"],
         }
         superoperator_dict_add = {}
         for combined_label, superoperator_combine_labels in \
@@ -1690,7 +1690,7 @@ with Logger("superspinsim-generate") as logger:
         dissipator_dict.update(superoperator_dict_add)
 
         superoperator_dict_add = {}
-        for label, superoperator in superoperator_dict.items():
+        for label, superoperator in dissipator_dict.items():
             atom_label, operator_label = label.split("] ", 1)
             if operator_label in superoperator_combine_labels_dict.keys():
                 if operator_label in superoperator_dict_add.keys():
@@ -1699,6 +1699,21 @@ with Logger("superspinsim-generate") as logger:
                 else:
                     superoperator_dict_add[operator_label] = \
                         superoperator.copy()
+        superoperator_dict.update(superoperator_dict_add)
+        dissipator_dict.update(superoperator_dict_add)
+
+        superoperator_combine_labels_dict = {"G0": ["H0", "D"]}
+        superoperator_dict_add = {}
+        for combined_label, superoperator_combine_labels in \
+                superoperator_combine_labels_dict.items():
+            for label, superoperator in dissipator_dict.items():
+                if label in superoperator_combine_labels:
+                    if label in superoperator_dict_add.keys():
+                        superoperator_dict_add[combined_label] += \
+                            superoperator
+                    else:
+                        superoperator_dict_add[combined_label] = \
+                            superoperator.copy()
         superoperator_dict.update(superoperator_dict_add)
         dissipator_dict.update(superoperator_dict_add)
 
