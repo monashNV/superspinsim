@@ -19,6 +19,7 @@ import warnings
 def generate_simulator(
         sampler,
         generators=None,
+        vectorisation_map=None,
         use_cuda=True,
         datatype=np.float64,
         use_residual=True,
@@ -38,6 +39,7 @@ def generate_simulator(
         wavefunction_size = list(operator_basis_dict_nv.values())[0].shape[0]
 
     generators = generators.astype(datatype)
+    wavefunction_size = np.max(vectorisation_map[:, 0]) + 1
     operator_size = generators.shape[1]
 
     # A matrix of size 32*32 or larger cannot be have its entries allocated a
