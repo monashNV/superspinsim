@@ -10,12 +10,19 @@ def main():
 
     from pogger import Pogger as Logger
 
+    time_start = 1e-6
+    time_end = 100e-6
+    frequency_start = 2.82e9
+    frequency_width = 100e6
+
     quiescent_magnetic_field = np.array([0, 0, 1])*1e-3
 
     def coefficient_x(time):
-        if time > 1e-6:
-            phase = 1e9*math.tau*(
-                2.82*(time - 1e-6) + 0.1*((time - 1e-6)**2)/(100e-6 - 1e-6)/2
+        if time > time_start:
+            phase = math.tau*(
+                frequency_start*(time - time_start)
+                + frequency_width*((time - time_start)**2)
+                / (time_end - time_start)/2
             )
             return 100e-6*math.sin(phase)
         else:
@@ -34,13 +41,15 @@ def main():
     lindbladian, generators, vectorisation_map = generate_7(
         coefficients, quiescent_magnetic_field)
 
+    print(generators[0].shape)
+
     simulator = s3.generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
-        number_of_fine_divisions=10, number_of_exponentials=5
+        number_of_fine_divisions=1000, number_of_exponentials=2
     )
 
-    density_operator_initial = np.zeros((7, 7, 2))
-    density_operator_initial[:3, :3, 0] = 1/3
+    density_operator_initial = np.zeros((21, 21, 2))
+    density_operator_initial[:9, :9, 0] = 1/9*np.eye(9)
     # density_operator_initial[1, 1, 0] = 1/2
     # density_operator_initial[0, 0, 0] = 1/4
     # density_operator_initial[2, 2, 0] = 1/4
@@ -51,9 +60,14 @@ def main():
     # density_operator_initial[1, 2, 0] = 1/(2*math.sqrt(2))
     # density_operator_initial[2, 1, 0] = 1/(2*math.sqrt(2))
 
-    time, density = simulator(density_operator_initial, 0, 100e-6, 2e-9)
+    time, density = simulator(density_operator_initial, 0, time_end, 100e-9)
+    # fluorescense = \
+    #     density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
     fluorescense = \
-        density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
+        density[:, 9, 9, 0] + density[:, 10, 10, 0] + density[:, 11, 11, 0] \
+        + density[:, 12, 12, 0] + density[:, 13, 13, 0] \
+        + density[:, 14, 14, 0] + density[:, 15, 15, 0] \
+        + density[:, 16, 16, 0] + density[:, 17, 17, 0]
 
     with Logger("superspinsim-generate") as logger:
         # population = np.abs(density[:, 0, 0, 0] - 1/3)
@@ -89,35 +103,37 @@ def main():
 
             plt.figure("odmr-sweep")
             plt.plot(
-                2.82 + 0.1*(time[time > 1e-6] - 1e-6)/(100e-6 - 1e-6),
-                100*fluorescense[time > 1e-6]/np.max(fluorescense), "k-")
+                frequency_start/1e9 + frequency_width/1e9*(
+                    time[time > time_start] - time_start)
+                    / (time_end - time_start),
+                100*fluorescense[time > time_start]/np.max(fluorescense), "k-")
             plt.xlabel("Microwave frequency (GHz)")
             plt.ylabel("Fluorescence (%)")
             plt.draw()
 
-            labels = ["+", "0", "-"]
-            plt.figure("states")
-            for magnetic_index in range(3):
-                plt.plot(
-                    time/1e-6,
-                    100*density[:, magnetic_index, magnetic_index, 0], "-",
-                    color=cm.hawaii(magnetic_index/3),
-                    label=f"g{labels[magnetic_index]}"
-                )
+            # labels = ["+", "0", "-"]
+            # plt.figure("states")
+            # for magnetic_index in range(3):
+            #     plt.plot(
+            #         time/1e-6,
+            #         100*density[:, magnetic_index, magnetic_index, 0], "-",
+            #         color=cm.hawaii(magnetic_index/3),
+            #         label=f"g{labels[magnetic_index]}"
+            #     )
 
-                plt.plot(
-                    time/1e-6,
-                    100*density[:, 3 + magnetic_index, 3 + magnetic_index, 0],
-                    "--", color=cm.hawaii(magnetic_index/3),
-                    label=f"e{labels[magnetic_index]}"
-                )
-            plt.plot(
-                time/1e-6, 100*density[:, 6, 6, 0], "--",
-                color=cm.hawaii(0.99), label="s")
-            plt.legend()
-            plt.xlabel("Time (us)")
-            plt.ylabel("Population (%)")
-            plt.draw()
+            #     plt.plot(
+            #         time/1e-6,
+            #         100*density[:, 3 + magnetic_index, 3 + magnetic_index, 0],
+            #         "--", color=cm.hawaii(magnetic_index/3),
+            #         label=f"e{labels[magnetic_index]}"
+            #     )
+            # plt.plot(
+            #     time/1e-6, 100*density[:, 6, 6, 0], "--",
+            #     color=cm.hawaii(0.99), label="s")
+            # plt.legend()
+            # plt.xlabel("Time (us)")
+            # plt.ylabel("Population (%)")
+            # plt.draw()
 
             # plt.figure("coherences")
             # # plt.plot(time/1e-6, population, "k-", label="Population")

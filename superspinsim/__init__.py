@@ -47,6 +47,9 @@ def generate_simulator(
     sqrt_block_size_max = 32
     operator_size_block = min(operator_size, sqrt_block_size_max)
     operator_stride_max = int(math.ceil(operator_size/operator_size_block))
+    while operator_size_block*operator_size > 1024:
+        operator_stride_max += 1
+        operator_size_block = int(math.ceil(operator_size/operator_stride_max))
 
     if number_of_exponentials == 1:
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
