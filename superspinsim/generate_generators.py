@@ -1718,7 +1718,7 @@ def _combine_superoperators(superoperator_dict: dict):
 
     superoperator_combine_labels_dict = {
         "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"],
-        "Gr": ["Lrc", "Lrn"],
+        "Gr": ["Lrc", "Lrn"]
     }
     superoperator_dict_add = {}
     for combined_label, superoperator_combine_labels in \
@@ -1759,7 +1759,7 @@ def _combine_superoperators(superoperator_dict: dict):
             superoperator_combine_labels_dict.items():
         for label, superoperator in superoperator_dict.items():
             if label in superoperator_combine_labels:
-                if label in superoperator_dict_add.keys():
+                if combined_label in superoperator_dict_add.keys():
                     superoperator_dict_add[combined_label] += superoperator
                 else:
                     superoperator_dict_add[combined_label] = \
@@ -1797,11 +1797,11 @@ def generate_7(
         "g": s3p.nv.longitudinal_g_factor_ground,
         "g_perp": s3p.nv.transverse_g_factor_ground,
         "D": s3p.nv.zero_field_splitting_ground,
-        "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
-        "TS2": s3p.nv.spin_spin_relaxation_time_ground,
+        # "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
+        # "TS2": s3p.nv.spin_spin_relaxation_time_ground,
 
         "B0": quiescent_magnetic_field,
-        "T": s3p.general.room_temperature
+        # "T": s3p.general.room_temperature
     }
 
     nv_excited = {
