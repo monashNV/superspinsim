@@ -10,6 +10,8 @@ def main():
 
     from pogger import Pogger as Logger
 
+    hyperfine = False
+
     time_start = 1e-6
     time_end = 100e-6
     frequency_start = 2.82e9
@@ -38,18 +40,33 @@ def main():
         return 0.1
 
     coefficients = [coefficient_x, coefficient_y, coefficient_z, coefficient_r]
-    lindbladian, generators, vectorisation_map = generate_7(
-        coefficients, quiescent_magnetic_field)
+    if hyperfine:
+        lindbladian, generators, vectorisation_map = generate_21(
+            coefficients, quiescent_magnetic_field)
+    else:
+        lindbladian, generators, vectorisation_map = generate_7(
+            coefficients, quiescent_magnetic_field)
 
     print(generators[0].shape)
 
+    fine_step = 100e-12
+    if hyperfine:
+        coarse_step = 100e-9
+    else:
+        coarse_step = 1e-9
+    number_of_divisions = int(round(coarse_step/fine_step))
+        
     simulator = s3.generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
-        number_of_fine_divisions=1000, number_of_exponentials=2
+        number_of_fine_divisions=number_of_divisions, number_of_exponentials=2
     )
+    if hyperfine:
+        density_operator_initial = np.zeros((21, 21, 2))
+        density_operator_initial[:9, :9, 0] = 1/9*np.eye(9)
+    else:
+        density_operator_initial = np.zeros((7, 7, 2))
+        density_operator_initial[:3, :3, 0] = 1/3*np.eye(3)
 
-    density_operator_initial = np.zeros((21, 21, 2))
-    density_operator_initial[:9, :9, 0] = 1/9*np.eye(9)
     # density_operator_initial[1, 1, 0] = 1/2
     # density_operator_initial[0, 0, 0] = 1/4
     # density_operator_initial[2, 2, 0] = 1/4
@@ -60,14 +77,19 @@ def main():
     # density_operator_initial[1, 2, 0] = 1/(2*math.sqrt(2))
     # density_operator_initial[2, 1, 0] = 1/(2*math.sqrt(2))
 
-    time, density = simulator(density_operator_initial, 0, time_end, 100e-9)
-    # fluorescense = \
-    #     density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
-    fluorescense = \
-        density[:, 9, 9, 0] + density[:, 10, 10, 0] + density[:, 11, 11, 0] \
-        + density[:, 12, 12, 0] + density[:, 13, 13, 0] \
-        + density[:, 14, 14, 0] + density[:, 15, 15, 0] \
-        + density[:, 16, 16, 0] + density[:, 17, 17, 0]
+    time, density = simulator(
+        density_operator_initial, 0, time_end, coarse_step)
+
+    if hyperfine:
+        fluorescense = \
+            density[:, 9, 9, 0] + density[:, 10, 10, 0] \
+            + density[:, 11, 11, 0] + density[:, 12, 12, 0] \
+            + density[:, 13, 13, 0] + density[:, 14, 14, 0] \
+            + density[:, 15, 15, 0] + density[:, 16, 16, 0] \
+            + density[:, 17, 17, 0]
+    else:
+        fluorescense = \
+            density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
 
     with Logger("superspinsim-generate") as logger:
         # population = np.abs(density[:, 0, 0, 0] - 1/3)
@@ -104,9 +126,11 @@ def main():
             plt.figure("odmr-sweep")
             plt.plot(
                 frequency_start/1e9 + frequency_width/1e9*(
-                    time[time > time_start] - time_start)
+                    time[time > time_start*2] - time_start)
                     / (time_end - time_start),
-                100*fluorescense[time > time_start]/np.max(fluorescense), "k-")
+                100*fluorescense[time > time_start*2]/np.max(fluorescense),
+                "k-"
+            )
             plt.xlabel("Microwave frequency (GHz)")
             plt.ylabel("Fluorescence (%)")
             plt.draw()
@@ -148,7 +172,10 @@ def main():
 
             return time, fluorescense, density
 
-        logger.set_context("7-level")
+        if hyperfine:
+            logger.set_context("21-level")
+        else:
+            logger.set_context("7-level")
         plot()
 
     plt.show()

@@ -1800,6 +1800,67 @@ def generate_7(
         "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
         "TS2": s3p.nv.spin_spin_relaxation_time_ground,
 
+        "B0": quiescent_magnetic_field,
+        "T": s3p.general.room_temperature
+    }
+
+    nv_excited = {
+        "S": 1,
+        "g": s3p.nv.g_factor_excited,
+        "D": s3p.nv.zero_field_splitting_excited,
+        "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
+        "TS2": s3p.nv.spin_spin_relaxation_time_excited,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.general.room_temperature
+    }
+
+    nv_singlet = {
+        "S": 0,
+    }
+
+    nv_orbitals = {
+        # Optical transitions
+        ((0, 0), (1, 0)): {
+            "rel": s3p.nv.spin_conserving_relaxation_rate,
+            "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
+        },
+
+        # ISC excited
+        ((1, 0), (2, 0)): {
+            "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
+            "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
+        },
+
+        # ISC ground
+        ((2, 0), (0, 0)): {
+            "0_gets_s": s3p.nv.singlet_to_z_relaxation_rate,
+            "1_gets_s": s3p.nv.singlet_to_pm_relaxation_rate
+        }
+    }
+
+    generators, vectorisation_map = generate_atoms(
+        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
+    )
+
+    generators_list = list(generators["generators"].values())
+
+    return lindbladian, generators_list, vectorisation_map
+
+def generate_21(
+        coefficient_functions: list[callable],
+        quiescent_magnetic_field: np.ndarray):
+
+    lindbladian = _generate_lindbladian(coefficient_functions)
+
+    nv_ground = {
+        "S": 1,
+        "g": s3p.nv.longitudinal_g_factor_ground,
+        "g_perp": s3p.nv.transverse_g_factor_ground,
+        "D": s3p.nv.zero_field_splitting_ground,
+        "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
+        "TS2": s3p.nv.spin_spin_relaxation_time_ground,
+
         "I": 1,
         "P": math.tau*-4.945e6,
         "TI1": 10,
