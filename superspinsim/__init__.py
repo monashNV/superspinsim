@@ -42,14 +42,21 @@ def generate_simulator(
     wavefunction_size = np.max(vectorisation_map[:, 0]) + 1
     operator_size = generators.shape[1]
 
-    # A matrix of size 32*32 or larger cannot be have its entries allocated a
+    # A matrix of size larger than 32*32 cannot be have its entries allocated a
     # unique thread each, because that is too much for cuda.
     sqrt_block_size_max = 32
     operator_size_block = min(operator_size, sqrt_block_size_max)
     operator_stride_max = int(math.ceil(operator_size/operator_size_block))
-    while operator_size_block*operator_size > 1024:
-        operator_stride_max += 1
-        operator_size_block = int(math.ceil(operator_size/operator_stride_max))
+
+    stride = 32
+    submatrix_size = min(operator_size, stride)
+    number_of_submatrices = int(math.ceil(operator_size/submatrix_size))
+
+    # while operator_size_block*operator_size > 1024:
+    #     operator_stride_max += 1
+    #     operator_size_block = int(math.ceil(operator_size/operator_stride_max))
+
+    number_of_squares = 2*number_of_quartic_repeats
 
     if number_of_exponentials == 1:
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
@@ -207,27 +214,24 @@ def generate_simulator(
 
         def _calculate_differential_kernel(
                 time_step, generator, coefficient, differential):
-            if nc.threadIdx.y < operator_size:
-                for x_index_stride in range(operator_stride_max):
-                    x_index_use = \
-                        nc.threadIdx.x + x_index_stride*operator_size_block
-                    if x_index_use < operator_size:
-                        _calculate_differential(
-                            time_step,
-                            generator,
-                            coefficient[nc.blockIdx.x, :],
-                            differential[nc.blockIdx.x, :, :],
-                            nc.threadIdx.y,
-                            x_index_use
-                        )
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _calculate_differential(
+                    time_step, generator, coefficient[nc.blockIdx.x, :],
+                    differential[nc.blockIdx.x, :, :], y_index, x_index
+                )
 
         _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
 
     def _calculate_differential_run(
             time_step, generator, coefficient, differential):
         if use_cuda:
-            grid_size = (coefficient.shape[0], 1)
-            block_size = (operator_size_block, operator_size)
+            grid_size = (
+                coefficient.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
             _calculate_differential_kernel[grid_size, block_size] \
                 (time_step, generator, coefficient, differential)
 
@@ -242,24 +246,22 @@ def generate_simulator(
             _scale_differential_basic, device=True)
 
         def _scale_differential_basic_kernel(differential):
-            if nc.threadIdx.y < operator_size:
-                for x_index_stride in range(operator_stride_max):
-                    x_index_use = \
-                        nc.threadIdx.x + x_index_stride*operator_size_block
-                    if x_index_use < operator_size:
-                        _scale_differential_basic(
-                            differential[nc.blockIdx.x, :, :],
-                            nc.threadIdx.y,
-                            x_index_use
-                        )
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _scale_differential_basic(
+                    differential[nc.blockIdx.x, :, :], y_index, x_index)
 
         _scale_differential_basic_kernel = nc.jit(
             _scale_differential_basic_kernel)
 
     def _scale_differential_basic_run(differential):
         if use_cuda:
-            grid_size = (differential.shape[0], 1)
-            block_size = (operator_size_block, operator_size)
+            grid_size = (
+                differential.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
             _scale_differential_basic_kernel[grid_size, block_size] \
                 (differential)
 
@@ -390,22 +392,6 @@ def generate_simulator(
     # Repeated squaring -------------------------------------------------------
 
     def _square_superoperator(inp, out, y_index, x_index):
-        r"""
-        Calculates,
-
-        $\Re(s) = \Re(a)^2 - \Im(a)^2 + 2\,\Re(a),$
-        $\Re(s) = \Re(a)\Im(a) + \Im(a)\Re(a) + 2\,\Im(a).$
-
-        This is equivalent to calculating the complex
-
-        $S = A^2$
-
-        where
-
-        $S = 1 + s,$
-        $A = 1 + a.$
-        """
-
         if use_residual:
             out_scratch: datatype = 2*inp[y_index, x_index]
         else:
@@ -421,25 +407,7 @@ def generate_simulator(
 
         out[y_index, x_index] = out_scratch
 
-    def _multiply_superoperator(
-            left, right, out, y_index, x_index):
-        r"""
-        Calculates,
-
-        $\Re(c) = \Re(a)\Re(b) - \Im(a)\Im(b) + \Re(a) + \Re(b),$
-        $\Im(c) = \Re(a)\Im(b) + \Im(a)\Re(b) + \Im(a) + \Im(b).$
-
-        This is equivalent to calculating the complex
-
-        $C = A\,B$
-
-        where
-
-        $C = 1 + c,$
-        $A = 1 + a,$
-        $B = 1 + b.$
-        """
-
+    def _multiply_superoperator(left, right, out, y_index, x_index):
         if use_residual:
             out_scratch: datatype = \
                 left[y_index, x_index] + right[y_index, x_index]
@@ -454,67 +422,58 @@ def generate_simulator(
             )
         out[y_index, x_index] = out_scratch
 
-    if use_cuda:
-        # Compile squaring
-        _square_superoperator = nc.jit(_square_superoperator, device=True)
-
-        # Wrap in kernel
-        def _repeated_quartic_superoperator_kernel(superoperators):
-            superoperator = superoperators[nc.blockIdx.x, :, :]
-            scratch = nc.shared.array(
-                (operator_size, operator_size), datatype
-            )
-
-            for _ in range(number_of_quartic_repeats):
-                if nc.threadIdx.y < operator_size:
-                    for x_index_stride in range(operator_stride_max):
-                        x_index_use = \
-                            nc.threadIdx.x + x_index_stride*operator_size_block
-                        if x_index_use < operator_size:
-                            _square_superoperator(
-                                superoperator, scratch,
-                                nc.threadIdx.y, x_index_use
-                            )
-                nc.syncthreads()
-
-                if nc.threadIdx.y < operator_size:
-                    for x_index_stride in range(operator_stride_max):
-                        x_index_use = \
-                            nc.threadIdx.x + x_index_stride*operator_size_block
-                        if x_index_use < operator_size:
-                            _square_superoperator(
-                                scratch, superoperator,
-                                nc.threadIdx.y, x_index_use
-                            )
-                nc.syncthreads()
-
-        _repeated_quartic_superoperator_kernel = nc.jit(
-            _repeated_quartic_superoperator_kernel
-        )
-
-    def _repeated_quartic_superoperator_run(superoperators):
-        """
-        Effort:
-
-        Parallel: N^3
-        Series: 4 N K
-        """
-
-        if use_cuda:
-            number_of_blocks = (superoperators.shape[0], 1)
-            block_shape = (operator_size_block, operator_size)
-            _repeated_quartic_superoperator_kernel[
-                number_of_blocks, block_shape](superoperators)
-
-    # Combine samples at different quadrature nodes ---------------------------
-
     def _copy_superoperator(original, clone, y_index, x_index):
         clone[y_index, x_index] = original[y_index, x_index]
 
     if use_cuda:
+        # Compile squaring
+        _square_superoperator = nc.jit(_square_superoperator, device=True)
         _multiply_superoperator = nc.jit(_multiply_superoperator, device=True)
         _copy_superoperator = nc.jit(_copy_superoperator, device=True)
 
+        # Wrap in kernel
+        def _square_superoperator_kernel(inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                inp_sample = inp[nc.blockIdx.x, :, :]
+                out_sample = out[nc.blockIdx.x, :, :]
+                _square_superoperator(inp_sample, out_sample, y_index, x_index)
+
+        _square_superoperator_kernel = nc.jit(
+            _square_superoperator_kernel
+        )
+
+        def _multiply_superoperator_kernel(left, right, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                left_sample = left[nc.blockIdx.x, :, :]
+                right_sample = right[nc.blockIdx.x, :, :]
+                out_sample = right[nc.blockIdx.x, :, :]
+                _multiply_superoperator(
+                    left_sample, right_sample, out_sample, y_index, x_index)
+
+        _multiply_superoperator_kernel = nc.jit(
+            _multiply_superoperator_kernel
+        )
+
+    def _repeated_quartic_superoperator_run(superoperators, scratch):
+        if use_cuda:
+            grid_size = (
+                superoperators.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
+            for _ in range(number_of_quartic_repeats):
+                _square_superoperator_kernel[grid_size, block_size](
+                        superoperators, scratch)
+                _square_superoperator_kernel[grid_size, block_size](
+                        scratch, superoperators)
+
+    # Combine samples at different quadrature nodes ---------------------------
+
+    if use_cuda:
         def _quadrature_combine_kernel(superoperators, time_evolutions):
             if nc.threadIdx.y < operator_size:
                 scratch = nc.shared.array(
@@ -626,7 +585,30 @@ def generate_simulator(
 
         _basic_combine_kernel = nc.jit(_basic_combine_kernel)
 
-    def _quadrature_combine_run(exponentials, time_evolution):
+    # def _quadrature_combine_run(exponentials, time_evolution, scratch):
+    #     grid_size = (
+    #         time_evolution.shape[0], number_of_submatrices,
+    #         number_of_submatrices
+    #     )
+    #     block_size = (submatrix_size, submatrix_size)
+    #     for exponential_index in range(0, number_of_exponentials, 2):
+    #         _multiply_superoperator_kernel[grid_size, block_size](
+    #             exponentials[
+    #                 (number_of_exponentials - exponential_index - 1) \
+    #                 ::number_of_exponentials, :, :],
+    #             time_evolution,
+    #             scratch
+    #         )
+    #         if exponential_index + 1 < number_of_exponentials:
+    #             _multiply_superoperator_kernel[grid_size, block_size](
+    #                 exponentials[
+    #                     (number_of_exponentials - exponential_index) \
+    #                     ::number_of_exponentials, :, :],
+    #                 scratch,
+    #                 time_evolution
+    #             )
+
+    def _quadrature_combine_run(exponentials, time_evolution, scratch):
         if use_cuda:
             grid_size = (time_evolution.shape[0], 1)
             block_size = (operator_size_block, operator_size)
@@ -752,6 +734,11 @@ def generate_simulator(
                  operator_size, operator_size),
                 dtype=datatype)
 
+            scratch_device = nc.device_array(
+                (weighted_coefficients_device.shape[0],
+                 operator_size, operator_size),
+                dtype=datatype)
+
             # Storage for time evolution superoperators
             time_evolution_device = nc.device_array(
                 (time_device.shape[0], operator_size, operator_size),
@@ -807,12 +794,15 @@ def generate_simulator(
 
             # Repeatedly square (1 +) Lindbladian superoperator for
             # exponentiation
-            _repeated_quartic_superoperator_run(superoperators_device)
+            _repeated_quartic_superoperator_run(
+                superoperators_device, scratch_device)
 
             # Apply resultant time evolution superoperator to previous
             # calculation
             _quadrature_combine_run(
-                superoperators_device, time_evolution_device)
+                superoperators_device, time_evolution_device,
+                scratch_device[:superoperators_device.shape[0], :, :]
+            )
 
         # Accumulate time evolution across all time steps
         _basic_combine_run(time_evolution_device)
