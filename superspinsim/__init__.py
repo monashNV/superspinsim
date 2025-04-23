@@ -588,39 +588,59 @@ def generate_simulator(
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
-        def _basic_combine_kernel(time_evolutions, time_index):
-            scratch = nc.shared.array(
-                (operator_size, operator_size),
-                dtype=datatype
-            )
+        def _basic_combine_kernel(time_evolutions, time_index, scratch):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _multiply_superoperator(
+                    time_evolutions[time_index + 1, :, :],
+                    time_evolutions[time_index, :, :], scratch,
+                    y_index, x_index
+                )
 
-            if nc.threadIdx.y < operator_size:
-                for x_index_stride in range(operator_stride_max):
-                    x_index_use = \
-                        nc.threadIdx.x + x_index_stride*operator_size_block
-                    if x_index_use < operator_size:
-                        _multiply_superoperator(
-                            time_evolutions[time_index + 1, :, :],
-                            time_evolutions[time_index, :, :],
-                            scratch,
-                            nc.threadIdx.y,
-                            x_index_use
-                        )
-                nc.syncthreads()
+        def _basic_combine_copy_kernel(time_evolutions, time_index, scratch):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _copy_superoperator(
+                    scratch, time_evolutions[time_index + 1, :, :],
+                    y_index, x_index
+                )
 
-                for x_index_stride in range(operator_stride_max):
-                    x_index_use = \
-                        nc.threadIdx.x + x_index_stride*operator_size_block
-                    if x_index_use < operator_size:
-                        _copy_superoperator(
-                            scratch,
-                            time_evolutions[time_index + 1, :, :],
-                            nc.threadIdx.y,
-                            x_index_use
-                        )
-                nc.syncthreads()
+        # def _basic_combine_kernel(time_evolutions, time_index):
+        #     scratch = nc.shared.array(
+        #         (operator_size, operator_size),
+        #         dtype=datatype
+        #     )
+
+        #     if nc.threadIdx.y < operator_size:
+        #         for x_index_stride in range(operator_stride_max):
+        #             x_index_use = \
+        #                 nc.threadIdx.x + x_index_stride*operator_size_block
+        #             if x_index_use < operator_size:
+        #                 _multiply_superoperator(
+        #                     time_evolutions[time_index + 1, :, :],
+        #                     time_evolutions[time_index, :, :],
+        #                     scratch,
+        #                     nc.threadIdx.y,
+        #                     x_index_use
+        #                 )
+        #         nc.syncthreads()
+
+        #         for x_index_stride in range(operator_stride_max):
+        #             x_index_use = \
+        #                 nc.threadIdx.x + x_index_stride*operator_size_block
+        #             if x_index_use < operator_size:
+        #                 _copy_superoperator(
+        #                     scratch,
+        #                     time_evolutions[time_index + 1, :, :],
+        #                     nc.threadIdx.y,
+        #                     x_index_use
+        #                 )
+        #         nc.syncthreads()
 
         _basic_combine_kernel = nc.jit(_basic_combine_kernel)
+        _basic_combine_copy_kernel = nc.jit(_basic_combine_copy_kernel)
 
     def _quadrature_combine_run(exponentials, time_evolution, scratch):
         grid_size = (
@@ -659,12 +679,15 @@ def generate_simulator(
             _id_superoperator_kernel[grid_size, block_size] \
                 (time_evolution)
 
-    def _basic_combine_run(time_evolutions):
+    def _basic_combine_run(time_evolutions, scratch):
         if use_cuda:
-            block_size = (operator_size_block, operator_size)
+            grid_size = (1, number_of_submatrices, number_of_submatrices)
+            block_size = (submatrix_size, submatrix_size)
             for time_index in range(0, time_evolutions.shape[0] - 1):
-                _basic_combine_kernel[(1, 1), block_size] \
-                    (time_evolutions, time_index)
+                _basic_combine_kernel[grid_size, block_size] \
+                    (time_evolutions, time_index, scratch)
+                _basic_combine_copy_kernel[grid_size, block_size] \
+                    (time_evolutions, time_index, scratch)
 
     # Accumulate --------------------------------------------------------------
 
@@ -841,7 +864,7 @@ def generate_simulator(
             )
 
         # Accumulate time evolution across all time steps
-        _basic_combine_run(time_evolution_device)
+        _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
 
         # Apply time evolution superoperators to initial condition
         _apply_time_evolution_run(
