@@ -535,19 +535,27 @@ def generate_simulator(
         _quadrature_combine_kernel = nc.jit(_quadrature_combine_kernel)
 
         def _id_superoperator_kernel(time_evolutions):
-            if nc.threadIdx.y < operator_size:
-                for x_index_stride in range(operator_stride_max):
-                    x_index_use = \
-                        nc.threadIdx.x + x_index_stride*operator_size_block
-                    if x_index_use < operator_size:
-                        time_evolutions[
-                            nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 0
-                        if not use_residual:
-                            if x_index_use == nc.threadIdx.y:
-                                time_evolutions[
-                                    nc.blockIdx.x, nc.threadIdx.y,
-                                    x_index_use
-                                ] = 1
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                time_evolutions[nc.blockIdx.x, y_index, x_index] = 0
+                if not use_residual:
+                    if y_index == x_index:
+                        time_evolutions[nc.blockIdx.x, y_index, x_index] = 1
+
+            # if nc.threadIdx.y < operator_size:
+            #     for x_index_stride in range(operator_stride_max):
+            #         x_index_use = \
+            #             nc.threadIdx.x + x_index_stride*operator_size_block
+            #         if x_index_use < operator_size:
+            #             time_evolutions[
+            #                 nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 0
+            #             if not use_residual:
+            #                 if x_index_use == nc.threadIdx.y:
+            #                     time_evolutions[
+            #                         nc.blockIdx.x, nc.threadIdx.y,
+            #                         x_index_use
+            #                     ] = 1
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
@@ -602,7 +610,7 @@ def generate_simulator(
     #         if exponential_index + 1 < number_of_exponentials:
     #             _multiply_superoperator_kernel[grid_size, block_size](
     #                 exponentials[
-    #                     (number_of_exponentials - exponential_index) \
+    #                     (number_of_exponentials - exponential_index - 2) \
     #                     ::number_of_exponentials, :, :],
     #                 scratch,
     #                 time_evolution
@@ -617,8 +625,11 @@ def generate_simulator(
 
     def _id_superoperator_run(time_evolution):
         if use_cuda:
-            grid_size = (time_evolution.shape[0], 1)
-            block_size = (operator_size_block, operator_size)
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
             _id_superoperator_kernel[grid_size, block_size] \
                 (time_evolution)
 
