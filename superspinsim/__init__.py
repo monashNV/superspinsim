@@ -450,12 +450,28 @@ def generate_simulator(
             if x_index < operator_size and y_index < operator_size:
                 left_sample = left[nc.blockIdx.x, :, :]
                 right_sample = right[nc.blockIdx.x, :, :]
-                out_sample = right[nc.blockIdx.x, :, :]
+                out_sample = out[nc.blockIdx.x, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
         _multiply_superoperator_kernel = nc.jit(
             _multiply_superoperator_kernel
+        )
+
+        def _multiply_superoperator_quadrature_kernel(
+                left, right, out, offset):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                left_sample = left[
+                    offset + number_of_exponentials*nc.blockIdx.x, :, :]
+                right_sample = right[nc.blockIdx.x, :, :]
+                out_sample = out[nc.blockIdx.x, :, :]
+                _multiply_superoperator(
+                    left_sample, right_sample, out_sample, y_index, x_index)
+
+        _multiply_superoperator_quadrature_kernel = nc.jit(
+            _multiply_superoperator_quadrature_kernel
         )
 
     def _repeated_quartic_superoperator_run(superoperators, scratch):
@@ -593,35 +609,28 @@ def generate_simulator(
 
         _basic_combine_kernel = nc.jit(_basic_combine_kernel)
 
-    # def _quadrature_combine_run(exponentials, time_evolution, scratch):
-    #     grid_size = (
-    #         time_evolution.shape[0], number_of_submatrices,
-    #         number_of_submatrices
-    #     )
-    #     block_size = (submatrix_size, submatrix_size)
-    #     for exponential_index in range(0, number_of_exponentials, 2):
-    #         _multiply_superoperator_kernel[grid_size, block_size](
-    #             exponentials[
-    #                 (number_of_exponentials - exponential_index - 1) \
-    #                 ::number_of_exponentials, :, :],
-    #             time_evolution,
-    #             scratch
-    #         )
-    #         if exponential_index + 1 < number_of_exponentials:
-    #             _multiply_superoperator_kernel[grid_size, block_size](
-    #                 exponentials[
-    #                     (number_of_exponentials - exponential_index - 2) \
-    #                     ::number_of_exponentials, :, :],
-    #                 scratch,
-    #                 time_evolution
-    #             )
-
     def _quadrature_combine_run(exponentials, time_evolution, scratch):
-        if use_cuda:
-            grid_size = (time_evolution.shape[0], 1)
-            block_size = (operator_size_block, operator_size)
-            _quadrature_combine_kernel[grid_size, block_size] \
-                (exponentials, time_evolution)
+        grid_size = (
+            time_evolution.shape[0], number_of_submatrices,
+            number_of_submatrices
+        )
+        block_size = (submatrix_size, submatrix_size)
+        for exponential_index in range(0, number_of_exponentials, 2):
+            _multiply_superoperator_quadrature_kernel[grid_size, block_size](
+                exponentials, time_evolution, scratch,
+                    number_of_exponentials - exponential_index - 1)
+            if exponential_index + 1 < number_of_exponentials:
+                _multiply_superoperator_quadrature_kernel[
+                    grid_size, block_size](
+                    exponentials, scratch, time_evolution,
+                    number_of_exponentials - exponential_index - 2)
+
+    # def _quadrature_combine_run(exponentials, time_evolution, scratch):
+    #     if use_cuda:
+    #         grid_size = (time_evolution.shape[0], 1)
+    #         block_size = (operator_size_block, operator_size)
+    #         _quadrature_combine_kernel[grid_size, block_size] \
+    #             (exponentials, time_evolution)
 
     def _id_superoperator_run(time_evolution):
         if use_cuda:
