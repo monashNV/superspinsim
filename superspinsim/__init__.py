@@ -67,6 +67,8 @@ def generate_simulator(
         sample_quadrature = np.array(samples_dict["3_gl"], dtype=datatype)
         weights = np.array(weights_dict["6_6_gl"], dtype=datatype)
 
+    # Time grid ---------------------------------------------------------------
+
     def _calculate_time(time, time_index, time_start, time_step):
         time[time_index] = time_start + time_step*(time_index + 1)
 
@@ -115,6 +117,8 @@ def generate_simulator(
             _calculate_time_quadrature_kernel[grid_size, block_size] \
                 (time, time_sample, time_start, time_step, sample)
 
+    # Sampling ----------------------------------------------------------------
+
     def _generate_sampler(sampler):
         if use_cuda:
             sampler_device = nc.jit(sampler, device=True)
@@ -140,6 +144,8 @@ def generate_simulator(
 
     # Make sampler GPU compatible
     sample_run = _generate_sampler(sampler)
+
+    # Quadrature --------------------------------------------------------------
 
     def _combine_coefficients(
             coefficient, weighted_coefficient, weight,
@@ -180,6 +186,8 @@ def generate_simulator(
             block_size = (weighted_coefficients.shape[1], weights.shape[0])
             _combine_coefficients_kernel[grid_size, block_size] \
                 (coefficients, weighted_coefficients, weights)
+
+    # Matrix form -------------------------------------------------------------
 
     def _calculate_differential(
             time_step, generator, coefficient, differential, y_index, x_index):
@@ -254,6 +262,8 @@ def generate_simulator(
             block_size = (operator_size_block, operator_size)
             _scale_differential_basic_kernel[grid_size, block_size] \
                 (differential)
+
+    # Cayley ------------------------------------------------------------------
 
     def _negate_superoperator(positive, negative, y_index, x_index):
         negative[y_index, x_index] = -positive[y_index, x_index]
@@ -377,6 +387,8 @@ def generate_simulator(
             block_size = (wavefunction_size, operator_size)
             _calculate_cayley_kernel[grid_size, block_size](differential)
 
+    # Repeated squaring -------------------------------------------------------
+
     def _square_superoperator(inp, out, y_index, x_index):
         r"""
         Calculates,
@@ -493,6 +505,8 @@ def generate_simulator(
             block_shape = (operator_size_block, operator_size)
             _repeated_quartic_superoperator_kernel[
                 number_of_blocks, block_shape](superoperators)
+
+    # Combine samples at different quadrature nodes ---------------------------
 
     def _copy_superoperator(original, clone, y_index, x_index):
         clone[y_index, x_index] = original[y_index, x_index]
@@ -633,6 +647,8 @@ def generate_simulator(
                 _basic_combine_kernel[(1, 1), block_size] \
                     (time_evolutions, time_index)
 
+    # Accumulate --------------------------------------------------------------
+
     def _multiply_superoperator_operator(superoperator, operator, out, index):
         if use_residual:
             scratch = operator[index]
@@ -674,6 +690,8 @@ def generate_simulator(
             block_size = (operator_size, 1)
             _apply_time_evolution_kernel[grid_size, block_size] \
                 (time_evolutions, density_operator_initial, density_operators)
+
+    # Simulation --------------------------------------------------------------
 
     def simulate(
             density_operator_initial,
