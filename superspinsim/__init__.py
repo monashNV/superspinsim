@@ -474,6 +474,19 @@ def generate_simulator(
             _multiply_superoperator_quadrature_kernel
         )
 
+        def _copy_superoperator_quadrature_kernel(original, clone):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                original_sample = original[nc.blockIdx.x, :, :]
+                clone_sample = clone[nc.blockIdx.x, :, :]
+                _copy_superoperator(
+                    original_sample, clone_sample, y_index, x_index)
+
+        _copy_superoperator_quadrature_kernel = nc.jit(
+            _copy_superoperator_quadrature_kernel
+        )
+
     def _repeated_quartic_superoperator_run(superoperators, scratch):
         if use_cuda:
             grid_size = (
@@ -624,6 +637,10 @@ def generate_simulator(
                     grid_size, block_size](
                     exponentials, scratch, time_evolution,
                     number_of_exponentials - exponential_index - 2)
+            else:
+                _copy_superoperator_quadrature_kernel[
+                    grid_size, block_size](scratch, time_evolution)
+
 
     # def _quadrature_combine_run(exponentials, time_evolution, scratch):
     #     if use_cuda:
@@ -672,9 +689,8 @@ def generate_simulator(
             device=True
         )
 
-        def _apply_time_evolution_kernel(time_evolutions,
-                                         density_operator_initial,
-                                         density_operators):
+        def _apply_time_evolution_kernel(
+                time_evolutions, density_operator_initial, density_operators):
             if nc.threadIdx.x < operator_size:
                 _multiply_superoperator_operator(
                     time_evolutions[nc.blockIdx.x, :, :],

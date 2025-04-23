@@ -58,7 +58,7 @@ def main():
         
     simulator = s3.generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
-        number_of_fine_divisions=number_of_divisions, number_of_exponentials=2
+        number_of_fine_divisions=number_of_divisions, number_of_exponentials=3
     )
     if hyperfine:
         density_operator_initial = np.zeros((21, 21, 2))
