@@ -1,6 +1,6 @@
 def main():
     import superspinsim as s3
-    from superspinsim.generate_generators import generate_7
+    from superspinsim.generate_generators import generate_7, generate_21
 
     import math
     import numpy as np
@@ -10,10 +10,10 @@ def main():
 
     from pogger import Pogger as Logger
 
-    hyperfine = False
+    hyperfine = True
 
     time_start = 1e-6
-    time_end = 100e-6
+    time_end = 1000e-6
     frequency_start = 2.82e9
     frequency_width = 100e6
 
@@ -37,7 +37,7 @@ def main():
         return 0
 
     def coefficient_r(time):
-        return 0.1
+        return 0.01
 
     coefficients = [coefficient_x, coefficient_y, coefficient_z, coefficient_r]
     if hyperfine:
@@ -49,16 +49,17 @@ def main():
 
     print(generators[0].shape)
 
-    fine_step = 100e-12
+    fine_step = 1000e-12
     if hyperfine:
-        coarse_step = 100e-9
+        coarse_step = 150e-9
     else:
-        coarse_step = 1e-9
+        coarse_step = 150e-9
     number_of_divisions = int(round(coarse_step/fine_step))
+    coarse_step = number_of_divisions*fine_step
         
     simulator = s3.generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
-        number_of_fine_divisions=number_of_divisions, number_of_exponentials=3
+        number_of_fine_divisions=number_of_divisions, number_of_exponentials=2
     )
     if hyperfine:
         density_operator_initial = np.zeros((21, 21, 2))
@@ -126,9 +127,9 @@ def main():
             plt.figure("odmr-sweep")
             plt.plot(
                 frequency_start/1e9 + frequency_width/1e9*(
-                    time[time > time_start*2] - time_start)
+                    time[time > time_start*15] - time_start)
                     / (time_end - time_start),
-                100*fluorescense[time > time_start*2]/np.max(fluorescense),
+                100*fluorescense[time > time_start*15]/np.max(fluorescense),
                 "k-"
             )
             plt.xlabel("Microwave frequency (GHz)")
