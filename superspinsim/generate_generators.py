@@ -2034,6 +2034,8 @@ def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
 
 def main():
     import matplotlib.pyplot as plt
+    from cmcrameri import cm
+
     from pogger import Pogger as Logger
 
     with Logger("superspinsim-generate") as logger:
@@ -2104,16 +2106,38 @@ def main():
             }
         }
 
-        operator_dicts = generate_atoms(
-            [[nv_ground], [nv_excited], [nv_singlet]],
-            [{}, {}, {}],
+        generators, vectorisation_map = generate_atoms(
+            [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}],
             nv_orbitals
         )
-        logger.set_context("operator_generation")
-        plot_operators = logger.record(("operators"))(_plot_operators)
-        plot_operators(operator_dicts)
 
-    plt.draw()
+        # generators_list = list(generators["generators"].values())
+
+        @logger.record()
+        def plot():
+            plt.figure(label="spectrum")
+            for index, (label, generator) in \
+                    enumerate(generators["generators"].items()):
+                values = np.linalg.eigvals(generator)
+                values = np.abs(values)
+                values = np.sort(values)
+                values /= np.max(values)
+                print(label, np.sum(values < 1e-14))
+                plt.plot(
+                    values, "-", color=cm.hawaii(index/5), label=label)
+                plt.gca().set_yscale("log")
+            plt.legend()
+            plt.xlabel("Eigenvalue index")
+            plt.ylabel("Relative eigenvalue")
+            plt.draw()
+
+        plot()
+
+    # logger.set_context("operator_generation")
+    # plot_operators = logger.record(("operators"))(_plot_operators)
+    # plot_operators(generators)
+
+    # plt.draw()
 
 
 if __name__ == "__main__":
