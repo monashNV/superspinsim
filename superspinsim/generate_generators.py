@@ -309,7 +309,7 @@ def _add_nucleus(
     # Nuclear Zeeman
     if spin > 0:
         if "gN" in atom.keys():
-            g_iso = atom["g"]
+            g_iso = atom["gN"]
             if "gN_dipole" in atom.keys():
                 g_dipole = atom["gN_dipole"]
             elif "gN_perp" in atom.keys():

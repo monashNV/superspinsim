@@ -9,7 +9,7 @@ def main():
 
     from pogger import Pogger as Logger
 
-    hyperfine = False
+    hyperfine = True
 
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
@@ -65,9 +65,9 @@ def main():
 
     fine_step = 1e-9
     if hyperfine:
-        coarse_step = 1.5e-9
+        coarse_step = 10e-9
     else:
-        coarse_step = 1.5e-9
+        coarse_step = 10e-9
     number_of_divisions = int(round(coarse_step/fine_step))
     coarse_step = number_of_divisions*fine_step
 
