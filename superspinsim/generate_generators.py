@@ -204,7 +204,7 @@ def _add_electron(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        electron_gyro = g_spin*s3p.general.bohr_magneton_gyro
+        electron_gyro = g_spin*math.tau*s3p.fundamental.bohr_gyro
         atom["gyroS"] = electron_gyro
         tensor_labels.add("gyroS")
 
@@ -327,7 +327,7 @@ def _add_nucleus(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        atom["gyroI"] = -g_spin*s3p.general.nuclear_magneton_gyro
+        atom["gyroI"] = -g_spin*math.tau*s3p.fundamental.nuclear_gyro
         tensor_labels |= {"gyroI"}
 
         generator_vec = _linear_transform(g_spin, spin_vec)
@@ -410,7 +410,7 @@ def _add_thermalisation(
             temperature = 293.15
         if temperature > 0:
             boltzmann_factors = np.exp(-quiescent_energies/(
-                s3p.general.boltzmann_gyro*temperature
+                math.tau*s3p.fundamental.boltzmann_gyro
             ))
         else:
             boltzmann_factors = np.zeros_like(
@@ -1794,25 +1794,25 @@ def generate_7(
 
     nv_ground = {
         "S": 1,
-        "g": s3p.nv.longitudinal_g_factor_ground,
-        "g_perp": s3p.nv.transverse_g_factor_ground,
-        "D": s3p.nv.zero_field_splitting_ground,
-        "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
-        "TS2": s3p.nv.spin_spin_relaxation_time_ground,
+        "g": s3p.nv.room.ground.g_longitudinal,
+        "g_perp": s3p.nv.room.ground.g_transverse,
+        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+        "TS1": s3p.nv.room.ground.thermalisation_time,
+        "TS2": s3p.nv.room.ground.dephasing_time,
 
         "B0": quiescent_magnetic_field,
-        "T": s3p.general.room_temperature
+        "T": s3p.standards.lab.ntp.temperature
     }
 
     nv_excited = {
         "S": 1,
-        "g": s3p.nv.g_factor_excited,
-        "D": s3p.nv.zero_field_splitting_excited,
-        "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
-        "TS2": s3p.nv.spin_spin_relaxation_time_excited,
+        "g": s3p.nv.room.excited.g_longitudinal,
+        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+        "TS1": s3p.nv.room.excited.thermalisation_time,
+        "TS2": s3p.nv.room.excited.dephasing_time,
 
         "B0": quiescent_magnetic_field,
-        "T": s3p.general.room_temperature
+        "T": s3p.standards.lab.ntp.temperature
     }
 
     nv_singlet = {
@@ -1822,22 +1822,23 @@ def generate_7(
     nv_orbitals = {
         # Optical transitions
         ((0, 0), (1, 0)): {
-            "rel": s3p.nv.spin_conserving_relaxation_rate,
-            "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
+            "rel": s3p.nv.room.optical.conserving,
+            "rel_n": s3p.nv.room.optical.nonconserving
         },
 
         # ISC excited
         ((1, 0), (2, 0)): {
-            "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
-            "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
+            "s_gets_0": s3p.nv.room.isc.s_gets_z,
+            "s_gets_1": s3p.nv.room.isc.s_gets_pm
         },
 
         # ISC ground
         ((2, 0), (0, 0)): {
-            "0_gets_s": s3p.nv.singlet_to_z_relaxation_rate,
-            "1_gets_s": s3p.nv.singlet_to_pm_relaxation_rate
+            "0_gets_s": s3p.nv.room.isc.z_gets_s,
+            "1_gets_s": s3p.nv.room.isc.pm_gets_s
         }
     }
+
 
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
@@ -1847,6 +1848,7 @@ def generate_7(
 
     return lindbladian, generators_list, vectorisation_map
 
+
 def generate_21(
         coefficient_functions: list[callable],
         quiescent_magnetic_field: np.ndarray):
@@ -1855,65 +1857,73 @@ def generate_21(
 
     nv_ground = {
         "S": 1,
-        "g": s3p.nv.longitudinal_g_factor_ground,
-        "g_perp": s3p.nv.transverse_g_factor_ground,
-        "D": s3p.nv.zero_field_splitting_ground,
-        "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
-        "TS2": s3p.nv.spin_spin_relaxation_time_ground,
+        "g": s3p.nv.room.ground.g_longitudinal,
+        "g_perp": s3p.nv.room.ground.g_transverse,
+        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+        "TS1": s3p.nv.room.ground.thermalisation_time,
+        "TS2": s3p.nv.room.ground.dephasing_time,
 
         "I": 1,
-        "P": math.tau*-4.945e6,
-        "TI1": 10,
-        "TI2": 10e-6,
-        "A": math.tau*-2.16e6,
+        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+        "TI2": s3p.nv.room.ground.dephasing_time_14N,
+        "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
+        "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
 
         "B0": quiescent_magnetic_field,
-        "T": s3p.general.room_temperature
+        "T": s3p.standards.lab.ntp.temperature
     }
 
     nv_excited = {
         "S": 1,
-        "g": s3p.nv.g_factor_excited,
-        "D": s3p.nv.zero_field_splitting_excited,
-        "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
-        "TS2": s3p.nv.spin_spin_relaxation_time_excited,
+        "g": s3p.nv.room.excited.g_longitudinal,
+        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+        "TS1": s3p.nv.room.excited.thermalisation_time,
+        "TS2": s3p.nv.room.excited.dephasing_time,
 
         "I": 1,
-        "P": math.tau*-4.945e6,
-        "TI1": 1e-1,
-        "TI2": 1e-3,
-        "A": math.tau*-23e6,
+        "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.excited.thermalisation_time_14N,
+        "TI2": s3p.nv.room.excited.dephasing_time_14N,
+        "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
+        "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
 
         "B0": quiescent_magnetic_field,
-        "T": s3p.general.room_temperature
+        "T": s3p.standards.lab.ntp.temperature
     }
 
     nv_singlet = {
         "S": 0,
 
         "I": 1,
-        "P": math.tau*-4.945e6,
-        "TI1": 10,
-        "TI2": 10e-6
+        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+        "TI2": s3p.nv.room.ground.dephasing_time_14N,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
     }
 
     nv_orbitals = {
         # Optical transitions
         ((0, 0), (1, 0)): {
-            "rel": s3p.nv.spin_conserving_relaxation_rate,
-            "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
+            "rel": s3p.nv.room.optical.conserving,
+            "rel_n": s3p.nv.room.optical.nonconserving
         },
 
         # ISC excited
         ((1, 0), (2, 0)): {
-            "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
-            "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
+            "s_gets_0": s3p.nv.room.isc.s_gets_z,
+            "s_gets_1": s3p.nv.room.isc.s_gets_pm
         },
 
         # ISC ground
         ((2, 0), (0, 0)): {
-            "0_gets_s": s3p.nv.singlet_to_z_relaxation_rate,
-            "1_gets_s": s3p.nv.singlet_to_pm_relaxation_rate
+            "0_gets_s": s3p.nv.room.isc.z_gets_s,
+            "1_gets_s": s3p.nv.room.isc.pm_gets_s
         }
     }
 
@@ -2044,65 +2054,70 @@ def main():
 
         nv_ground = {
             "S": 1,
-            "g": s3p.nv.longitudinal_g_factor_ground,
-            "g_perp": s3p.nv.transverse_g_factor_ground,
-            "D": s3p.nv.zero_field_splitting_ground,
-            "TS1": s3p.nv.spin_lattice_relaxation_time_ground,
-            "TS2": s3p.nv.spin_spin_relaxation_time_ground,
+            "g": s3p.nv.room.ground.g_longitudinal,
+            "g_perp": s3p.nv.room.ground.g_transverse,
+            "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+            "TS1": s3p.nv.room.ground.thermalisation_time,
+            "TS2": s3p.nv.room.ground.dephasing_time,
 
             "I": 1,
-            "P": math.tau*-4.945e6,
-            "TI1": 10,
-            "TI2": 10e-6,
-            "A": math.tau*-2.16e6,
+            "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+            "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+            "TI2": s3p.nv.room.ground.dephasing_time_14N,
+            "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
+            "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": s3p.general.room_temperature
+            "T": s3p.standards.lab.ntp.temperature
         }
 
         nv_excited = {
             "S": 1,
-            "g": s3p.nv.g_factor_excited,
-            "D": s3p.nv.zero_field_splitting_excited,
-            "TS1": s3p.nv.spin_lattice_relaxation_time_excited,
-            "TS2": s3p.nv.spin_spin_relaxation_time_excited,
+            "g": s3p.nv.room.excited.g_longitudinal,
+            "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+            "TS1": s3p.nv.room.excited.thermalisation_time,
+            "TS2": s3p.nv.room.excited.dephasing_time,
 
             "I": 1,
-            "P": math.tau*-4.945e6,
-            "TI1": 1e-1,
-            "TI2": 1e-3,
-            "A": math.tau*-23e6,
+            "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
+            "TI1": s3p.nv.room.excited.thermalisation_time_14N,
+            "TI2": s3p.nv.room.excited.dephasing_time_14N,
+            "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
+            "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": s3p.general.room_temperature
+            "T": s3p.standards.lab.ntp.temperature
         }
 
         nv_singlet = {
             "S": 0,
 
             "I": 1,
-            "P": math.tau*-4.945e6,
-            "TI1": 10,
-            "TI2": 10e-6
+            "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+            "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+            "TI2": s3p.nv.room.ground.dephasing_time_14N,
+
+            "B0": quiescent_magnetic_field,
+            "T": s3p.standards.lab.ntp.temperature
         }
 
         nv_orbitals = {
             # Optical transitions
             ((0, 0), (1, 0)): {
-                "rel": s3p.nv.spin_conserving_relaxation_rate,
-                "rel_n": s3p.nv.spin_nonconserving_relaxation_rate
+                "rel": s3p.nv.room.optical.conserving,
+                "rel_n": s3p.nv.room.optical.nonconserving
             },
 
             # ISC excited
             ((1, 0), (2, 0)): {
-                "s_gets_0": s3p.nv.z_to_singlet_relaxation_rate,
-                "s_gets_1": s3p.nv.pm_to_singlet_relaxation_rate
+                "s_gets_0": s3p.nv.room.isc.s_gets_z,
+                "s_gets_1": s3p.nv.room.isc.s_gets_pm
             },
 
             # ISC ground
             ((2, 0), (0, 0)): {
-                "0_gets_s": s3p.nv.singlet_to_z_relaxation_rate,
-                "1_gets_s": s3p.nv.singlet_to_pm_relaxation_rate
+                "0_gets_s": s3p.nv.room.isc.z_gets_s,
+                "1_gets_s": s3p.nv.room.isc.pm_gets_s
             }
         }
 

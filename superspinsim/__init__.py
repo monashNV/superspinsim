@@ -5,7 +5,8 @@ from superspinsim.generators import vectorisation_map as vectorisation_map_nv
 from superspinsim.quadratures import samples as samples_dict
 from superspinsim.quadratures import weights as weights_dict
 
-import superspinsim.nv
+# import superspinsim.nv
+import superspinsim.params
 
 import math
 import numpy as np
