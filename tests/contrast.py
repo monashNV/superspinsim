@@ -1,22 +1,80 @@
+import superspinsim as s3
+from superspinsim.generate_generators import generate_7, generate_21
+
+import math
+import numpy as np
+from matplotlib import pyplot as plt
+from cmcrameri import cm
+
+
 def main():
-    import superspinsim as s3
-    from superspinsim.generate_generators import generate_7, generate_21
-
-    import math
-    import numpy as np
-    from matplotlib import pyplot as plt
-    from cmcrameri import cm
-
     from pogger import Pogger as Logger
+    with Logger("superspinsim-generate") as logger:
+        absolutes = []
+        relatives = []
+        amplitudes = []
+        execute_record = logger.record(
+            ("amplitude", "absolute", "relative", "density", "fluorescence")
+        )(execute)
+        for simulation_index, excitation_amplitude in \
+                enumerate(np.geomspace(0.0001, 300, 400)):
+            logger.set_context(f"simulations/{simulation_index}")
+            excitation_amplitude, absolute_contrast, relative_contrast, _, _ =\
+                execute_record(excitation_amplitude)
+            absolutes.append(absolute_contrast)
+            relatives.append(relative_contrast)
+            amplitudes.append(excitation_amplitude)
 
-    hyperfine = True
+        absolutes = np.array(absolutes)
+        relatives = np.array(relatives)
+        amplitudes = np.array(amplitudes)
 
+        logger.set_context("contrast_vs_amplitude")
+
+        @logger.record(("amplitudes", "absolutes", "relatives"))
+        def plot():
+            plt.figure(label="amplitudes")
+            plt.loglog(
+                amplitudes, np.abs(absolutes)/1e-9, "-", color=cm.hawaii(0/2))
+            plt.xlabel("Excitation amplitude")
+            plt.ylabel(
+                "Contrast (excited population nanoseconds)",
+                color=cm.hawaii(0/2)
+            )
+            plt.gca().spines["left"].set_edgecolor(cm.hawaii(0/2))
+            plt.gca().tick_params(
+                axis="y", which="both", colors=cm.hawaii(0/2),
+                labelcolor=cm.hawaii(0/2)
+            )
+            plt.gca().spines[["top", "right"]].set_visible(False)
+
+            right_axis = plt.twinx()
+            right_axis.loglog(
+                amplitudes, np.abs(relatives)/1e-9, "-", color=cm.hawaii(1/2))
+            plt.xlabel("Excitation rate/relaxation rate")
+            right_axis.set_ylabel(
+                "Contrast (ppb peak fluorescence)", color=cm.hawaii(1/2))
+            right_axis.spines["right"].set_edgecolor(cm.hawaii(1/2))
+            right_axis.spines[["top", "left"]].set_visible(False)
+            right_axis.tick_params(
+                axis="y", which="both", colors=cm.hawaii(1/2),
+                labelcolor=cm.hawaii(1/2)
+            )
+            plt.draw()
+
+            return amplitudes, absolutes, relatives
+
+        plot()
+        plt.show()
+
+
+def execute(excitation_amplitude):
+    hyperfine = False
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
     duration_mw = 1/(2*10e6)
     frequency_mw = 2.87e9
     amplitude_mw = 2*10e6/28e9
-    excitation_amplitude = 0.1
 
     time_thermal_start = 0
     time_thermal_end = time_thermal_start + duration_excitation
@@ -61,13 +119,11 @@ def main():
         lindbladian, generators, vectorisation_map = generate_7(
             coefficients, quiescent_magnetic_field)
 
-    print(generators[0].shape)
-
     fine_step = 1e-9
     if hyperfine:
         coarse_step = 10e-9
     else:
-        coarse_step = 10e-9
+        coarse_step = 2e-9
     number_of_divisions = int(round(coarse_step/fine_step))
     coarse_step = number_of_divisions*fine_step
 
@@ -96,6 +152,22 @@ def main():
         fluorescense = \
             density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
 
+    interval_zero = np.logical_and(
+        time > time_zero_start, time < time_zero_end)
+    interval_one = np.logical_and(
+        time > time_one_start, time < time_one_end)
+    absolute_contrast = (np.sum(fluorescense[interval_zero])
+        - np.sum(fluorescense[interval_one]))*coarse_step
+    relative_contrast = absolute_contrast/np.max(fluorescense)
+
+    return (
+        excitation_amplitude, absolute_contrast, relative_contrast, density, fluorescense
+    )
+    # print("Absolute contrast:", absolute_contrast)
+    # print("Relative contrast:", relative_contrast)
+
+
+def plot_odmr(fluorescence: np.ndarray):
     with Logger("superspinsim-generate") as logger:
         @logger.record(("time", "fluorescense", "density"), ("s", None, None))
         def plot():
@@ -123,11 +195,12 @@ def main():
                 100*fluorescense[interval_one]/np.max(fluorescense),
                 "-", color=cm.hawaii(2/3), label="One-polarised"
             )
-            plt.ylim(80, 102)
+            plt.ylim(50, 102)
 
             plt.xlabel("Time (us)")
             plt.ylabel("Fluorescence (%)")
             plt.legend()
+
             plt.draw()
 
             plt.figure("odmr")
@@ -140,11 +213,11 @@ def main():
             state_labels = [
                 "(g), +", "(g), 0", "(g), -",
                 "(e), +", "(e), 0", "(e), -", "(s)"]
-            for state_index in range(7):
+            for state_index in range(density.shape[1]):
                 plt.plot(
                     time/1e-6, 100*density[:, state_index, state_index, 0],
-                    "-", color=cm.hawaii(0.999*state_index/7),
-                    label=state_labels[state_index]
+                    "-", color=cm.hawaii(0.999*state_index/density.shape[1]),
+                    # label=state_labels[state_index]
                 )
             plt.xlabel("Time (us)")
             plt.ylabel("Population (%)")
