@@ -17,7 +17,7 @@ def main():
             ("amplitude", "absolute", "relative", "density", "fluorescence")
         )(execute)
         for simulation_index, excitation_amplitude in \
-                enumerate(np.geomspace(0.0001, 300, 400)):
+                enumerate(np.geomspace(0.0001, 300, 200)):
             logger.set_context(f"simulations/{simulation_index}")
             excitation_amplitude, absolute_contrast, relative_contrast, _, _ =\
                 execute_record(excitation_amplitude)
@@ -69,12 +69,14 @@ def main():
 
 
 def execute(excitation_amplitude):
-    hyperfine = False
+    hyperfine = True
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
-    duration_mw = 1/(2*10e6)
+    # duration_mw = 1/(2*10e6)
+    duration_mw = 1/(2*100e3)
     frequency_mw = 2.87e9
-    amplitude_mw = 2*10e6/28e9
+    # amplitude_mw = 2*10e6/28e9
+    amplitude_mw = 2*100e3/28e9
 
     time_thermal_start = 0
     time_thermal_end = time_thermal_start + duration_excitation
@@ -83,7 +85,7 @@ def execute(excitation_amplitude):
     time_one_start = 2*duration_excitation + 2*duration_relax_wait \
         + duration_mw
     time_one_end = time_one_start + duration_excitation
-    time_end = 10e-6
+    time_end = 15e-6
 
     quiescent_magnetic_field = np.array([0, 0, 1])*1e-12
 
