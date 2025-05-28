@@ -228,12 +228,16 @@ def _add_electron(
             # 22352-22361 (2024)]
             if "TS2" in atom.keys():
                 dephasing_time = atom["TS2"]
+                if np.sum(quiescent_magnetic_generator) > 0:
+                    dephasing_operator = quiescent_magnetic_generator
+                else:
+                    dephasing_operator = generator_vec[2]
                 l2 = np.max(
                     np.linalg.eigvalsh(
-                        quiescent_magnetic_generator[:, :, 0]
-                        + 1j*quiescent_magnetic_generator[:, :, 1]))
+                        dephasing_operator[:, :, 0]
+                        + 1j*dephasing_operator[:, :, 1]))
                 jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
-                    * quiescent_magnetic_generator
+                    * dephasing_operator
                 _record_operator(
                     "LS2", jump_dephasing, atom,
                     [temp_labels, operator_labels, dissipator_labels]
@@ -350,21 +354,23 @@ def _add_nucleus(
             # 22352-22361 (2024)]
             if "TI2" in atom.keys():
                 dephasing_time = atom["TI2"]
+                if np.sum(quiescent_magnetic_generator) > 0:
+                    dephasing_operator = quiescent_magnetic_generator
+                else:
+                    dephasing_operator = generator_vec[2]
                 l2 = np.max(
                     np.linalg.eigvalsh(
-                        quiescent_magnetic_generator[:, :, 0]
-                        + 1j*quiescent_magnetic_generator[:, :, 1]))
+                        dephasing_operator[:, :, 0]
+                        + 1j*dephasing_operator[:, :, 1]))
                 jump_dephasing = (spin/(l2*math.sqrt(dephasing_time))) \
-                    * quiescent_magnetic_generator
+                    * dephasing_operator
                 _record_operator(
                     "LI2", jump_dephasing, atom,
                     [temp_labels, operator_labels, dissipator_labels]
                 )
 
         temp_labels |= _add_thermalisation(
-            "I", atom, quiescent_magnetic_generator, zfs_generator,
-            label_sets
-        )
+            "I", atom, quiescent_magnetic_generator, zfs_generator, label_sets)
 
         previous_identity = _product_spin_state(
             previous_identity, spin_identity, block, atom,
@@ -407,7 +413,7 @@ def _add_thermalisation(
         if "T" in atom.keys():
             temperature = atom["T"]
         else:
-            temperature = 293.15
+            temperature = s3p.standards.lab.ntp.temperature
         if temperature > 0:
             boltzmann_factors = np.exp(-quiescent_energies/(
                 math.tau*s3p.fundamental.boltzmann_gyro
@@ -415,7 +421,10 @@ def _add_thermalisation(
         else:
             boltzmann_factors = np.zeros_like(
                 quiescent_energies, dtype=meta_datatype)
-            boltzmann_factors[np.argmin(quiescent_energies)] = 1
+            energy_min = np.min(quiescent_energies)
+            for state_index, energy in enumerate(quiescent_energies):
+                if energy == energy_min:
+                    boltzmann_factors[state_index] = 1
 
         # Normalise rate by T1
         markov_matrix = np.empty(
@@ -571,7 +580,7 @@ def _combine_in_atom(
         quiescent_generator = zfs_generator.copy()
     else:
         quiescent_generator = None
-    if "B0" in atom.keys():
+    if "B0" in atom.keys() and generator_vec is not None:
         quiescent_magnetic_field = atom["B0"]
         quiescent_magnetic_generator = \
             quiescent_magnetic_field[0]*generator_vec[0] \
@@ -2050,7 +2059,7 @@ def main():
 
     with Logger("superspinsim-generate") as logger:
 
-        quiescent_magnetic_field = np.array([0, 0, 1])*1e-0
+        quiescent_magnetic_field = np.array([0, 0, 0])*1e-12
 
         nv_ground = {
             "S": 1,
@@ -2061,6 +2070,7 @@ def main():
             "TS2": s3p.nv.room.ground.dephasing_time,
 
             "I": 1,
+            "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
             "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
             "TI1": s3p.nv.room.ground.thermalisation_time_14N,
             "TI2": s3p.nv.room.ground.dephasing_time_14N,
@@ -2068,7 +2078,7 @@ def main():
             "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": s3p.standards.lab.ntp.temperature
+            "T": 0 #s3p.standards.lab.ntp.temperature
         }
 
         nv_excited = {
@@ -2079,6 +2089,7 @@ def main():
             "TS2": s3p.nv.room.excited.dephasing_time,
 
             "I": 1,
+            "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
             "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
             "TI1": s3p.nv.room.excited.thermalisation_time_14N,
             "TI2": s3p.nv.room.excited.dephasing_time_14N,
@@ -2086,19 +2097,20 @@ def main():
             "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": s3p.standards.lab.ntp.temperature
+            "T": 0 #s3p.standards.lab.ntp.temperature
         }
 
         nv_singlet = {
             "S": 0,
 
             "I": 1,
+            "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
             "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
             "TI1": s3p.nv.room.ground.thermalisation_time_14N,
             "TI2": s3p.nv.room.ground.dephasing_time_14N,
 
             "B0": quiescent_magnetic_field,
-            "T": s3p.standards.lab.ntp.temperature
+            "T": 0 #s3p.standards.lab.ntp.temperature
         }
 
         nv_orbitals = {
@@ -2126,27 +2138,47 @@ def main():
             nv_orbitals
         )
 
-        # generators_list = list(generators["generators"].values())
+        generators_list = list(generators["generators"].values())
 
         @logger.record()
-        def plot():
-            plt.figure(label="spectrum")
-            for index, (label, generator) in \
-                    enumerate(generators["generators"].items()):
-                values = np.linalg.eigvals(generator)
-                values = np.abs(values)
-                values = np.sort(values)
-                values /= np.max(values)
-                print(label, np.sum(values < 1e-14))
-                plt.plot(
-                    values, "-", color=cm.hawaii(index/5), label=label)
-                plt.gca().set_yscale("log")
-            plt.legend()
-            plt.xlabel("Eigenvalue index")
-            plt.ylabel("Relative eigenvalue")
+        def schur():
+            operator = generators_list[0]
+            plt.figure(label="schur")
+            operator = np.sign(operator)*(
+                np.log10(np.abs(operator) + 1e-20) + 20)
+            plt.imshow(colour_complex_matrix(
+                operator/(np.max(np.abs(operator)))),
+                       interpolation="nearest")
+            plt.xticks([], [])
+            plt.yticks([], [])
+            plt.tight_layout()
             plt.draw()
 
-        plot()
+        schur()
+
+        plt.show()
+
+        # @logger.record()
+        # def plot():
+        #     plt.figure(label="spectrum")
+        #     for index, (label, generator) in \
+        #             enumerate(generators["generators"].items()):
+        #         values = np.linalg.eigvals(generator)
+        #         values = np.abs(values)
+        #         values = np.sort(values)
+        #         values /= np.max(values)
+        #         print(label, np.sum(values < 1e-14))
+        #         plt.plot(
+        #             values, "-", color=cm.hawaii(index/5), label=label)
+        #         plt.gca().set_yscale("log")
+        #     plt.legend()
+        #     plt.xlabel("Eigenvalue index")
+        #     plt.ylabel("Relative eigenvalue")
+        #     plt.draw()
+
+        # plot()
+
+        # plt.show()
 
     # logger.set_context("operator_generation")
     # plot_operators = logger.record(("operators"))(_plot_operators)

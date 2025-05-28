@@ -97,6 +97,21 @@ class fundamental:
     boltzmann_gyro_uncertainty = 0.0
     boltzmann_gyro_units = "Hz/K"
 
+    class electron:
+        g = 2.00231930436092
+        """
+        Value:
+        ------
+        2.0023193043609(4)
+
+        Reference:
+        ----------
+        Mohr, Rev. Mod. Phys. 97, 2, 025002 (2025),
+        https://link.aps.org/doi/10.1103/RevModPhys.97.025002
+        """
+
+        g_uncertainty = 3.6e-13
+
 
 class standards:
     class lab:
@@ -329,6 +344,25 @@ class nv:
 
             life_conserving_uncertainty = 2.295684113865932e-10
             life_conserving_units = "s"
+
+            life_nonconserving = 2.819267960405728e-07
+            """
+            Value:
+            ------
+            000(2000) ns
+
+            Reference:
+            ----------
+            Wolters, Phys. Rev. A 88, 2, 020101 (2013),
+            https://link.aps.org/doi/10.1103/PhysRevA.88.020101
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            life_nonconserving_uncertainty = 1.8812477710225496e-06
+            life_nonconserving_units = "s"
 
             prop_conserving = 0.9538887392664543
             """
@@ -1539,6 +1573,158 @@ class n:
 
 class rb:
     class rb_87:
+        class hyperfine_52s12:
+            E_hfs = 6834682610.90431
+            """
+            Value:
+            ------
+            6.83468261090431(9) GHz
+
+            Reference:
+            ----------
+            Bize, Europhysics Letters 45, 558 (1999),
+            https://doi.org/10.1209/epl/i1999-00203-9
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            E_hfs_uncertainty = 9e-05
+            E_hfs_units = "Hz"
+
+            hyperfine = 3417341305.452155
+            """
+            Value:
+            ------
+            3.41734130545215(4) GHz
+
+            Reference:
+            ----------
+            Bize, Europhysics Letters 45, 558 (1999),
+            https://doi.org/10.1209/epl/i1999-00203-9
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            hyperfine_uncertainty = 4.5e-05
+            hyperfine_units = "Hz"
+
+            g_J = 2.002331069989152
+            """
+            Value:
+            ------
+            2.002331069(6)
+
+            Reference:
+            ----------
+            Tiedeman, Phys. Rev. Lett. 39, 10, 602--604 (1977),
+            https://link.aps.org/doi/10.1103/PhysRevLett.39.602
+            """
+
+            g_J_uncertainty = 6.492471001838394e-09
+
+            g_J_per_g_e = 1.000005876
+            """
+            Value:
+            ------
+            1.00000587(1)
+
+            Reference:
+            ----------
+            Tiedeman, Phys. Rev. Lett. 39, 10, 602--604 (1977),
+            https://link.aps.org/doi/10.1103/PhysRevLett.39.602
+            """
+
+            g_J_per_g_e_uncertainty = 1.3e-08
+
+            gyro_J = 28025116098.731365
+            """
+            Value:
+            ------
+            28.02511609(9) GHz/T
+
+            Reference:
+            ----------
+            Tiedeman, Phys. Rev. Lett. 39, 10, 602--604 (1977),
+            https://link.aps.org/doi/10.1103/PhysRevLett.39.602
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            gyro_J_uncertainty = 91.25853624746291
+            gyro_J_units = "Hz/T"
+
+            g_F_1 = -0.5018266942499999
+            """
+            Value:
+            ------
+            -0.501826694(7)
+
+            Reference:
+            ----------
+            Steck, Rubidium 87 D Line Data (2024),
+            https://steck.us/alkalidata
+            """
+
+            g_F_1_uncertainty = 6.619101147436864e-09
+
+            g_F_2 = 0.49983641144999996
+            """
+            Value:
+            ------
+            0.499836411(7)
+
+            Reference:
+            ----------
+            Steck, Rubidium 87 D Line Data (2024),
+            https://steck.us/alkalidata
+            """
+
+            g_F_2_uncertainty = 6.543126164151201e-09
+
+            gyro_F_1 = -7023689328.196364
+            """
+            Value:
+            ------
+            -7.02368932(9) GHz/T
+
+            Reference:
+            ----------
+            Steck, Rubidium 87 D Line Data (2024),
+            https://steck.us/alkalidata
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            gyro_F_1_uncertainty = 92.6665331977353
+            gyro_F_1_units = "Hz/T"
+
+            gyro_F_2 = 6995832842.635458
+            """
+            Value:
+            ------
+            6.99583284(9) GHz/T
+
+            Reference:
+            ----------
+            Steck, Rubidium 87 D Line Data (2024),
+            https://steck.us/alkalidata
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            gyro_F_2_uncertainty = 91.60325504913997
+            gyro_F_2_units = "Hz/T"
+
         class physical:
             S = 0.5
             """
@@ -1614,59 +1800,6 @@ class rb:
             """
 
             g_N_uncertainty = 1.836152838077147e-06
-
-        class hyperfine_52s12:
-            hyperfine = 3417341305.452145
-            """
-            Value:
-            ------
-            3.41734130545214(4) GHz
-
-            Reference:
-            ----------
-            Steck, Rubidium 87 D Line Data (2024),
-            https://steck.us/alkalidata
-
-            Note
-            ----
-            Value given without metric prefix.
-            """
-
-            hyperfine_uncertainty = 4.4999999999999996e-05
-            hyperfine_units = "Hz"
-
-            g_J = 2.00233107
-            """
-            Value:
-            ------
-            2.00233106(3)
-
-            Reference:
-            ----------
-            Steck, Rubidium 87 D Line Data (2024),
-            https://steck.us/alkalidata
-            """
-
-            g_J_uncertainty = 2.6e-08
-
-            gyro_J = 28025116098.883194
-            """
-            Value:
-            ------
-            28.0251160(4) GHz/T
-
-            Reference:
-            ----------
-            Steck, Rubidium 87 D Line Data (2024),
-            https://steck.us/alkalidata
-
-            Note
-            ----
-            Value given without metric prefix.
-            """
-
-            gyro_J_uncertainty = 363.99953057469054
-            gyro_J_units = "Hz/T"
 
         class hyperfine_52p12:
             hyperfine = 407250000.0
@@ -1792,5 +1925,93 @@ class rb:
 
             gyro_J_uncertainty = 2799248.987225608
             gyro_J_units = "Hz/T"
+
+
+# class h:
+#     class h_1:
+#         class 12s12:
+#             g_J_per_g_e = 1.000017709
+#             """
+#             Value:
+#             ------
+#             1.00001770(1)
+# 
+#             Reference:
+#             ----------
+#             Tiedeman, Phys. Rev. Lett. 39, 10, 602--604 (1977),
+#             https://link.aps.org/doi/10.1103/PhysRevLett.39.602
+#             """
+# 
+#             g_J_per_g_e_uncertainty = 1.3e-08
+# 
+#             g_J = 2.002354763433481
+#             """
+#             Value:
+#             ------
+#             2.002354763(6)
+# 
+#             Reference:
+#             ----------
+#             Tiedeman, Phys. Rev. Lett. 39, 10, 602--604 (1977),
+#             https://link.aps.org/doi/10.1103/PhysRevLett.39.602
+#             """
+# 
+#             g_J_uncertainty = 6.492471001838157e-09
+# 
+
+class sensing:
+    class records:
+        class qwe:
+            repeats = 1
+            """
+            Value:
+            ------
+            1.00000000
+
+            Reference:
+            ----------
+            Bopp, Phys. Rev. Appl. 23, 3, 034024 (2025),
+            https://link.aps.org/doi/10.1103/PhysRevApplied.23.034024
+            """
+
+            repeats_uncertainty = 0
+
+            magnetic_peak = 2.9999999999999997e-05
+            """
+            Value:
+            ------
+            30.0000000 uT
+
+            Reference:
+            ----------
+            Bopp, Phys. Rev. Appl. 23, 3, 034024 (2025),
+            https://link.aps.org/doi/10.1103/PhysRevApplied.23.034024
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            magnetic_peak_uncertainty = 0.0
+            magnetic_peak_units = "T"
+
+            magnetic_normalised = 2.9999999999999997e-05
+            """
+            Value:
+            ------
+            30.0000000 uT
+
+            Reference:
+            ----------
+            Bopp, Phys. Rev. Appl. 23, 3, 034024 (2025),
+            https://link.aps.org/doi/10.1103/PhysRevApplied.23.034024
+
+            Note
+            ----
+            Value given without metric prefix.
+            """
+
+            magnetic_normalised_uncertainty = 0.0
+            magnetic_normalised_units = "T"
 
 
