@@ -1016,7 +1016,7 @@ def kroneker_jump_outer(
         product[
             inner_index::inner.shape[0],
             inner_index::inner.shape[1], :
-        ] = inner
+        ] = outer
 
         if not np.isclose(np.sum(product**2), 0):
             products.append(product)
@@ -2143,6 +2143,7 @@ def main():
         @logger.record()
         def schur():
             operator = generators_list[0]
+            # operator = generators["super_all"]["[0, 0] LS1"]
             plt.figure(label="schur")
             operator = np.sign(operator)*(
                 np.log10(np.abs(operator) + 1e-20) + 20)
