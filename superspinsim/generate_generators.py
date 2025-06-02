@@ -1,4 +1,5 @@
 import numpy as np
+import scipy.linalg as spl
 import math
 import copy
 
@@ -2140,46 +2141,67 @@ def main():
 
         generators_list = list(generators["generators"].values())
 
-        @logger.record()
-        def schur():
-            operator = generators_list[0]
-            # operator = generators["super_all"]["[0, 0] LS1"]
-            plt.figure(label="schur")
-            operator = np.sign(operator)*(
-                np.log10(np.abs(operator) + 1e-20) + 20)
-            plt.imshow(colour_complex_matrix(
-                operator/(np.max(np.abs(operator)))),
-                       interpolation="nearest")
-            plt.xticks([], [])
-            plt.yticks([], [])
-            plt.tight_layout()
-            plt.draw()
-
-        schur()
-
-        plt.show()
-
         # @logger.record()
-        # def plot():
-        #     plt.figure(label="spectrum")
-        #     for index, (label, generator) in \
-        #             enumerate(generators["generators"].items()):
-        #         values = np.linalg.eigvals(generator)
-        #         values = np.abs(values)
-        #         values = np.sort(values)
-        #         values /= np.max(values)
-        #         print(label, np.sum(values < 1e-14))
-        #         plt.plot(
-        #             values, "-", color=cm.hawaii(index/5), label=label)
-        #         plt.gca().set_yscale("log")
-        #     plt.legend()
-        #     plt.xlabel("Eigenvalue index")
-        #     plt.ylabel("Relative eigenvalue")
+        # def schur():
+        #     quiescent = generators_list[0]
+        #     quiescent /= np.linalg.matrix_norm(quiescent)
+
+        #     operator = quiescent@quiescent.T - quiescent.T@quiescent
+
+        #     print(np.linalg.matrix_norm(quiescent))
+        #     print(np.linalg.matrix_norm(operator))
+
+        #     # operator = generators["super_all"]["[0, 0] LS1"]
+
+        #     # schur = spl.schur(quiescent, "real")[0]
+        #     # schur_max = np.max(np.abs(schur))
+        #     # schur = schur*(np.abs(schur) > schur_max*1e-3)
+
+        #     # operator = schur
+
+        #     plt.figure(label="schur")
+        #     operator = np.sign(operator)*(
+        #         np.log10(np.abs(operator) + 1e-20) + 20)
+        #     plt.imshow(colour_complex_matrix(
+        #         operator/(np.max(np.abs(operator)))),
+        #                interpolation="nearest")
+        #     plt.xticks([], [])
+        #     plt.yticks([], [])
+        #     plt.tight_layout()
         #     plt.draw()
 
-        # plot()
+        # schur()
 
         # plt.show()
+
+        @logger.record()
+        def plot():
+            # plt.figure(label="spectrum")
+            for index, (label, generator) in \
+                    enumerate(generators["generators"].items()):
+                values, vectors = np.linalg.eig(generator)
+                # values = np.abs(values)
+                # values = np.sort(values)
+                values /= np.max(np.abs(values))
+                print(label, np.sum(values < 1e-14))
+                for value in values:
+                    print(value)
+                values_set = set(values)
+                print(len(values_set))
+                rank = np.linalg.matrix_rank(vectors)
+                print(rank)
+                # plt.plot(
+                #     values, "-", color=cm.hawaii(index/5), label=label)
+                # plt.gca().set_yscale("log")
+                break
+            # plt.legend()
+            # plt.xlabel("Eigenvalue index")
+            # plt.ylabel("Relative eigenvalue")
+            # plt.draw()
+
+        plot()
+
+        plt.show()
 
     # logger.set_context("operator_generation")
     # plot_operators = logger.record(("operators"))(_plot_operators)
