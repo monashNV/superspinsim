@@ -2141,65 +2141,100 @@ def main():
 
         generators_list = list(generators["generators"].values())
 
-        # @logger.record()
-        # def schur():
-        #     quiescent = generators_list[0]
-        #     quiescent /= np.linalg.matrix_norm(quiescent)
+        @logger.record(("vectors_real", "inv_vectors_real"))
+        def real_eig(generator):
+            values, vectors = np.linalg.eig(generator)
 
-        #     operator = quiescent@quiescent.T - quiescent.T@quiescent
+            vectors_complex = np.empty(
+                (vectors.shape[0], vectors.shape[1], 2), dtype=np.float64)
+            vectors_complex[:, :, 0] = np.real(vectors)
+            vectors_complex[:, :, 1] = np.imag(vectors)
 
-        #     print(np.linalg.matrix_norm(quiescent))
-        #     print(np.linalg.matrix_norm(operator))
+            vectors_list_real = []
+            values_list_real = []
+            rank_best = 0
+            for index in range(vectors.shape[1]):
+                vector_real = np.real(vectors[:, index])
+                vectors_list = [
+                    *vectors_list_real, vector_real]
+                vectors_array = np.array(vectors_list).T
+                rank = np.linalg.matrix_rank(vectors_array)
+                if rank > rank_best:
+                    rank_best = rank
+                    vector_real /= math.sqrt(np.sum(vector_real**2))
+                    vectors_list_real = vectors_list
+                    values_list_real.append(np.real(values[index]))
+                else:
+                    continue
+                vector_imag = np.imag(vectors[:, index])
+                vectors_list = [
+                    *vectors_list_real, vector_imag]
+                vectors_array = np.array(vectors_list).T
+                rank = np.linalg.matrix_rank(vectors_array)
+                if rank > rank_best:
+                    rank_best = rank
+                    vector_imag /= math.sqrt(np.sum(vector_imag**2))
+                    vectors_list_real = vectors_list
+                    values_list_real.append(np.imag(values[index]))
+            vectors_real = np.array(vectors_list_real).T
+            inv_vectors_real = np.linalg.inv(vectors_real)
 
-        #     # operator = generators["super_all"]["[0, 0] LS1"]
+            return vectors_real, inv_vectors_real
 
-        #     # schur = spl.schur(quiescent, "real")[0]
-        #     # schur_max = np.max(np.abs(schur))
-        #     # schur = schur*(np.abs(schur) > schur_max*1e-3)
+        @logger.record()
+        def schur():
+            quiescent = generators_list[0]
+            quiescent /= np.linalg.matrix_norm(quiescent)
 
-        #     # operator = schur
+            operator = quiescent@quiescent.T - quiescent.T@quiescent
 
-        #     plt.figure(label="schur")
-        #     operator = np.sign(operator)*(
-        #         np.log10(np.abs(operator) + 1e-20) + 20)
-        #     plt.imshow(colour_complex_matrix(
-        #         operator/(np.max(np.abs(operator)))),
-        #                interpolation="nearest")
-        #     plt.xticks([], [])
-        #     plt.yticks([], [])
-        #     plt.tight_layout()
-        #     plt.draw()
+            print(np.linalg.matrix_norm(quiescent))
+            print(np.linalg.matrix_norm(operator))
+
+            # operator = generators["super_all"]["[0, 0] LS1"]
+
+            # schur = spl.schur(quiescent, "real")[0]
+            # schur_max = np.max(np.abs(schur))
+            # schur = schur*(np.abs(schur) > schur_max*1e-3)
+
+            # operator = schur
+
+            plt.figure(label="schur")
+            operator = np.sign(operator)*(
+                np.log10(np.abs(operator) + 1e-20) + 20)
+            plt.imshow(colour_complex_matrix(
+                operator/(np.max(np.abs(operator)))),
+                       interpolation="nearest")
+            plt.xticks([], [])
+            plt.yticks([], [])
+            plt.tight_layout()
+            plt.draw()
 
         # schur()
 
         # plt.show()
 
         @logger.record()
-        def plot():
-            # plt.figure(label="spectrum")
-            for index, (label, generator) in \
-                    enumerate(generators["generators"].items()):
-                values, vectors = np.linalg.eig(generator)
-                # values = np.abs(values)
-                # values = np.sort(values)
-                values /= np.max(np.abs(values))
-                print(label, np.sum(values < 1e-14))
-                for value in values:
-                    print(value)
-                values_set = set(values)
-                print(len(values_set))
-                rank = np.linalg.matrix_rank(vectors)
-                print(rank)
-                # plt.plot(
-                #     values, "-", color=cm.hawaii(index/5), label=label)
-                # plt.gca().set_yscale("log")
-                break
-            # plt.legend()
-            # plt.xlabel("Eigenvalue index")
-            # plt.ylabel("Relative eigenvalue")
-            # plt.draw()
+        def plot(vectors_real, inv_vectors_real):
+                plt.figure(label="real_eigenvectors")
+                plt.imshow(
+                        colour_complex_matrix(
+                            vectors_real/np.max(np.abs(vectors_real))
+                    )
+                )
+                plt.draw()
 
-        plot()
+                plt.figure(label="inv_real_eigenvectors")
+                plt.imshow(
+                        colour_complex_matrix(
+                            inv_vectors_real
+                            / np.max(np.abs(inv_vectors_real))
+                    )
+                )
+                plt.draw()
+
+        vectors_real, inv_vectors_real = real_eig(generators_list[0])
+        plot(vectors_real, inv_vectors_real)
 
         plt.show()
 
