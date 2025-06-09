@@ -2141,7 +2141,8 @@ def main():
 
         generators_list = list(generators["generators"].values())
 
-        @logger.record(("vectors_real", "inv_vectors_real"))
+        @logger.record(
+            ("vectors", "inv_vectors", "values_double", "values_single"))
         def real_eig(generator):
             values, vectors = np.linalg.eig(generator)
 
@@ -2152,6 +2153,10 @@ def main():
 
             vectors_list_real = []
             values_list_real = []
+            vectors_list_real_single = []
+            vectors_list_real_double = []
+            values_list_real_single = []
+            values_list_real_double = []
             rank_best = 0
             for index in range(vectors.shape[1]):
                 vector_real = np.real(vectors[:, index])
@@ -2176,10 +2181,26 @@ def main():
                     vector_imag /= math.sqrt(np.sum(vector_imag**2))
                     vectors_list_real = vectors_list
                     values_list_real.append(np.imag(values[index]))
+                    vectors_list_real_double.append(vector_real)
+                    vectors_list_real_double.append(vector_imag)
+                    values_list_real_double.append(
+                        [np.real(values[index]), np.imag(values[index])])
+                else:
+                    vectors_list_real_single.append(vector_real)
+                    values_list_real_single.append(np.real(values[index]))
+
+            values_real_double = np.array(values_list_real_double)
+            values_real_single = np.array(values_list_real_single)
+
+            vectors_list_real = \
+                [*vectors_list_real_double, *vectors_list_real_single]
             vectors_real = np.array(vectors_list_real).T
             inv_vectors_real = np.linalg.inv(vectors_real)
 
-            return vectors_real, inv_vectors_real
+            return (
+                vectors_real, inv_vectors_real, values_real_double,
+                values_real_single
+            )
 
         @logger.record()
         def schur():
@@ -2233,7 +2254,8 @@ def main():
                 )
                 plt.draw()
 
-        vectors_real, inv_vectors_real = real_eig(generators_list[0])
+        logger.set_context("real_diagonalisation")
+        vectors_real, inv_vectors_real, _, _ = real_eig(generators_list[0])
         plot(vectors_real, inv_vectors_real)
 
         plt.show()

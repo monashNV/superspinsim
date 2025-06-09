@@ -10,7 +10,7 @@ def main():
 
     from pogger import Pogger as Logger
 
-    hyperfine = False
+    hyperfine = True
 
     time_start = 1e-6
     time_end = 1000e-6
@@ -134,6 +134,7 @@ def main():
             )
             plt.xlabel("Microwave frequency (GHz)")
             plt.ylabel("Fluorescence (%)")
+            plt.gca().spines[["top", "right"]].set_visible(False)
             plt.draw()
 
             # labels = ["+", "0", "-"]
