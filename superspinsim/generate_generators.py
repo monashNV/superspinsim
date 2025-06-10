@@ -2188,6 +2188,9 @@ def main():
                 else:
                     vectors_list_real_single.append(vector_real)
                     values_list_real_single.append(np.real(values[index]))
+                    values_list_real_single, vectors_list_real_single = zip(
+                        *sorted(zip(values_list_real_single,
+                                    vectors_list_real_single)))
 
             values_real_double = np.array(values_list_real_double)
             values_real_single = np.array(values_list_real_single)
@@ -2236,27 +2239,53 @@ def main():
         # plt.show()
 
         @logger.record()
-        def plot(vectors_real, inv_vectors_real):
-                plt.figure(label="real_eigenvectors")
+        def plot(
+                vectors_real: np.ndarray, inv_vectors_real: np.ndarray,
+                generators: list):
+            plt.figure(label="real_eigenvectors")
+            plt.imshow(
+                colour_complex_matrix(
+                    vectors_real/np.max(np.abs(vectors_real))
+                )
+            )
+            plt.draw()
+
+            plt.figure(label="inv_real_eigenvectors")
+            plt.imshow(
+                colour_complex_matrix(
+                    inv_vectors_real
+                    / np.max(np.abs(inv_vectors_real))
+                )
+            )
+            plt.draw()
+
+            label_list = ["Lq", "Gx", "Gy", "Gz", "Go"]
+            for generator, label in zip(generators, label_list):
+                generator_transform = inv_vectors_real@generator@vectors_real
+                plt.figure(label=label, figsize=(6.4, 4.8*2))
+                plt.suptitle(label)
+                plt.subplot(2, 1, 1)
+                plt.title("Real basis")
                 plt.imshow(
-                        colour_complex_matrix(
-                            vectors_real/np.max(np.abs(vectors_real))
+                    colour_complex_matrix(
+                        generator
+                        / np.max(np.abs(generator))
                     )
                 )
-                plt.draw()
 
-                plt.figure(label="inv_real_eigenvectors")
+                plt.subplot(2, 1, 2)
+                plt.title("Real eigenbasis")
                 plt.imshow(
-                        colour_complex_matrix(
-                            inv_vectors_real
-                            / np.max(np.abs(inv_vectors_real))
+                    colour_complex_matrix(
+                        generator_transform
+                        / np.max(np.abs(generator_transform))
                     )
                 )
                 plt.draw()
 
         logger.set_context("real_diagonalisation")
         vectors_real, inv_vectors_real, _, _ = real_eig(generators_list[0])
-        plot(vectors_real, inv_vectors_real)
+        plot(vectors_real, inv_vectors_real, generators_list)
 
         plt.show()
 
