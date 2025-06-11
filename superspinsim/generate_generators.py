@@ -2070,13 +2070,13 @@ def main():
             "TS1": s3p.nv.room.ground.thermalisation_time,
             "TS2": s3p.nv.room.ground.dephasing_time,
 
-            "I": 1,
-            "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-            "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-            "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-            "TI2": s3p.nv.room.ground.dephasing_time_14N,
-            "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
-            "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
+            # "I": 1,
+            # "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+            # "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+            # "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+            # "TI2": s3p.nv.room.ground.dephasing_time_14N,
+            # "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
+            # "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
             "T": 0 #s3p.standards.lab.ntp.temperature
@@ -2089,13 +2089,13 @@ def main():
             "TS1": s3p.nv.room.excited.thermalisation_time,
             "TS2": s3p.nv.room.excited.dephasing_time,
 
-            "I": 1,
-            "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
-            "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
-            "TI1": s3p.nv.room.excited.thermalisation_time_14N,
-            "TI2": s3p.nv.room.excited.dephasing_time_14N,
-            "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
-            "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
+            # "I": 1,
+            # "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
+            # "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
+            # "TI1": s3p.nv.room.excited.thermalisation_time_14N,
+            # "TI2": s3p.nv.room.excited.dephasing_time_14N,
+            # "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
+            # "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
             "T": 0 #s3p.standards.lab.ntp.temperature
@@ -2104,14 +2104,14 @@ def main():
         nv_singlet = {
             "S": 0,
 
-            "I": 1,
-            "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-            "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-            "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-            "TI2": s3p.nv.room.ground.dephasing_time_14N,
+            # "I": 1,
+            # "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+            # "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+            # "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+            # "TI2": s3p.nv.room.ground.dephasing_time_14N,
 
-            "B0": quiescent_magnetic_field,
-            "T": 0 #s3p.standards.lab.ntp.temperature
+            # "B0": quiescent_magnetic_field,
+            # "T": 0 #s3p.standards.lab.ntp.temperature
         }
 
         nv_orbitals = {
@@ -2181,18 +2181,29 @@ def main():
                     vector_imag /= math.sqrt(np.sum(vector_imag**2))
                     vectors_list_real = vectors_list
                     values_list_real.append(np.imag(values[index]))
-                    vectors_list_real_double.append(vector_real)
-                    vectors_list_real_double.append(vector_imag)
+                    vectors_list_real_double.append([vector_real, vector_imag])
                     values_list_real_double.append(
                         [np.real(values[index]), np.imag(values[index])])
                 else:
                     vectors_list_real_single.append(vector_real)
                     values_list_real_single.append(np.real(values[index]))
-                    values_list_real_single, vectors_list_real_single = zip(
-                        *sorted(zip(values_list_real_single,
-                                    vectors_list_real_single)))
 
+            values_list_real_double, vectors_list_real_double = \
+                zip(*sorted(
+                    zip(values_list_real_double, vectors_list_real_double),
+                    key=(lambda x: -(x[0][0]**2 + x[0][1]**2))
+                ))
             values_real_double = np.array(values_list_real_double)
+            vectors_list_real_double_new = []
+            for vector_double in vectors_list_real_double:
+                vectors_list_real_double_new += vector_double
+            vectors_list_real_double = vectors_list_real_double_new
+
+            values_list_real_single, vectors_list_real_single = \
+                zip(*sorted(
+                    zip(values_list_real_single, vectors_list_real_single),
+                    key=(lambda x: -abs(x[0]))
+                ))
             values_real_single = np.array(values_list_real_single)
 
             vectors_list_real = \
