@@ -27,7 +27,11 @@ def generate_simulator(
         number_of_quartic_repeats=35,  # 35,
         number_of_exponentials=2,
         number_of_fine_divisions=1,
-        use_cayley=False
+        use_cayley=False,
+
+        use_rotating: bool = False,
+        vectors_real: np.ndarray = None,
+        inv_vectors_real: np.ndarray = None
         ):
 
     scaling_for_quartics: datatype = \
@@ -755,8 +759,11 @@ def generate_simulator(
 
             density_operator_initial_flat[operator_index] = \
                 density_operator_initial[y_index, x_index, c_index]
+        if use_rotating:
+            density_operator_initial_flat = \
+                inv_vectors_real@density_operator_initial_flat
 
-        # Declare memory
+        # Declare VRAM
         if use_cuda:
             # Time
             time_device = nc.device_array(
@@ -881,6 +888,14 @@ def generate_simulator(
             # print(time_evolution)
             density_operators_flat = density_operators_device.copy_to_host()
             # print(density_operators_flat)
+
+        if use_rotating:
+            density_operators_flat = \
+                (vectors_real@density_operators_flat.reshape((
+                    density_operators_flat.shape[0],
+                    density_operators_flat.shape[1],
+                    1
+                ))).reshape(density_operators_flat.shape)
 
         # Unflatten density operators
         density_operators = np.zeros(

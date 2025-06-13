@@ -1798,7 +1798,8 @@ def _generate_lindbladian(coefficient_functions: list[callable]):
 
 def generate_7(
         coefficient_functions: list[callable],
-        quiescent_magnetic_field: np.ndarray):
+        quiescent_magnetic_field: np.ndarray,
+        use_rotating: bool = False):
 
     lindbladian = _generate_lindbladian(coefficient_functions)
 
@@ -1849,12 +1850,24 @@ def generate_7(
         }
     }
 
-
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
     )
 
     generators_list = list(generators["generators"].values())
+
+    if use_rotating:
+        vectors_real, inv_vectors_real, _, _ = real_eig(generators_list[0])
+
+        generators_list_real = [
+            inv_vectors_real@generator@vectors_real
+            for generator in generators_list
+        ]
+
+        return (
+            lindbladian, generators_list_real, vectorisation_map, vectors_real,
+            inv_vectors_real
+        )
 
     return lindbladian, generators_list, vectorisation_map
 
@@ -1946,8 +1959,81 @@ def generate_21(
     return lindbladian, generators_list, vectorisation_map
 
 
-# Legacy code start ===========================================================
+def real_eig(generator):
+    values, vectors = np.linalg.eig(generator)
 
+    vectors_complex = np.empty(
+        (vectors.shape[0], vectors.shape[1], 2), dtype=np.float64)
+    vectors_complex[:, :, 0] = np.real(vectors)
+    vectors_complex[:, :, 1] = np.imag(vectors)
+
+    vectors_list_real = []
+    values_list_real = []
+    vectors_list_real_single = []
+    vectors_list_real_double = []
+    values_list_real_single = []
+    values_list_real_double = []
+    rank_best = 0
+    for index in range(vectors.shape[1]):
+        vector_real = np.real(vectors[:, index])
+        vectors_list = [
+            *vectors_list_real, vector_real]
+        vectors_array = np.array(vectors_list).T
+        rank = np.linalg.matrix_rank(vectors_array)
+        if rank > rank_best:
+            rank_best = rank
+            vector_real /= math.sqrt(np.sum(vector_real**2))
+            vectors_list_real = vectors_list
+            values_list_real.append(np.real(values[index]))
+        else:
+            continue
+        vector_imag = np.imag(vectors[:, index])
+        vectors_list = [
+            *vectors_list_real, vector_imag]
+        vectors_array = np.array(vectors_list).T
+        rank = np.linalg.matrix_rank(vectors_array)
+        if rank > rank_best:
+            rank_best = rank
+            vector_imag /= math.sqrt(np.sum(vector_imag**2))
+            vectors_list_real = vectors_list
+            values_list_real.append(np.imag(values[index]))
+            vectors_list_real_double.append([vector_real, vector_imag])
+            values_list_real_double.append(
+                [np.real(values[index]), np.imag(values[index])])
+        else:
+            vectors_list_real_single.append(vector_real)
+            values_list_real_single.append(np.real(values[index]))
+
+    values_list_real_double, vectors_list_real_double = \
+        zip(*sorted(
+            zip(values_list_real_double, vectors_list_real_double),
+            key=(lambda x: -(x[0][0]**2 + x[0][1]**2))
+        ))
+    values_real_double = np.array(values_list_real_double)
+    vectors_list_real_double_new = []
+    for vector_double in vectors_list_real_double:
+        vectors_list_real_double_new += vector_double
+    vectors_list_real_double = vectors_list_real_double_new
+
+    values_list_real_single, vectors_list_real_single = \
+        zip(*sorted(
+            zip(values_list_real_single, vectors_list_real_single),
+            key=(lambda x: -abs(x[0]))
+        ))
+    values_real_single = np.array(values_list_real_single)
+
+    vectors_list_real = \
+        [*vectors_list_real_double, *vectors_list_real_single]
+    vectors_real = np.array(vectors_list_real).T
+    inv_vectors_real = np.linalg.inv(vectors_real)
+
+    return (
+        vectors_real, inv_vectors_real, values_real_double,
+        values_real_single
+    )
+
+
+# Legacy code start ===========================================================
 
 def _generate_valid_indices(valid_mask: np.ndarray = None):
     if valid_mask is None:
@@ -2141,80 +2227,10 @@ def main():
 
         generators_list = list(generators["generators"].values())
 
-        @logger.record(
-            ("vectors", "inv_vectors", "values_double", "values_single"))
-        def real_eig(generator):
-            values, vectors = np.linalg.eig(generator)
-
-            vectors_complex = np.empty(
-                (vectors.shape[0], vectors.shape[1], 2), dtype=np.float64)
-            vectors_complex[:, :, 0] = np.real(vectors)
-            vectors_complex[:, :, 1] = np.imag(vectors)
-
-            vectors_list_real = []
-            values_list_real = []
-            vectors_list_real_single = []
-            vectors_list_real_double = []
-            values_list_real_single = []
-            values_list_real_double = []
-            rank_best = 0
-            for index in range(vectors.shape[1]):
-                vector_real = np.real(vectors[:, index])
-                vectors_list = [
-                    *vectors_list_real, vector_real]
-                vectors_array = np.array(vectors_list).T
-                rank = np.linalg.matrix_rank(vectors_array)
-                if rank > rank_best:
-                    rank_best = rank
-                    vector_real /= math.sqrt(np.sum(vector_real**2))
-                    vectors_list_real = vectors_list
-                    values_list_real.append(np.real(values[index]))
-                else:
-                    continue
-                vector_imag = np.imag(vectors[:, index])
-                vectors_list = [
-                    *vectors_list_real, vector_imag]
-                vectors_array = np.array(vectors_list).T
-                rank = np.linalg.matrix_rank(vectors_array)
-                if rank > rank_best:
-                    rank_best = rank
-                    vector_imag /= math.sqrt(np.sum(vector_imag**2))
-                    vectors_list_real = vectors_list
-                    values_list_real.append(np.imag(values[index]))
-                    vectors_list_real_double.append([vector_real, vector_imag])
-                    values_list_real_double.append(
-                        [np.real(values[index]), np.imag(values[index])])
-                else:
-                    vectors_list_real_single.append(vector_real)
-                    values_list_real_single.append(np.real(values[index]))
-
-            values_list_real_double, vectors_list_real_double = \
-                zip(*sorted(
-                    zip(values_list_real_double, vectors_list_real_double),
-                    key=(lambda x: -(x[0][0]**2 + x[0][1]**2))
-                ))
-            values_real_double = np.array(values_list_real_double)
-            vectors_list_real_double_new = []
-            for vector_double in vectors_list_real_double:
-                vectors_list_real_double_new += vector_double
-            vectors_list_real_double = vectors_list_real_double_new
-
-            values_list_real_single, vectors_list_real_single = \
-                zip(*sorted(
-                    zip(values_list_real_single, vectors_list_real_single),
-                    key=(lambda x: -abs(x[0]))
-                ))
-            values_real_single = np.array(values_list_real_single)
-
-            vectors_list_real = \
-                [*vectors_list_real_double, *vectors_list_real_single]
-            vectors_real = np.array(vectors_list_real).T
-            inv_vectors_real = np.linalg.inv(vectors_real)
-
-            return (
-                vectors_real, inv_vectors_real, values_real_double,
-                values_real_single
-            )
+        eig = logger.record(
+            ("vectors", "inv_vectors", "values_double", "values_single"))(
+            real_eig
+        )
 
         @logger.record()
         def schur():
@@ -2295,7 +2311,7 @@ def main():
                 plt.draw()
 
         logger.set_context("real_diagonalisation")
-        vectors_real, inv_vectors_real, _, _ = real_eig(generators_list[0])
+        vectors_real, inv_vectors_real, _, _ = eig(generators_list[0])
         plot(vectors_real, inv_vectors_real, generators_list)
 
         plt.show()
