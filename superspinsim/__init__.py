@@ -31,7 +31,9 @@ def generate_simulator(
 
         use_rotating: bool = False,
         vectors_real: np.ndarray = None,
-        inv_vectors_real: np.ndarray = None
+        inv_vectors_real: np.ndarray = None,
+        doubles: np.ndarray = None,
+        singles: np.ndarray = None
         ):
 
     scaling_for_quartics: datatype = \
@@ -78,6 +80,13 @@ def generate_simulator(
     elif number_of_exponentials == 6:
         sample_quadrature = np.array(samples_dict["3_gl"], dtype=datatype)
         weights = np.array(weights_dict["6_6_gl"], dtype=datatype)
+
+    if use_rotating:
+        # Make a copy of the eigensystem
+        vectors_real = vectors_real.copy()
+        inv_vectors_real = inv_vectors_real.copy()
+        doubles = doubles.copy()
+        singles = singles.copy()
 
     # Time grid ---------------------------------------------------------------
 
@@ -748,6 +757,82 @@ def generate_simulator(
 
         # Time
         number_of_samples = int((time_end - time_start)/time_step)
+
+        # Rotating frame
+        time_sample_zero = sample_quadrature*time_step/number_of_fine_divisions
+        generators_rotating = np.empty(
+            (
+                time_sample_zero.size, generators.shape[0],
+                generators.shape[1], generators.shape[2]
+            ), dtype=datatype
+        )
+
+        singles_forward = \
+            np.empty((time_sample_zero.size, singles.size), dtype=datatype)
+        singles_backward = np.empty_like(singles_forward)
+        for index in range(time_sample_zero.size):
+            singles_forward[index, :] = np.exp(singles*time_sample_zero[index])
+            singles_backward[index, :] = \
+                np.exp(-singles*time_sample_zero[index])
+
+        doubles_forward = np.empty(
+            (time_sample_zero.size, doubles.shape[0], doubles.shape[1]),
+            dtype=datatype
+        )
+        doubles_backward = np.empty_like(doubles_forward)
+        for index in range(time_sample_zero.size):
+            attenuation = np.exp(doubles[:, 0]*time_sample_zero[index])
+            amplification = np.exp(doubles[:, 0]*time_sample_zero[index])
+            sine = np.sin(doubles[:, 1]*time_sample_zero[index])
+            cosine = np.cos(doubles[:, 1]*time_sample_zero[index])
+            doubles_forward[index, :, 0] = attenuation*cosine
+            doubles_forward[index, :, 1] = attenuation*sine
+            doubles_backward[index, :, 0] = amplification*cosine
+            doubles_backward[index, :, 1] = -amplification*sine
+
+        for sample_index in range(time_sample_zero.size):
+            generators_rotating[sample_index, :, :, :] = generators
+
+            for eigen_index in range(doubles.shape[0]):
+                temp_real = doubles_backward[sample_index, eigen_index, 0] \
+                    * generators_rotating[sample_index, :, 2*eigen_index, :] \
+                    - doubles_backward[sample_index, eigen_index, 1] \
+                    * generators_rotating[
+                        sample_index, :, 2*eigen_index + 1, :]
+                temp_imag = doubles_backward[sample_index, eigen_index, 1] \
+                    * generators_rotating[sample_index, :, 2*eigen_index, :] \
+                    + doubles_backward[sample_index, eigen_index, 0] \
+                    * generators_rotating[
+                        sample_index, :, 2*eigen_index + 1, :]
+                generators_rotating[sample_index, :, 2*eigen_index, :] = \
+                    temp_real
+                generators_rotating[sample_index, :, 2*eigen_index + 1, :] = \
+                    temp_imag
+
+            for eigen_index in range(singles.shape[0]):
+                generators_rotating[
+                    sample_index, :, 2*doubles.shape[0] + eigen_index, :] *= \
+                    singles_backward[sample_index, eigen_index]
+
+            for eigen_index in range(doubles.shape[0]):
+                temp_real = doubles_forward[sample_index, eigen_index, 0] \
+                    * generators_rotating[sample_index, :, :, 2*eigen_index] \
+                    + doubles_forward[sample_index, eigen_index, 1] \
+                    * generators_rotating[
+                        sample_index, :, :, 2*eigen_index + 1]
+                temp_imag = doubles_forward[sample_index, eigen_index, 1] \
+                    * generators_rotating[sample_index, :, :, 2*eigen_index] \
+                    - doubles_forward[sample_index, eigen_index, 0] \
+                    * generators_rotating[sample_index, :, :, 2*eigen_index + 1]
+                generators_rotating[sample_index, :, :, 2*eigen_index] = \
+                    temp_real
+                generators_rotating[sample_index, :, :, 2*eigen_index + 1] = \
+                    temp_imag
+
+            for eigen_index in range(singles.shape[0]):
+                generators_rotating[
+                    sample_index, :, :, 2*doubles.shape[0] + eigen_index] *= \
+                    singles_forward[sample_index, eigen_index]
 
         # Flatten density operator
         density_operator_initial_flat = \

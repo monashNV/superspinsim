@@ -129,7 +129,7 @@ def execute(excitation_amplitude):
         if use_rotating:
             print("Rotating frame")
             lindbladian, generators, vectorisation_map, vectors, \
-                inv_vectors = generate_7(
+                inv_vectors, doubles, singles = generate_7(
                     coefficients, quiescent_magnetic_field, use_rotating=True)
         else:
             print("Lab frame")
@@ -149,8 +149,9 @@ def execute(excitation_amplitude):
             lindbladian, np.array(generators), vectorisation_map,
             number_of_fine_divisions=number_of_divisions,
             number_of_exponentials=2,
+
             use_rotating=True, vectors_real=vectors,
-            inv_vectors_real=inv_vectors
+            inv_vectors_real=inv_vectors, doubles=doubles, singles=singles
         )
     else:
         simulator = s3.generate_simulator(

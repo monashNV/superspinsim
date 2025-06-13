@@ -1857,7 +1857,8 @@ def generate_7(
     generators_list = list(generators["generators"].values())
 
     if use_rotating:
-        vectors_real, inv_vectors_real, _, _ = real_eig(generators_list[0])
+        vectors_real, inv_vectors_real, doubles, singles = \
+            real_eig(generators_list[0])
 
         generators_list_real = [
             inv_vectors_real@generator@vectors_real
@@ -1866,7 +1867,7 @@ def generate_7(
 
         return (
             lindbladian, generators_list_real, vectorisation_map, vectors_real,
-            inv_vectors_real
+            inv_vectors_real, doubles, singles
         )
 
     return lindbladian, generators_list, vectorisation_map
