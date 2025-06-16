@@ -36,6 +36,11 @@ def generate_simulator(
         singles: np.ndarray = None
         ):
 
+    if use_cayley:
+        raise "Cayley not implemented"
+    if use_rotating and use_residual:
+        raise "Residual rotating not implemented"
+
     scaling_for_quartics: datatype = \
         4.0**number_of_quartic_repeats
 
@@ -88,7 +93,7 @@ def generate_simulator(
         doubles = doubles.copy()
         singles = singles.copy()
         doubles_size = doubles.shape[0]
-        singles_size = doubles.size
+        singles_size = singles.size
 
     # Time grid ---------------------------------------------------------------
 
@@ -547,8 +552,8 @@ def generate_simulator(
             out[2*y_index + 1, x_index] = scratch_imag
 
         def _apply_eig_single(inp, out, singles, y_index, x_index):
-            out[y_index + doubles_size, x_index] = \
-                singles[y_index]*inp[y_index + doubles_size, x_index]
+            out[y_index, x_index] = \
+                singles[y_index]*inp[y_index, x_index]
 
         if use_cuda:
             _apply_eig_double = nc.jit(_apply_eig_double, device=True)
@@ -568,7 +573,8 @@ def generate_simulator(
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
                 if x_index < operator_size and y_index < singles_size:
                     _apply_eig_single(
-                        inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                        inp[nc.blockIdx.x, 2*doubles_size:, :],
+                        out[nc.blockIdx.x, 2*doubles_size:, :],
                         singles, y_index, x_index
                     )
 
@@ -1065,19 +1071,19 @@ def generate_simulator(
                 scratch_device[:superoperators_device.shape[0], :, :]
             )
 
-            # if use_rotating:
-            #     # print(time_evolution_device.shape)
-            #     # print(
-            #     #     scratch_device[:superoperators_device.shape[0], :, :].shape
-            #     # )
-            #     # print(doubles_forward_device.shape)
-            #     # print(singles_forward_device.shape)
-            #     _apply_eig_run(
-            #         time_evolution_device,
-            #         scratch_device[:superoperators_device.shape[0], :, :],
-            #         doubles_forward_device,
-            #         singles_forward_device
-            #     )
+            if use_rotating:
+                # print(time_evolution_device.shape)
+                # print(
+                #     scratch_device[:superoperators_device.shape[0], :, :].shape
+                # )
+                # print(doubles_forward_device.shape)
+                # print(singles_forward_device.shape)
+                _apply_eig_run(
+                    time_evolution_device,
+                    scratch_device[:superoperators_device.shape[0], :, :],
+                    doubles_forward_device,
+                    singles_forward_device
+                )
 
         # Accumulate time evolution across all time steps
         _basic_combine_run(time_evolution_device, scratch_device[0, :, :])

@@ -152,8 +152,8 @@ def execute(excitation_amplitude):
             number_of_fine_divisions=number_of_divisions,
             number_of_exponentials=2,
 
-            # use_residual=False,
-            # number_of_quartic_repeats=10,
+            use_residual=False,
+            number_of_quartic_repeats=10,
 
             use_rotating=use_rotating, vectors_real=vectors,
             inv_vectors_real=inv_vectors, doubles=doubles, singles=singles
