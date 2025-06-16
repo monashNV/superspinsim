@@ -1809,8 +1809,8 @@ def generate_7(
         quiescent_magnetic_field: np.ndarray,
         use_rotating: bool = False):
 
-    # lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
-    lindbladian = _generate_lindbladian(coefficient_functions)
+    lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
+    # lindbladian = _generate_lindbladian(coefficient_functions)
 
     nv_ground = {
         "S": 1,
@@ -1869,7 +1869,7 @@ def generate_7(
         vectors_real, inv_vectors_real, doubles, singles = \
             real_eig(generators_list[0])
 
-        # generators_list = generators_list[1:]
+        generators_list = generators_list[1:]
 
         generators_list_real = [
             inv_vectors_real@generator@vectors_real

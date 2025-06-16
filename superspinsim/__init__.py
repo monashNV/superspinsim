@@ -856,9 +856,6 @@ def generate_simulator(
                     generators.shape[1], generators.shape[2]
                 ), dtype=datatype
             )
-            doubles[:, 0] = 0
-            doubles[:, 1] = 0
-            singles[:] = 0
 
             singles_forward = \
                 np.empty((time_sample_zero.size, singles.size), dtype=datatype)
