@@ -150,6 +150,9 @@ def execute(excitation_amplitude):
             number_of_fine_divisions=number_of_divisions,
             number_of_exponentials=2,
 
+            use_residual=False,
+            number_of_quartic_repeats=10,
+
             use_rotating=True, vectors_real=vectors,
             inv_vectors_real=inv_vectors, doubles=doubles, singles=singles
         )
@@ -227,20 +230,25 @@ def execute(excitation_amplitude):
         plt.ylabel("Fluorescence (%)")
         plt.draw()
 
-        plt.figure("states")
-        state_labels = [
-            "(g), +", "(g), 0", "(g), -",
-            "(e), +", "(e), 0", "(e), -", "(s)"]
-        for state_index in range(density.shape[1]):
-            plt.plot(
-                time/1e-6, 100*density[:, state_index, state_index, 0],
-                "-", color=cm.hawaii(0.999*state_index/density.shape[1]),
-                label=state_labels[state_index]
-            )
-        plt.xlabel("Time (us)")
-        plt.ylabel("Population (%)")
-        plt.legend()
-        plt.draw()
+        if not hyperfine:
+            plt.figure("states")
+            state_labels = [
+                "(g), +", "(g), 0", "(g), -",
+                "(e), +", "(e), 0", "(e), -", "(s)"]
+            state_lines = ["-"]*3 + ["--"]*3 + ["-"]
+            state_colours = \
+                [cm.hawaii(0/3), cm.hawaii(1/3), cm.hawaii(2/3)]*2 \
+                + [cm.hawaii(0.999)]
+            for state_index in range(density.shape[1]):
+                plt.plot(
+                    time/1e-6, 100*density[:, state_index, state_index, 0],
+                    state_lines[state_index], color=state_colours[state_index],
+                    label=state_labels[state_index]
+                )
+            plt.xlabel("Time (us)")
+            plt.ylabel("Population (%)")
+            plt.legend()
+            plt.draw()
         return time, fluorescense, density
 
     plot_odmr(fluorescense)

@@ -254,7 +254,9 @@ def generate_simulator(
             differential[y_index, x_index] /= 2*scaling_for_quartics
         else:
             differential[y_index, x_index] /= scaling_for_quartics
-
+            if not use_residual:
+                if y_index == x_index:
+                    differential[y_index, x_index] += 1.0
     if use_cuda:
         _scale_differential_basic = nc.jit(
             _scale_differential_basic, device=True)
