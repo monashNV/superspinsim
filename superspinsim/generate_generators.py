@@ -1780,18 +1780,26 @@ def _combine_superoperators(superoperator_dict: dict):
     return dissipator_dict
 
 
-def _generate_lindbladian(coefficient_functions: list[callable]):
+def _generate_lindbladian(
+        coefficient_functions: list[callable], use_rotating: bool = False):
     coefficient_x = nc.jit(device=True)(coefficient_functions[0])
     coefficient_y = nc.jit(device=True)(coefficient_functions[1])
     coefficient_z = nc.jit(device=True)(coefficient_functions[2])
     coefficient_r = nc.jit(device=True)(coefficient_functions[3])
 
-    def lindbladian(time, coefficient):
-        coefficient[0] = 1.0
-        coefficient[1] = coefficient_x(time)
-        coefficient[2] = coefficient_y(time)
-        coefficient[3] = coefficient_z(time)
-        coefficient[4] = coefficient_r(time)
+    if use_rotating:
+        def lindbladian(time, coefficient):
+            coefficient[0] = coefficient_x(time)
+            coefficient[1] = coefficient_y(time)
+            coefficient[2] = coefficient_z(time)
+            coefficient[3] = coefficient_r(time)
+    else:
+        def lindbladian(time, coefficient):
+            coefficient[0] = 1.0
+            coefficient[1] = coefficient_x(time)
+            coefficient[2] = coefficient_y(time)
+            coefficient[3] = coefficient_z(time)
+            coefficient[4] = coefficient_r(time)
 
     return lindbladian
 
@@ -1801,6 +1809,7 @@ def generate_7(
         quiescent_magnetic_field: np.ndarray,
         use_rotating: bool = False):
 
+    # lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
     lindbladian = _generate_lindbladian(coefficient_functions)
 
     nv_ground = {
@@ -1859,6 +1868,8 @@ def generate_7(
     if use_rotating:
         vectors_real, inv_vectors_real, doubles, singles = \
             real_eig(generators_list[0])
+
+        # generators_list = generators_list[1:]
 
         generators_list_real = [
             inv_vectors_real@generator@vectors_real

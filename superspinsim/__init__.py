@@ -87,6 +87,8 @@ def generate_simulator(
         inv_vectors_real = inv_vectors_real.copy()
         doubles = doubles.copy()
         singles = singles.copy()
+        doubles_size = doubles.shape[0]
+        singles_size = doubles.size
 
     # Time grid ---------------------------------------------------------------
 
@@ -226,15 +228,30 @@ def generate_simulator(
     if use_cuda:
         _calculate_differential = nc.jit(_calculate_differential, device=True)
 
-        def _calculate_differential_kernel(
-                time_step, generator, coefficient, differential):
-            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
-            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            if x_index < operator_size and y_index < operator_size:
-                _calculate_differential(
-                    time_step, generator, coefficient[nc.blockIdx.x, :],
-                    differential[nc.blockIdx.x, :, :], y_index, x_index
-                )
+        if use_rotating:
+            def _calculate_differential_kernel(
+                    time_step, generator, coefficient, differential):
+                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                if x_index < operator_size and y_index < operator_size:
+                    _calculate_differential(
+                        time_step,
+                        generator[
+                            nc.blockIdx.x % number_of_exponentials, :, :, :
+                        ],
+                        coefficient[nc.blockIdx.x, :],
+                        differential[nc.blockIdx.x, :, :], y_index, x_index
+                    )
+        else:
+            def _calculate_differential_kernel(
+                    time_step, generator, coefficient, differential):
+                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                if x_index < operator_size and y_index < operator_size:
+                    _calculate_differential(
+                        time_step, generator, coefficient[nc.blockIdx.x, :],
+                        differential[nc.blockIdx.x, :, :], y_index, x_index
+                    )
 
         _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
 
@@ -516,6 +533,66 @@ def generate_simulator(
                 _square_superoperator_kernel[grid_size, block_size](
                         scratch, superoperators)
 
+    # Rotating frame ----------------------------------------------------------
+
+    if use_rotating:
+        def _apply_eig_double(inp, out, doubles, y_index, x_index):
+            scratch_real: datatype = \
+                doubles[y_index, 0]*inp[2*y_index, x_index] \
+                - doubles[y_index, 1]*inp[2*y_index + 1, x_index]
+            scratch_imag: datatype = \
+                doubles[y_index, 1]*inp[2*y_index, x_index] \
+                + doubles[y_index, 0]*inp[2*y_index + 1, x_index]
+            out[2*y_index, x_index] = scratch_real
+            out[2*y_index + 1, x_index] = scratch_imag
+
+        def _apply_eig_single(inp, out, singles, y_index, x_index):
+            out[y_index + doubles_size, x_index] = \
+                singles[y_index]*inp[y_index + doubles_size, x_index]
+
+        if use_cuda:
+            _apply_eig_double = nc.jit(_apply_eig_double, device=True)
+            _apply_eig_single = nc.jit(_apply_eig_single, device=True)
+
+            def _apply_eig_double_kernel(inp, out, doubles):
+                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                if x_index < operator_size and y_index < doubles_size:
+                    _apply_eig_double(
+                        inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                        doubles, y_index, x_index
+                    )
+
+            def _apply_eig_single_kernel(inp, out, singles):
+                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                if x_index < operator_size and y_index < singles_size:
+                    _apply_eig_single(
+                        inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                        singles, y_index, x_index
+                    )
+
+            _apply_eig_double_kernel = nc.jit(_apply_eig_double_kernel)
+            _apply_eig_single_kernel = nc.jit(_apply_eig_single_kernel)
+
+        def _apply_eig_run(superoperators, scratch, doubles, singles):
+            if use_cuda:
+                grid_size = (
+                    superoperators.shape[0], number_of_submatrices,
+                    number_of_submatrices
+                )
+                block_size = (submatrix_size, submatrix_size)
+
+                _apply_eig_double_kernel[grid_size, block_size](
+                    superoperators, scratch, doubles
+                )
+                _apply_eig_single_kernel[grid_size, block_size](
+                    superoperators, scratch, singles
+                )
+                _copy_superoperator_quadrature_kernel[grid_size, block_size](
+                    scratch, superoperators
+                )
+
     # Combine samples at different quadrature nodes ---------------------------
 
     if use_cuda:
@@ -761,80 +838,96 @@ def generate_simulator(
         number_of_samples = int((time_end - time_start)/time_step)
 
         # Rotating frame
-        time_sample_zero = sample_quadrature*time_step/number_of_fine_divisions
-        generators_rotating = np.empty(
-            (
-                time_sample_zero.size, generators.shape[0],
-                generators.shape[1], generators.shape[2]
-            ), dtype=datatype
-        )
+        if use_rotating:
+            time_sample_zero = np.empty(
+                (sample_quadrature.size + 1), dtype=datatype)
+            time_sample_zero[:-1] = \
+                sample_quadrature*time_step/number_of_fine_divisions
+            time_sample_zero[-1] = time_step/number_of_fine_divisions
+            generators_rotating = np.empty(
+                (
+                    time_sample_zero.size - 1, generators.shape[0],
+                    generators.shape[1], generators.shape[2]
+                ), dtype=datatype
+            )
+            doubles[:, 0] = 0
+            doubles[:, 1] = 0
+            singles[:] = 0
 
-        singles_forward = \
-            np.empty((time_sample_zero.size, singles.size), dtype=datatype)
-        singles_backward = np.empty_like(singles_forward)
-        for index in range(time_sample_zero.size):
-            singles_forward[index, :] = np.exp(singles*time_sample_zero[index])
-            singles_backward[index, :] = \
-                np.exp(-singles*time_sample_zero[index])
+            singles_forward = \
+                np.empty((time_sample_zero.size, singles.size), dtype=datatype)
+            singles_backward = np.empty_like(singles_forward)
+            for index in range(time_sample_zero.size):
+                singles_forward[index, :] = \
+                    np.exp(singles*time_sample_zero[index])
+                singles_backward[index, :] = \
+                    np.exp(-singles*time_sample_zero[index])
 
-        doubles_forward = np.empty(
-            (time_sample_zero.size, doubles.shape[0], doubles.shape[1]),
-            dtype=datatype
-        )
-        doubles_backward = np.empty_like(doubles_forward)
-        for index in range(time_sample_zero.size):
-            attenuation = np.exp(doubles[:, 0]*time_sample_zero[index])
-            amplification = np.exp(doubles[:, 0]*time_sample_zero[index])
-            sine = np.sin(doubles[:, 1]*time_sample_zero[index])
-            cosine = np.cos(doubles[:, 1]*time_sample_zero[index])
-            doubles_forward[index, :, 0] = attenuation*cosine
-            doubles_forward[index, :, 1] = attenuation*sine
-            doubles_backward[index, :, 0] = amplification*cosine
-            doubles_backward[index, :, 1] = -amplification*sine
+            doubles_forward = np.empty(
+                (time_sample_zero.size, doubles.shape[0], doubles.shape[1]),
+                dtype=datatype
+            )
+            doubles_backward = np.empty_like(doubles_forward)
+            for index in range(time_sample_zero.size):
+                attenuation = np.exp(doubles[:, 0]*time_sample_zero[index])
+                amplification = np.exp(-doubles[:, 0]*time_sample_zero[index])
+                sine = np.sin(doubles[:, 1]*time_sample_zero[index])
+                cosine = np.cos(doubles[:, 1]*time_sample_zero[index])
+                doubles_forward[index, :, 0] = attenuation*cosine
+                doubles_forward[index, :, 1] = attenuation*sine
+                doubles_backward[index, :, 0] = amplification*cosine
+                doubles_backward[index, :, 1] = -amplification*sine
 
-        for sample_index in range(time_sample_zero.size):
-            generators_rotating[sample_index, :, :, :] = generators
+            for sample_index in range(time_sample_zero.size - 1):
+                generators_rotating[sample_index, :, :, :] = generators
 
-            for eigen_index in range(doubles.shape[0]):
-                temp_real = doubles_backward[sample_index, eigen_index, 0] \
-                    * generators_rotating[sample_index, :, 2*eigen_index, :] \
-                    - doubles_backward[sample_index, eigen_index, 1] \
-                    * generators_rotating[
-                        sample_index, :, 2*eigen_index + 1, :]
-                temp_imag = doubles_backward[sample_index, eigen_index, 1] \
-                    * generators_rotating[sample_index, :, 2*eigen_index, :] \
-                    + doubles_backward[sample_index, eigen_index, 0] \
-                    * generators_rotating[
-                        sample_index, :, 2*eigen_index + 1, :]
-                generators_rotating[sample_index, :, 2*eigen_index, :] = \
-                    temp_real
-                generators_rotating[sample_index, :, 2*eigen_index + 1, :] = \
-                    temp_imag
+                for eigen_index in range(doubles.shape[0]):
+                    temp_real = \
+                        doubles_backward[sample_index, eigen_index, 0] \
+                        * generators_rotating[
+                            sample_index, :, 2*eigen_index, :] \
+                        - doubles_backward[sample_index, eigen_index, 1] \
+                        * generators_rotating[
+                            sample_index, :, 2*eigen_index + 1, :]
+                    temp_imag = \
+                        doubles_backward[sample_index, eigen_index, 1] \
+                        * generators_rotating[
+                            sample_index, :, 2*eigen_index, :] \
+                        + doubles_backward[sample_index, eigen_index, 0] \
+                        * generators_rotating[
+                            sample_index, :, 2*eigen_index + 1, :]
+                    generators_rotating[sample_index, :, 2*eigen_index, :] = \
+                        temp_real
+                    generators_rotating[
+                        sample_index, :, 2*eigen_index + 1, :] = temp_imag
 
-            for eigen_index in range(singles.shape[0]):
-                generators_rotating[
-                    sample_index, :, 2*doubles.shape[0] + eigen_index, :] *= \
-                    singles_backward[sample_index, eigen_index]
+                for eigen_index in range(singles.shape[0]):
+                    generators_rotating[
+                        sample_index, :, 2*doubles.shape[0] + eigen_index, :
+                    ] *= singles_backward[sample_index, eigen_index]
 
-            for eigen_index in range(doubles.shape[0]):
-                temp_real = doubles_forward[sample_index, eigen_index, 0] \
-                    * generators_rotating[sample_index, :, :, 2*eigen_index] \
-                    + doubles_forward[sample_index, eigen_index, 1] \
-                    * generators_rotating[
-                        sample_index, :, :, 2*eigen_index + 1]
-                temp_imag = doubles_forward[sample_index, eigen_index, 1] \
-                    * generators_rotating[sample_index, :, :, 2*eigen_index] \
-                    - doubles_forward[sample_index, eigen_index, 0] \
-                    * generators_rotating[sample_index, :, :, 2*eigen_index + 1]
-                generators_rotating[sample_index, :, :, 2*eigen_index] = \
-                    temp_real
-                generators_rotating[sample_index, :, :, 2*eigen_index + 1] = \
-                    temp_imag
+                for eigen_index in range(doubles.shape[0]):
+                    temp_real = doubles_forward[sample_index, eigen_index, 0] \
+                        * generators_rotating[
+                            sample_index, :, :, 2*eigen_index] \
+                        + doubles_forward[sample_index, eigen_index, 1] \
+                        * generators_rotating[
+                            sample_index, :, :, 2*eigen_index + 1]
+                    temp_imag = doubles_forward[sample_index, eigen_index, 1] \
+                        * generators_rotating[
+                            sample_index, :, :, 2*eigen_index] \
+                        - doubles_forward[sample_index, eigen_index, 0] \
+                        * generators_rotating[
+                            sample_index, :, :, 2*eigen_index + 1]
+                    generators_rotating[sample_index, :, :, 2*eigen_index] = \
+                        temp_real
+                    generators_rotating[
+                        sample_index, :, :, 2*eigen_index + 1] = -temp_imag
 
-            for eigen_index in range(singles.shape[0]):
-                generators_rotating[
-                    sample_index, :, :, 2*doubles.shape[0] + eigen_index] *= \
-                    singles_forward[sample_index, eigen_index]
+                for eigen_index in range(singles.shape[0]):
+                    generators_rotating[
+                        sample_index, :, :, 2*doubles.shape[0] + eigen_index
+                    ] *= singles_forward[sample_index, eigen_index]
 
         # Flatten density operator
         density_operator_initial_flat = \
@@ -879,7 +972,21 @@ def generate_simulator(
             )
 
             # Basis for the Lindbladian
-            generators_device = nc.to_device(generators)
+            print(generators.shape)
+            if use_rotating:
+                print(doubles)
+                print(singles)
+                print(doubles*time_step/number_of_fine_divisions)
+                print(singles*time_step/number_of_fine_divisions)
+                doubles_forward_device = nc.to_device(
+                    doubles_forward[-1, :, :])
+                print(doubles_forward[-1, :, :])
+                singles_forward_device = nc.to_device(
+                    singles_forward[-1, :])
+                print(singles_forward[-1, :])
+                generators_device = nc.to_device(generators_rotating)
+            else:
+                generators_device = nc.to_device(generators)
 
             # Storage for individual exponentials of the commutator-free
             # integrator
@@ -957,6 +1064,20 @@ def generate_simulator(
                 superoperators_device, time_evolution_device,
                 scratch_device[:superoperators_device.shape[0], :, :]
             )
+
+            # if use_rotating:
+            #     # print(time_evolution_device.shape)
+            #     # print(
+            #     #     scratch_device[:superoperators_device.shape[0], :, :].shape
+            #     # )
+            #     # print(doubles_forward_device.shape)
+            #     # print(singles_forward_device.shape)
+            #     _apply_eig_run(
+            #         time_evolution_device,
+            #         scratch_device[:superoperators_device.shape[0], :, :],
+            #         doubles_forward_device,
+            #         singles_forward_device
+            #     )
 
         # Accumulate time evolution across all time steps
         _basic_combine_run(time_evolution_device, scratch_device[0, :, :])

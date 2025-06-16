@@ -137,10 +137,12 @@ def execute(excitation_amplitude):
                 coefficients, quiescent_magnetic_field)
 
     fine_step = 1e-9
+    # fine_step = 100e-12
     if hyperfine:
         coarse_step = 10e-9
     else:
         coarse_step = 2e-9
+        # coarse_step = 200e-12
     number_of_divisions = int(round(coarse_step/fine_step))
     coarse_step = number_of_divisions*fine_step
 
@@ -150,17 +152,20 @@ def execute(excitation_amplitude):
             number_of_fine_divisions=number_of_divisions,
             number_of_exponentials=2,
 
-            use_residual=False,
-            number_of_quartic_repeats=10,
+            # use_residual=False,
+            # number_of_quartic_repeats=10,
 
-            use_rotating=True, vectors_real=vectors,
+            use_rotating=use_rotating, vectors_real=vectors,
             inv_vectors_real=inv_vectors, doubles=doubles, singles=singles
         )
     else:
         simulator = s3.generate_simulator(
             lindbladian, np.array(generators), vectorisation_map,
             number_of_fine_divisions=number_of_divisions,
-            number_of_exponentials=2
+            number_of_exponentials=2,
+
+            use_residual=False,
+            number_of_quartic_repeats=10,
         )
     if hyperfine:
         density_operator_initial = np.zeros((21, 21, 2))
