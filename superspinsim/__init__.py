@@ -848,7 +848,7 @@ def generate_simulator(
             time_sample_zero = np.empty(
                 (sample_quadrature.size + 1), dtype=datatype)
             time_sample_zero[:-1] = \
-                sample_quadrature*time_step/number_of_fine_divisions
+                (0.5 - sample_quadrature)*time_step/number_of_fine_divisions
             time_sample_zero[-1] = time_step/number_of_fine_divisions
             generators_rotating = np.empty(
                 (

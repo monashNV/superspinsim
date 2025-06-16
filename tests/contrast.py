@@ -76,7 +76,7 @@ def main():
 
 def execute(excitation_amplitude):
     hyperfine = False
-    use_rotating = False
+    use_rotating = True
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
     duration_mw = 1/(2*10e6)
@@ -136,12 +136,11 @@ def execute(excitation_amplitude):
             lindbladian, generators, vectorisation_map = generate_7(
                 coefficients, quiescent_magnetic_field)
 
-    # fine_step = 1e-9
-    fine_step = 100e-12
+    fine_step = 2e-9
     if hyperfine:
         coarse_step = 10e-9
     else:
-        coarse_step = 2e-9
+        coarse_step = 10e-9
         # coarse_step = 200e-12
     number_of_divisions = int(round(coarse_step/fine_step))
     coarse_step = number_of_divisions*fine_step
@@ -164,8 +163,8 @@ def execute(excitation_amplitude):
             number_of_fine_divisions=number_of_divisions,
             number_of_exponentials=2,
 
-            # use_residual=False,
-            # number_of_quartic_repeats=20,
+            use_residual=False,
+            number_of_quartic_repeats=10,
         )
     if hyperfine:
         density_operator_initial = np.zeros((21, 21, 2))
