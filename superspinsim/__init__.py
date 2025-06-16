@@ -38,8 +38,8 @@ def generate_simulator(
 
     if use_cayley:
         raise "Cayley not implemented"
-    if use_rotating and use_residual:
-        raise "Residual rotating not implemented"
+    # if use_rotating and use_residual:
+    #     raise "Residual rotating not implemented"
 
     scaling_for_quartics: datatype = \
         4.0**number_of_quartic_repeats
@@ -542,18 +542,43 @@ def generate_simulator(
 
     if use_rotating:
         def _apply_eig_double(inp, out, doubles, y_index, x_index):
-            scratch_real: datatype = \
-                doubles[y_index, 0]*inp[2*y_index, x_index] \
-                - doubles[y_index, 1]*inp[2*y_index + 1, x_index]
-            scratch_imag: datatype = \
-                doubles[y_index, 1]*inp[2*y_index, x_index] \
-                + doubles[y_index, 0]*inp[2*y_index + 1, x_index]
+            if use_residual:
+                scratch_real: datatype = \
+                    (1 + doubles[y_index, 0])*inp[2*y_index, x_index] \
+                    - doubles[y_index, 1]*inp[2*y_index + 1, x_index]
+
+                scratch_imag: datatype = \
+                    doubles[y_index, 1]*inp[2*y_index, x_index] \
+                    + (1 + doubles[y_index, 0])*inp[2*y_index + 1, x_index]
+
+                if x_index == 2*y_index:
+                    scratch_real += doubles[y_index, 0]
+                    scratch_imag += doubles[y_index, 1]
+                if x_index == 2*y_index + 1:
+                    scratch_real -= doubles[y_index, 1]
+                    scratch_imag += doubles[y_index, 0]
+
+            else:
+                scratch_real: datatype = \
+                    doubles[y_index, 0]*inp[2*y_index, x_index] \
+                    - doubles[y_index, 1]*inp[2*y_index + 1, x_index]
+                scratch_imag: datatype = \
+                    doubles[y_index, 1]*inp[2*y_index, x_index] \
+                    + doubles[y_index, 0]*inp[2*y_index + 1, x_index]
+
             out[2*y_index, x_index] = scratch_real
             out[2*y_index + 1, x_index] = scratch_imag
 
         def _apply_eig_single(inp, out, singles, y_index, x_index):
-            out[y_index, x_index] = \
-                singles[y_index]*inp[y_index, x_index]
+            if use_residual:
+                scratch: datatype = \
+                    (1 + singles[y_index])*inp[y_index, x_index]
+                if y_index + 2*doubles_size == x_index:
+                    scratch += singles[y_index]
+            else:
+                scratch = singles[y_index]*inp[y_index, x_index]
+
+            out[y_index, x_index] = scratch
 
         if use_cuda:
             _apply_eig_double = nc.jit(_apply_eig_double, device=True)
@@ -880,6 +905,10 @@ def generate_simulator(
                 doubles_forward[index, :, 1] = attenuation*sine
                 doubles_backward[index, :, 0] = amplification*cosine
                 doubles_backward[index, :, 1] = -amplification*sine
+
+            if use_residual:
+                doubles_forward[-1, :, 0] -= 1
+                singles_forward[-1, :] -= 1
 
             for sample_index in range(time_sample_zero.size - 1):
                 generators_rotating[sample_index, :, :, :] = generators
