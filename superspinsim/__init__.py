@@ -885,7 +885,7 @@ def generate_simulator(
             singles_forward = \
                 np.empty((time_sample_zero.size, singles.size), dtype=datatype)
             singles_backward = np.empty_like(singles_forward)
-            for index in range(time_sample_zero.size):
+            for index in range(time_sample_zero.size - use_residual):
                 singles_forward[index, :] = \
                     np.exp(singles*time_sample_zero[index])
                 singles_backward[index, :] = \
@@ -896,7 +896,7 @@ def generate_simulator(
                 dtype=datatype
             )
             doubles_backward = np.empty_like(doubles_forward)
-            for index in range(time_sample_zero.size):
+            for index in range(time_sample_zero.size - use_residual):
                 attenuation = np.exp(doubles[:, 0]*time_sample_zero[index])
                 amplification = np.exp(-doubles[:, 0]*time_sample_zero[index])
                 sine = np.sin(doubles[:, 1]*time_sample_zero[index])
@@ -907,8 +907,13 @@ def generate_simulator(
                 doubles_backward[index, :, 1] = -amplification*sine
 
             if use_residual:
-                doubles_forward[-1, :, 0] -= 1
-                singles_forward[-1, :] -= 1
+                singles_forward[-1, :] = \
+                    np.expm1(singles*time_sample_zero[-1])
+                sin2 = -2*(np.sin(doubles[:, 1]*time_sample_zero[-1]/2)**2)
+                sin1 = np.sin(doubles[:, 1]*time_sample_zero[-1])
+                expmr = np.expm1(doubles[:, 0]*time_sample_zero[-1])
+                doubles_forward[-1, :, 0] = (1 + expmr)*sin2 + expmr
+                doubles_forward[-1, :, 1] = (1 + expmr)*sin1
 
             for sample_index in range(time_sample_zero.size - 1):
                 generators_rotating[sample_index, :, :, :] = generators
