@@ -2,18 +2,27 @@ import math
 import numpy as np
 
 
-def colour_complex_matrix(inp):
+def colour_complex_matrix(inp: np.ndarray):
     out = np.zeros(
         (inp.shape[0], inp.shape[1], 3),
-        dtype=inp.dtype
+        dtype=np.float64
     )
     if len(inp.shape) == 2:
-        new_inp = np.zeros(
-            (inp.shape[0], inp.shape[1], 2),
-            dtype=inp.dtype
-        )
-        new_inp[:, :, 0] = inp
+        if np.iscomplexobj(inp):
+            new_inp = np.zeros(
+                (inp.shape[0], inp.shape[1], 2),
+                dtype=np.float64
+            )
+            new_inp[:, :, 0] = inp.real
+            new_inp[:, :, 1] = inp.imag
+        else:
+            new_inp = np.zeros(
+                (inp.shape[0], inp.shape[1], 2),
+                dtype=inp.dtype
+            )
+            new_inp[:, :, 0] = inp
         inp = new_inp
+
     out[:, :, 0] += (2/math.sqrt(6))*inp[:, :, 0]
     out[:, :, 1] += (-1/math.sqrt(6))*inp[:, :, 0] \
         + (1/math.sqrt(2))*inp[:, :, 1]

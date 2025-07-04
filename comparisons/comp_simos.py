@@ -2,6 +2,8 @@ def main():
     import numpy as np
     import simos
     from superspinsim.nv.lindbladians import contrast
+    from superspinsim.util import colour_complex_matrix
+    from matplotlib import pyplot as plt
 
     simos_method = "numpy"
 
@@ -70,17 +72,20 @@ def main():
 
     density = simos.prop(
         H0=hamiltonian,
-        # H1=[hamiltonian_1],
-        # carr1=[np.array([1, 1, 1])],
+        H1=[hamiltonian_1],
+        carr1=[np.array([0, 1, 0])],
         dt=time_step,
-        rho=density_initial,
+        # rho=density_initial,
 
         # hamiltonian,
         # time_step,
         # density_initial,
-        c_ops=[hamiltonian/1e3],
+        # c_ops=[hamiltonian/1e3],
         # c_ops2=[hamiltonian/1e3],
         # carr2=[np.array([1, 1, 1])],
         # engine="parament"
     )
-    print(density)
+
+    plt.figure(label="simos")
+    plt.imshow(colour_complex_matrix(density/np.max(np.abs(density))))
+    plt.show()
