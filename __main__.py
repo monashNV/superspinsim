@@ -10,6 +10,7 @@ if __name__ == "__main__":
 
     from pogger import Pogger
     with Pogger("superspinsim-comparisons") as logger:
+        logger.set_context("qutip")
         main = logger.record([])(main)
         main()
     plt.show()

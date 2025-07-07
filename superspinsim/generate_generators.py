@@ -1,5 +1,5 @@
 import numpy as np
-import scipy.linalg as spl
+# import scipy.linalg as spl
 import math
 import copy
 
@@ -1806,11 +1806,14 @@ def _generate_lindbladian(
 
 def generate_7(
         coefficient_functions: list[callable],
-        quiescent_magnetic_field: np.ndarray,
-        use_rotating: bool = False):
+        quiescent_magnetic_field: np.ndarray = None,
+        use_rotating: bool = False,
+        return_full:bool = False):
 
     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
-    # lindbladian = _generate_lindbladian(coefficient_functions)
+
+    if quiescent_magnetic_field is None:
+        quiescent_magnetic_field = np.zeros(3)
 
     nv_ground = {
         "S": 1,
@@ -1876,11 +1879,18 @@ def generate_7(
             for generator in generators_list
         ]
 
+        if return_full:
+            return (
+                lindbladian, generators_list_real, vectorisation_map,
+                vectors_real, inv_vectors_real, doubles, singles, generators
+            )
         return (
             lindbladian, generators_list_real, vectorisation_map, vectors_real,
             inv_vectors_real, doubles, singles
         )
 
+    if return_full:
+        return lindbladian, generators_list, vectorisation_map, generators
     return lindbladian, generators_list, vectorisation_map
 
 
