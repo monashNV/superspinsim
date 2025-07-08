@@ -1,5 +1,7 @@
+import math
 import numpy as np
 from matplotlib import pyplot as plt
+from cmcrameri import cm
 from pogger import Read
 
 
@@ -9,7 +11,7 @@ def error_function(left: np.ndarray, right: np.ndarray):
 
 
 def weight_function(error):
-    return (1/error**6)
+    return (1/error**20)
 
 
 def main():
@@ -70,5 +72,58 @@ def main():
     plt.loglog(wall_durations, errors_centre, "k.-")
     plt.xlabel("Time spent simulating (s)")
     plt.ylabel("Error from centre")
+    plt.gca().spines[["top", "right"]].set_visible(False)
+    plt.draw()
+
+    centre_real = np.empty(
+        (centre.shape[0], centre.shape[1], centre.shape[2], 2))
+    centre_real[:, :, :, 0] = centre.real
+    centre_real[:, :, :, 1] = centre.imag
+    centre_flat = centre_real.flatten()
+
+    densities_flat = []
+    for density in densities:
+        density_real = np.empty(
+            (density.shape[0], density.shape[1], density.shape[2], 2))
+        density_real[:, :, :, 0] = density.real
+        density_real[:, :, :, 1] = density.imag
+        density_flat = density_real.flatten()
+        density_flat -= centre_flat
+        densities_flat.append(density_flat)
+    densities_flat = np.array(densities_flat)
+
+    densities_flat = densities_flat[:, ::1000]
+
+    pca_covariance = densities_flat.T@densities_flat
+    pca_vals, pca_vecs = np.linalg.eigh(pca_covariance)
+    densities_pca = pca_vecs[-2:, :]@densities_flat.T
+    densities_pca = densities_pca.T
+
+    densities_pca_scale = np.empty_like(densities_pca)
+    for index, (density_pca, error) in \
+            enumerate(zip(densities_pca, errors_centre)):
+        norm = math.sqrt(density_pca[0]**2 + density_pca[1]**2)
+        densities_pca_scale[index, :] = density_pca*error/norm
+
+    densities_pca = densities_pca_scale
+
+    plt.figure(label="pca")
+    # plt.plot(densities_pca[:, 0], densities_pca[:, 1], "k-")
+    for index, density_pca in enumerate(densities_pca):
+        if index < densities_pca.shape[0] - 1:
+            plt.plot(
+                [density_pca[0], densities_pca[index + 1, 0]],
+                [density_pca[1], densities_pca[index + 1, 1]], "-",
+                color=cm.batlow(index/densities_pca.shape[0])
+            )
+        plt.plot(
+            [density_pca[0]], [density_pca[1]], ".",
+            color=cm.batlow(index/densities_pca.shape[0])
+        )
+    plt.plot([0], [0], "xr")
+    plt.xlim([-np.max(errors_centre), np.max(errors_centre)])
+    plt.ylim([-np.max(errors_centre), np.max(errors_centre)])
+    plt.xlabel("PCA direction 1 from centre")
+    plt.ylabel("PCA direction 2 from centre")
     plt.gca().spines[["top", "right"]].set_visible(False)
     plt.draw()
