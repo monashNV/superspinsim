@@ -1,20 +1,26 @@
 if __name__ == "__main__":
     from matplotlib import pyplot as plt
+    from pogger import Pogger
 
     # from tests.odmr import main
     # from tests.contrast import main
     # from superspinsim.generate_generators import main
 
     # from comparisons.comp_simos import main
-    from comparisons.comp_qutip import main
+    # from comparisons.comp_qutip import main
+    # with Pogger("superspinsim-comparisons") as logger:
+    #     logger.set_context("qutip")
+    #     main = logger.record(
+    #         ["time_step", "density", "wall_duration", "error"],
+    #         ["s", None, "s", None])(main)
+    #     main()
 
-    from pogger import Pogger
+    from comparisons.compilation import main
     with Pogger("superspinsim-comparisons") as logger:
         logger.set_context("qutip")
-        main = logger.record(
-            ["time_step", "density", "wall_duration", "error"],
-            ["s", None, "s", None])(main)
+        main = logger.record()(main)
         main()
+
     plt.show()
 
     # from superspinsim.params import write_values
