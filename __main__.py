@@ -11,7 +11,9 @@ if __name__ == "__main__":
     from pogger import Pogger
     with Pogger("superspinsim-comparisons") as logger:
         logger.set_context("qutip")
-        main = logger.record([])(main)
+        main = logger.record(
+            ["time_step", "density", "wall_duration", "error"],
+            ["s", None, "s", None])(main)
         main()
     plt.show()
 
