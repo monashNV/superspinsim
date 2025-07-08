@@ -11,7 +11,27 @@ def error_function(left: np.ndarray, right: np.ndarray):
 
 
 def weight_function(error):
-    return (1/error**20)
+    return (1/error**12)
+
+
+def _circular_log(density_pca, smallest_error=-16):
+    norm = math.sqrt(density_pca[0]**2 + density_pca[1]**2)
+    error = np.log10(norm)
+    print(error)
+    error -= smallest_error
+    error = max(0, error)
+    return density_pca*error/norm
+
+
+def circular_log(density_pca, smallest_error=-14):
+    print(density_pca.shape)
+    if len(density_pca.shape) == 1:
+        return _circular_log(density_pca)
+    else:
+        density_cl = np.empty_like(density_pca)
+        for index, density in enumerate(density_pca):
+            density_cl[index, :] = _circular_log(density, smallest_error)
+        return density_cl
 
 
 def main():
@@ -92,7 +112,7 @@ def main():
         densities_flat.append(density_flat)
     densities_flat = np.array(densities_flat)
 
-    densities_flat = densities_flat[:, ::1000]
+    densities_flat = densities_flat[:, ::100]
 
     pca_covariance = densities_flat.T@densities_flat
     pca_vals, pca_vecs = np.linalg.eigh(pca_covariance)
@@ -106,9 +126,24 @@ def main():
         densities_pca_scale[index, :] = density_pca*error/norm
 
     densities_pca = densities_pca_scale
+    smallest_error = -15
+    largest_error = -6
+    densities_pca = circular_log(densities_pca, smallest_error)
 
     plt.figure(label="pca")
+    plt.rcParams['text.usetex'] = True
     # plt.plot(densities_pca[:, 0], densities_pca[:, 1], "k-")
+    angle = np.linspace(0, math.tau)
+    circle_x = np.cos(angle)
+    circle_y = np.sin(angle)
+    for radius in range(0, largest_error - smallest_error + 3, 3):
+        plt.text(
+            0, radius, r"$10^{" + f"{radius + smallest_error}" + r"}$",
+            alpha=0.5, va="bottom"
+        )
+        plt.plot(radius*circle_x, radius*circle_y, "k-", alpha=0.5)
+    plt.plot([0], [0], "kx")
+
     for index, density_pca in enumerate(densities_pca):
         if index < densities_pca.shape[0] - 1:
             plt.plot(
@@ -120,10 +155,11 @@ def main():
             [density_pca[0]], [density_pca[1]], ".",
             color=cm.batlow(index/densities_pca.shape[0])
         )
-    plt.plot([0], [0], "xr")
-    plt.xlim([-np.max(errors_centre), np.max(errors_centre)])
-    plt.ylim([-np.max(errors_centre), np.max(errors_centre)])
+    # plt.plot([0], [0], "xr")
+    # plt.xlim([-np.max(errors_centre), np.max(errors_centre)])
+    # plt.ylim([-np.max(errors_centre), np.max(errors_centre)])
     plt.xlabel("PCA direction 1 from centre")
     plt.ylabel("PCA direction 2 from centre")
-    plt.gca().spines[["top", "right"]].set_visible(False)
+    # plt.gca().spines[["top", "right"]].set_visible(False)
+    plt.axis("off")
     plt.draw()
