@@ -11,7 +11,7 @@ def error_function(left: np.ndarray, right: np.ndarray):
 
 
 def weight_function(error):
-    return (1/error**32)
+    return (1/error**24)
 
 
 def weight_function_pca(error):
@@ -160,22 +160,57 @@ def main():
         densities_pca_scale[index, :] = density_pca*error/norm
 
     densities_pca = densities_pca_scale
-    smallest_error = -16
+    smallest_error = -17
     largest_error = -4
     densities_pca = circular_log(densities_pca, smallest_error)
 
     plt.figure(label="pca")
     plt.rcParams['text.usetex'] = True
+
+    # Plot grid
     angle = np.linspace(0, math.tau)
     circle_x = np.cos(angle)
     circle_y = np.sin(angle)
-    for radius in range(0, largest_error - smallest_error + 4, 4):
-        plt.text(
-            0, radius, r"$10^{" + f"{radius + smallest_error}" + r"}$",
-            alpha=0.5, va="bottom"
+    grid_alpha = 0.1
+    circle_resolution = 1
+    circle_resolution_large = 4
+    text_offset = (largest_error - smallest_error)/50
+    for radius in range(
+            0, largest_error - smallest_error + circle_resolution,
+            circle_resolution):
+        if radius % circle_resolution_large == 0:
+            text = r"$10^{" + f"{radius + smallest_error}" + r"}$"
+            if radius == 0:
+                text = r"$\le$" + text + r" (64b prec.)"
+            elif radius + circle_resolution > largest_error - smallest_error:
+                text += " error from QuTip GT"
+            plt.text(text_offset, text_offset + radius, text, va="bottom")
+        if radius > 0:
+            if radius % circle_resolution_large == 0:
+                plt.plot(
+                    radius*circle_x, radius*circle_y, "k-", alpha=grid_alpha)
+            else:
+                plt.plot(
+                    radius*circle_x, radius*circle_y, "k--", alpha=grid_alpha)
+
+    radius = largest_error - smallest_error
+    angle_resolution = 12
+    angle_resolution_large = 3
+    for angle in np.arange(0, angle_resolution):
+        if angle % angle_resolution_large == 0:
+            format = "k-"
+        else:
+            format = "k--"
+
+        angle *= math.pi/angle_resolution
+        plt.plot(
+            [radius*math.cos(angle), -radius*math.cos(angle)],
+            [radius*math.sin(angle), -radius*math.sin(angle)],
+            format, alpha=grid_alpha
         )
-        plt.plot(radius*circle_x, radius*circle_y, "k-", alpha=0.5)
+
     plt.plot([0], [0], "kx")
+    plt.gca().set_aspect("equal")
 
     for index, density_pca in enumerate(densities_pca):
         if index < densities_pca.shape[0] - 1:
