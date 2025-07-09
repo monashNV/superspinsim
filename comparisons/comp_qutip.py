@@ -55,7 +55,7 @@ def main():
 
     densities = []
     # tolerances = np.geomspace(1e-5, 1e-16, 6)
-    max_steps = np.geomspace(10e-11, 10e-9, 8)
+    max_steps = np.geomspace(1e-12, 10e-9, 21)
     wall_durations = []
     for index, max_step in enumerate(max_steps):
         wall_time_start = tm.perf_counter()
@@ -66,7 +66,7 @@ def main():
             rho0=density_initial,
             tlist=time,
             options=qt.Options(
-                first_step=max_step, max_step=max_step, nsteps=1e6,
+                first_step=max_step, max_step=max_step, nsteps=100e6,
                 atol=max_step, rtol=max_step
             )
         )

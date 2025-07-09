@@ -7,6 +7,7 @@ if __name__ == "__main__":
     # from superspinsim.generate_generators import main
 
     # from comparisons.comp_simos import main
+
     # from comparisons.comp_qutip import main
     # with Pogger("superspinsim-comparisons") as logger:
     #     logger.set_context("qutip")
@@ -18,10 +19,8 @@ if __name__ == "__main__":
     from comparisons.compilation import main
     with Pogger("superspinsim-comparisons") as logger:
         logger.set_context("qutip")
-        main = logger.record()(main)
+        main = logger.record(["timestamps"])(main)
         main()
-
-    plt.show()
 
     # from superspinsim.params import write_values
     # write_values()
@@ -31,3 +30,5 @@ if __name__ == "__main__":
     # benchmark.test_lindbladians.main()
     # benchmark.quartics.main()
     # benchmark.development_tests.scipy_exponentiate()
+
+    plt.show()
