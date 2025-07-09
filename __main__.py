@@ -18,8 +18,8 @@ if __name__ == "__main__":
 
     from comparisons.compilation import main
     with Pogger("superspinsim-comparisons") as logger:
-        logger.set_context("qutip")
-        main = logger.record(["timestamps"])(main)
+        logger.set_context("compilation")
+        main = logger.record(["protocols", "pca_data"])(main)
         main()
 
     # from superspinsim.params import write_values
