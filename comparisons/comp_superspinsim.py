@@ -41,7 +41,7 @@ def main():
             lindbladian, generators=np.array(generators_list),
             vectorisation_map=vectorisation_map, number_of_exponentials=5,
             number_of_fine_divisions=fine_division,
-            use_rotating=True,
+            # use_rotating=True,
             # vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
             # doubles=doubles, singles=singles
         )
