@@ -65,8 +65,8 @@ def main():
     wall_durations = []
     max_steps = []
 
-    max_step = 10e-9
-    max_step_multiple = 1/1.3
+    max_step = 100e-9
+    max_step_multiple = 1/3
 
     error_min = math.inf
     strikes = 0
@@ -93,8 +93,7 @@ def main():
 
         if index > 1:
             errors = calculate_errors_diff(
-                np.asarray(densities)[:, :, 0]
-                + 1j*np.asarray(densities)[:, :, 1]
+                np.array(densities)
             )
             error_min_current = np.min(errors)
             if error_min_current < strike_aim*error_min:
