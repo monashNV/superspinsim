@@ -4,23 +4,25 @@ from matplotlib import pyplot as plt
 from cmcrameri import cm
 from pogger import Read
 
-from comparisons.analysis import calculate_errors_diff
+from comparisons.analysis import calculate_errors_diff, error_function
 
 weight_power = 48
+weight_power = 0
 weight_power_pca = 2
 
 
 def weight_function(error):
-    inverse_weight = (error/1e-10)**weight_power
-    weight = 1/inverse_weight
-    print(weight)
-    weight[weight == np.nan] == 0
-    return weight
+    # inverse_weight = (error/1e-14)**weight_power
+    # weight = 1/inverse_weight
+    # print(weight)
+    # weight[weight == np.nan] == 0
+    # return weight
+    return 1
 
 
 def weight_function_pca(error):
-    return (1/error**weight_power_pca)
-    # return 1
+    # return (1/error**weight_power_pca)
+    return 1
 
 
 def _circular_log(density_pca, smallest_error=-16):
@@ -54,6 +56,11 @@ def read_archives(protocols: dict[str, dict]):
         densities = densities[order]
         wall_durations = wall_durations[order]
 
+        if len(densities.shape) == 5:
+            densities = densities[:, :, :, :, 0] + 1j*densities[:, :, :, :, 1]
+
+        densities = densities[:, -1000:, :, :]
+
         protocol_data["densities"] = densities
         protocol_data["wall_durations"] = wall_durations
 
@@ -64,10 +71,12 @@ def find_centre(protocol: dict):
 
     errors_diff = calculate_errors_diff(densities)
 
-    centre = np.zeros_like(densities[0, :, :, :])
-    for density, error in zip(densities, errors_diff):
-        centre += density*weight_function(error)
-    centre /= np.sum(weight_function(error))
+    centre_index = np.argmin(errors_diff)
+    centre = densities[centre_index, :, :, :]
+    # centre = np.zeros_like(densities[0, :, :, :])
+    # for density, error in zip(densities, errors_diff):
+    #     centre += density*weight_function(error)
+    # centre /= np.sum(weight_function(error))
 
     protocol["centre"] = centre
     protocol["centre_weights"] = weight_function(errors_diff)
@@ -295,14 +304,20 @@ def main():
             # "timestamp": "2025-07-08T16-10-49",
             "timestamp": "2025-07-08T19-01-21",
             "plot_marker": "^"
+        },
+
+        "superspinsim": {
+            "timestamp": "2025-07-11T16-14-55",
+            "plot_marker": "o"
         }
     }
-    protocol_ground_truth = "qutip"
+    protocol_ground_truth = "superspinsim"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
     centre = protocols[protocol_ground_truth]["centre"]
     find_errors_from_centre(protocols, centre)
+    # pca_data = 0
     pca_data = pca(protocols, centre)
     plot_circular_log(protocols)
 
