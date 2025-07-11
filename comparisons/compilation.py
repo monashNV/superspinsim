@@ -4,11 +4,7 @@ from matplotlib import pyplot as plt
 from cmcrameri import cm
 from pogger import Read
 
-
-def error_function(left: np.ndarray, right: np.ndarray):
-    return np.sqrt(np.average(
-        (left.real - right.real)**2 + (left.imag - right.imag)**2))
-
+from comparisons.analysis import calculate_errors_diff
 
 weight_power = 48
 weight_power_pca = 2
@@ -66,29 +62,7 @@ def find_centre(protocol: dict):
     densities = protocol["densities"]
     wall_durations = protocol["wall_durations"]
 
-    errors_diff = []
-    for trial_index in range(densities.shape[0]):
-        if trial_index == 0:
-            error = error_function(
-                densities[trial_index, :, :, :],
-                densities[trial_index + 1, :, :, :]
-            )
-        elif trial_index == densities.shape[0] - 1:
-            error = error_function(
-                densities[trial_index - 1, :, :, :],
-                densities[trial_index, :, :, :]
-            )
-        else:
-            error = error_function(
-                densities[trial_index - 1, :, :, :],
-                densities[trial_index, :, :, :]
-            ) + error_function(
-                densities[trial_index, :, :, :],
-                densities[trial_index + 1, :, :, :]
-            )
-            error /= 2
-        errors_diff.append(error)
-    errors_diff = np.array(errors_diff)
+    errors_diff = calculate_errors_diff(densities)
 
     centre = np.zeros_like(densities[0, :, :, :])
     for density, error in zip(densities, errors_diff):

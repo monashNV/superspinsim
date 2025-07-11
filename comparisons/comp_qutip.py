@@ -2,9 +2,11 @@ import qutip as qt
 import numpy as np
 import math
 import time as tm
-from comparisons.lindbladians import contrast
 from matplotlib import pyplot as plt
 from cmcrameri import cm
+
+from comparisons.lindbladians import contrast
+from comparisons.analysis import calculate_errors_diff
 
 
 def main():
@@ -28,7 +30,8 @@ def main():
     #     colour_complex_matrix(density_final/np.max(np.abs(density_final))))
     # plt.draw()
 
-    coefficients, generators_coherent, generators_jump, time_end = contrast()
+    coefficients, generators_coherent, generators_jump, time_step, time_end = \
+        contrast()[1]
 
     hamiltonian = [
         qt.Qobj(generators_coherent[3]),
@@ -50,12 +53,11 @@ def main():
     density_initial[2, 2] = 1/3
     density_initial = qt.Qobj(density_initial)
 
-    time_step = 10e-9
     time = np.arange(0, time_end, time_step)
 
     densities = []
     # tolerances = np.geomspace(1e-5, 1e-16, 6)
-    max_steps = np.geomspace(1e-12, 10e-9, 21)
+    max_steps = np.geomspace(1e-15, 10e-9, 21)
     wall_durations = []
     for index, max_step in enumerate(max_steps):
         wall_time_start = tm.perf_counter()
@@ -99,23 +101,23 @@ def main():
     wall_durations = np.array(wall_durations)
     densities = np.array(densities)
 
-    plt.figure(label="max_steps")
-    for index, error in enumerate(errors):
-        if index == 0:
-            alpha = 1
-        else:
-            alpha = 0.2
-        indices = np.arange(len(error))
-        indices = indices[indices != index]
-        plt.loglog(
-            max_steps[indices]/1e-9, error[indices], ".-",
-            color=cm.hawaii(index/len(errors)), label=f"Sample {index}",
-            alpha=alpha
-        )
-        plt.legend()
-    plt.xlabel("Min step (ns)")
-    plt.ylabel("Error")
-    plt.draw()
+    # plt.figure(label="max_steps")
+    # for index, error in enumerate(errors):
+    #     if index == 0:
+    #         alpha = 1
+    #     else:
+    #         alpha = 0.2
+    #     indices = np.arange(len(error))
+    #     indices = indices[indices != index]
+    #     plt.loglog(
+    #         max_steps[indices]/1e-9, error[indices], ".-",
+    #         color=cm.hawaii(index/len(errors)), label=f"Sample {index}",
+    #         alpha=alpha
+    #     )
+    # # plt.legend()
+    # plt.xlabel("Min step (ns)")
+    # plt.ylabel("Error")
+    # plt.draw()
 
     plt.figure(label="wall_duration")
     for index, error in enumerate(errors):
@@ -130,7 +132,7 @@ def main():
             color=cm.hawaii(index/len(errors)), label=f"Sample {index}",
             alpha=alpha
         )
-        plt.legend()
+    # plt.legend()
     plt.xlabel("Wall duration (ms)")
     plt.ylabel("Error")
     plt.draw()

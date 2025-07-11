@@ -1009,18 +1009,18 @@ def generate_simulator(
             )
 
             # Basis for the Lindbladian
-            print(generators.shape)
+            # print(generators.shape)
             if use_rotating:
-                print(doubles)
-                print(singles)
-                print(doubles*time_step/number_of_fine_divisions)
-                print(singles*time_step/number_of_fine_divisions)
+                # print(doubles)
+                # print(singles)
+                # print(doubles*time_step/number_of_fine_divisions)
+                # print(singles*time_step/number_of_fine_divisions)
                 doubles_forward_device = nc.to_device(
                     doubles_forward[-1, :, :])
-                print(doubles_forward[-1, :, :])
+                # print(doubles_forward[-1, :, :])
                 singles_forward_device = nc.to_device(
                     singles_forward[-1, :])
-                print(singles_forward[-1, :])
+                # print(singles_forward[-1, :])
                 generators_device = nc.to_device(generators_rotating)
             else:
                 generators_device = nc.to_device(generators)

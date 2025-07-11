@@ -3,7 +3,7 @@ import numpy as np
 from superspinsim.generate_generators import generate_7
 
 
-def contrast():
+def contrast(use_rotating=False):
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
     duration_mw = 1/(2*10e6)
@@ -48,8 +48,11 @@ def contrast():
 
     coefficients = [coefficient_x, coefficient_y, coefficient_z, coefficient_r]
 
-    lindbladian, generators, vectorisation_map, generators_full = generate_7(
-        coefficients, quiescent_magnetic_field, return_full=True)
+    generate_return = generate_7(
+        coefficients, quiescent_magnetic_field, return_full=True,
+        use_rotating=use_rotating
+    )
+    generators_full = generate_return[-1]
 
     # print(generators_full["jump"].keys())
     generators_jump = [[], []]
@@ -72,4 +75,11 @@ def contrast():
         + 1j*generators_full["coherent"]["H0"][:, :, 1],
     ]
 
-    return coefficients, generators_coherent, generators_jump, time_end
+    time_step = 10e-9
+
+    generate_return_comparison = (
+        coefficients, generators_coherent, generators_jump, time_step,
+        time_end
+    )
+
+    return generate_return, generate_return_comparison
