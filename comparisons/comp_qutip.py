@@ -55,13 +55,26 @@ def main():
 
     time = np.arange(0, time_end, time_step)
 
+    # densities = []
+    # # tolerances = np.geomspace(1e-5, 1e-16, 6)
+    # # max_steps = np.geomspace(1e-15, 10e-9, 21)
+    # wall_durations = []
+    # # for index, max_step in enumerate(max_steps):
+
     densities = []
-    # tolerances = np.geomspace(1e-5, 1e-16, 6)
-    max_steps = np.geomspace(1e-15, 10e-9, 21)
     wall_durations = []
-    for index, max_step in enumerate(max_steps):
+    max_steps = []
+
+    max_step = 10e-9
+    max_step_multiple = 1/1.3
+
+    error_min = math.inf
+    strikes = 0
+    strikes_max = 3
+    strike_aim = 3/4
+    index = 0
+    while True:
         wall_time_start = tm.perf_counter()
-        print(index, end=", ")
         results = qt.mesolve(
             H=hamiltonian,
             c_ops=jumps,
@@ -74,10 +87,39 @@ def main():
         )
         densities.append(
             np.array([state.data.to_array() for state in results.states]))
-        wall_time_end = tm.perf_counter()
-        wall_durations.append(wall_time_end - wall_time_start)
-        print(wall_durations[-1], "s")
+        wall_duration = tm.perf_counter() - wall_time_start
+        wall_durations.append(wall_duration)
+        max_steps.append(max_step)
 
+        if index > 1:
+            errors = calculate_errors_diff(
+                np.asarray(densities)[:, :, 0]
+                + 1j*np.asarray(densities)[:, :, 1]
+            )
+            error_min_current = np.min(errors)
+            if error_min_current < strike_aim*error_min:
+                error_min = error_min_current
+                strikes = 0
+            else:
+                strikes += 1
+                if strikes >= strikes_max:
+                    break
+            print(index, wall_duration, error_min_current, error_min, strikes)
+        else:
+            print(index, wall_duration)
+
+        index += 1
+        max_step *= max_step_multiple
+
+    max_steps = np.array(max_steps)
+    densities = np.array(densities)
+    wall_durations = np.array(wall_durations)
+
+    plt.figure(label="errors_diff")
+    plt.loglog(wall_durations, errors, "k.-")
+    plt.draw()
+
+    return max_steps, densities, wall_durations, errors
     # trials = []
     # for max_step, density, wall_duration in zip(
     #         max_steps, densities, wall_durations):
@@ -88,18 +130,18 @@ def main():
     #     }
     #     trials.append(trial)
 
-    errors = []
-    for density_compare in densities:
-        errors_compare = []
-        for density in densities:
-            errors_compare.append(
-                math.sqrt(np.average(np.abs((density - density_compare)**2)))
-            )
-        errors.append(errors_compare)
+    # errors = []
+    # for density_compare in densities:
+    #     errors_compare = []
+    #     for density in densities:
+    #         errors_compare.append(
+    #             math.sqrt(np.average(np.abs((density - density_compare)**2)))
+    #         )
+    #     errors.append(errors_compare)
 
-    errors = np.array(errors)
-    wall_durations = np.array(wall_durations)
-    densities = np.array(densities)
+    # errors = np.array(errors)
+    # wall_durations = np.array(wall_durations)
+    # densities = np.array(densities)
 
     # plt.figure(label="max_steps")
     # for index, error in enumerate(errors):
@@ -119,25 +161,25 @@ def main():
     # plt.ylabel("Error")
     # plt.draw()
 
-    plt.figure(label="wall_duration")
-    for index, error in enumerate(errors):
-        if index == 0:
-            alpha = 1
-        else:
-            alpha = 0.2
-        indices = np.arange(len(error))
-        indices = indices[indices != index]
-        plt.loglog(
-            wall_durations[indices]/1e-3, error[indices], ".-",
-            color=cm.hawaii(index/len(errors)), label=f"Sample {index}",
-            alpha=alpha
-        )
-    # plt.legend()
-    plt.xlabel("Wall duration (ms)")
-    plt.ylabel("Error")
-    plt.draw()
+    # plt.figure(label="wall_duration")
+    # for index, error in enumerate(errors):
+    #     if index == 0:
+    #         alpha = 1
+    #     else:
+    #         alpha = 0.2
+    #     indices = np.arange(len(error))
+    #     indices = indices[indices != index]
+    #     plt.loglog(
+    #         wall_durations[indices]/1e-3, error[indices], ".-",
+    #         color=cm.hawaii(index/len(errors)), label=f"Sample {index}",
+    #         alpha=alpha
+    #     )
+    # # plt.legend()
+    # plt.xlabel("Wall duration (ms)")
+    # plt.ylabel("Error")
+    # plt.draw()
 
-    return max_steps, densities, wall_durations, errors
+    # return max_steps, densities, wall_durations, errors
 
     # density = np.array([state.data.to_array() for state in results.states])
     # fluorescence = density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5]

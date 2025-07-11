@@ -49,6 +49,8 @@ def read_archives(protocols: dict[str, dict]):
     project_name = "superspinsim-comparisons"
     for protocol, protocol_data in protocols.items():
         read = Read(project_name, protocol_data["timestamp"])
+        if "data_label" in protocol_data:
+            protocol = protocol_data["data_label"]
         densities = read.read_array("density", protocol)
         wall_durations, _ = read.read_array("wall_duration", protocol)
 
@@ -306,12 +308,19 @@ def main():
             "plot_marker": "^"
         },
 
-        "superspinsim": {
+        "s3_pc": {
             "timestamp": "2025-07-11T16-14-55",
-            "plot_marker": "o"
+            "plot_marker": ".",
+            "data_label": "superspinsim"
+        },
+
+        "s3_metaoptics": {
+            "timestamp": "2025-07-11T18-31-56",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
         }
     }
-    protocol_ground_truth = "superspinsim"
+    protocol_ground_truth = "s3_metaoptics"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
