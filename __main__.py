@@ -39,4 +39,4 @@ if __name__ == "__main__":
     # benchmark.quartics.main()
     # benchmark.development_tests.scipy_exponentiate()
 
-    plt.show()
+    # plt.show()
