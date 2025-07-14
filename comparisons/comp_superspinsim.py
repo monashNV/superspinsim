@@ -3,17 +3,21 @@ import math
 import time as tm
 from matplotlib import pyplot as plt
 
+from pogger import Pogger
+
 from superspinsim import generate_simulator
 from comparisons.analysis import calculate_errors_diff
 from comparisons.lindbladians import contrast
 
 
-def main():
+def main(use_rotating=False):
     # Setup
-    generate_return, generate_return_comparison = contrast(True)
-    lindbladian, generators_list, vectorisation_map, vectors_real, \
-        inv_vectors_real, doubles, singles, _ = generate_return
-    # lindbladian, generators_list, vectorisation_map, _ = generate_return
+    generate_return, generate_return_comparison = contrast(use_rotating)
+    if use_rotating:
+        lindbladian, generators_list, vectorisation_map, vectors_real, \
+            inv_vectors_real, doubles, singles, _ = generate_return
+    else:
+        lindbladian, generators_list, vectorisation_map, _ = generate_return
     time_step = generate_return_comparison[-2]
     time_end = generate_return_comparison[-1]
 
@@ -26,7 +30,7 @@ def main():
     wall_durations = []
     fine_divisions = []
 
-    fine_division = 256
+    fine_division = 16
     fine_division_multiple = 1.3
 
     error_min = math.inf
@@ -34,9 +38,62 @@ def main():
     strikes_max = 3
     strike_aim = 3/4
     index = 0
-    while True:
-        wall_time_start = tm.perf_counter()
 
+    strikes_dict = {}
+    strikes_dict["strikes"] = strikes
+    strikes_dict["strike_aim"] = strike_aim
+    strikes_dict["error_min"] = error_min
+    strikes_dict["strikes_max"] = strikes_max
+    strikes_dict["fine_division_multiple"] = fine_division_multiple
+
+    with Pogger("superspinsim-comparisons") as logger:
+        run_wrap = logger.record(
+            (
+                "fine_division", "wall_duration", "density", "strikes",
+                "break", "index"
+            ),
+            (None, "s", None, None, None, None)
+        )(run)
+        final_wrap = logger.record(
+            ("fine_divisions", "densities", "wall_durations", "errors"),
+            (None, None, "s", None)
+        )(final)
+
+        while True:
+            try:
+                logger.set_context(f"superspinsim/trials/{index}")
+                fine_division, wall_duration, density, strikes_dict, \
+                    do_break, index = run_wrap(
+                        index=index,
+                        fine_division=fine_division,
+                        densities=densities,
+                        wall_durations=wall_durations,
+                        fine_divisions=fine_divisions,
+                        time_step=time_step,
+                        time_end=time_end,
+                        density_operator_initial=density_operator_initial,
+                        generate_return=generate_return,
+                        strikes_dict=strikes_dict
+                    )
+                if do_break:
+                    break
+            except Exception:
+                break
+
+        logger.set_context("superspinsim")
+        final_wrap(fine_divisions, densities, wall_durations)
+
+
+def run(
+        index: int, fine_division: int, densities: list, wall_durations: list,
+        fine_divisions: list, time_step: float, time_end: float,
+        density_operator_initial: np.ndarray, generate_return: dict,
+        strikes_dict: dict, use_rotating=False):
+    wall_time_start = tm.perf_counter()
+
+    if use_rotating:
+        lindbladian, generators_list, vectorisation_map, vectors_real, \
+            inv_vectors_real, doubles, singles, _ = generate_return
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
             vectorisation_map=vectorisation_map, number_of_exponentials=2,
@@ -45,38 +102,77 @@ def main():
             vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
             doubles=doubles, singles=singles
         )
-        _, density = simulator(
-            density_operator_initial, 0, time_end, time_step)
+    else:
+        lindbladian, generators_list, vectorisation_map, _ = generate_return
+        simulator = generate_simulator(
+            lindbladian, generators=np.array(generators_list),
+            vectorisation_map=vectorisation_map, number_of_exponentials=2,
+            number_of_fine_divisions=fine_division,
+        )
 
-        wall_duration = tm.perf_counter() - wall_time_start
+    time, density = simulator(
+        density_operator_initial, 0, time_end, time_step)
 
-        fine_divisions.append(fine_division)
-        densities.append(density)
-        wall_durations.append(wall_duration)
+    wall_duration = tm.perf_counter() - wall_time_start
 
-        if index > 1:
-            errors = calculate_errors_diff(
-                np.asarray(densities)[:, :, 0]
-                + 1j*np.asarray(densities)[:, :, 1]
-            )
-            error_min_current = np.min(errors)
-            if error_min_current < strike_aim*error_min:
-                error_min = error_min_current
-                strikes = 0
-            else:
-                strikes += 1
-                if strikes >= strikes_max:
-                    break
-            print(index, wall_duration, error_min_current, error_min, strikes)
+    fine_divisions.append(fine_division)
+    densities.append(density)
+    wall_durations.append(wall_duration)
+
+    strikes = strikes_dict["strikes"]
+    strike_aim = strikes_dict["strike_aim"]
+    error_min = strikes_dict["error_min"]
+    strikes_max = strikes_dict["strikes_max"]
+    fine_division_multiple = strikes_dict["fine_division_multiple"]
+
+    do_break = False
+    if index > 1:
+        errors = calculate_errors_diff(
+            np.asarray(densities)[:, :, 0]
+            + 1j*np.asarray(densities)[:, :, 1]
+        )
+        error_min_current = np.min(errors)
+        if error_min_current < strike_aim*error_min:
+            error_min = error_min_current
+            strikes = 0
         else:
-            print(index, wall_duration)
+            strikes += 1
+            if strikes >= strikes_max:
+                do_break = True
+        print(index, wall_duration, error_min_current, error_min, strikes)
+    else:
+        print(index, wall_duration)
 
-        index += 1
-        fine_division_previous = fine_division
-        fine_division *= fine_division_multiple
-        fine_division = int(fine_division)
-        if fine_division == fine_division_previous:
-            fine_division += 1
+    index += 1
+    fine_division_previous = fine_division
+    fine_division *= fine_division_multiple
+    fine_division = int(fine_division)
+    if fine_division == fine_division_previous:
+        fine_division += 1
+
+    fluorescence = \
+        density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
+    fluorescence /= np.max(fluorescence)
+
+    plt.figure(label="fluorescence")
+    plt.plot(time/1e-6, fluorescence/0.01, "k-")
+    plt.xlabel("Time (us)")
+    plt.ylabel("Fluorescence (%)")
+    plt.gca().spines[["top", "right"]].set_visible(False)
+    plt.draw()
+
+    strikes_dict["strikes"] = strikes
+    strikes_dict["strike_aim"] = strike_aim
+    strikes_dict["error_min"] = error_min
+    strikes_dict["strikes_max"] = strikes_max
+    strikes_dict["fine_division_multiple"] = fine_division_multiple
+
+    return fine_division, wall_duration, density, strikes_dict, do_break, index
+
+
+def final(fine_divisions: list, densities: list, wall_durations: list):
+    errors = calculate_errors_diff(
+        np.asarray(densities)[:, :, 0] + 1j*np.asarray(densities)[:, :, 1])
 
     fine_divisions = np.array(fine_divisions)
     densities = np.array(densities)
@@ -84,6 +180,9 @@ def main():
 
     plt.figure(label="errors_diff")
     plt.loglog(wall_durations, errors, "k.-")
+    plt.xlabel("Simulation time (s)")
+    plt.ylabel("Error from adjacent")
+    plt.gca().spines[["top", "right"]].set_visible(False)
     plt.draw()
 
     return fine_divisions, densities, wall_durations, errors
