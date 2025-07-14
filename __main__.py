@@ -5,6 +5,7 @@ if __name__ == "__main__":
     # from tests.odmr import main
     # from tests.contrast import main
     # from superspinsim.generate_generators import main
+    # main()
 
     # from comparisons.comp_simos import main
 
@@ -16,15 +17,15 @@ if __name__ == "__main__":
     #         ["s", None, "s", None])(main)
     #     main()
 
-    # from comparisons.comp_superspinsim import main
-    # main(True)
+    from comparisons.comp_superspinsim import main
+    main(True)
 
-    from comparisons.compilation import main
-    with Pogger("superspinsim-comparisons") as logger:
-        logger.set_context("compilation")
-        main = logger.record(["protocols", "pca_data"])(main)
-        main()
-    plt.show()
+    # from comparisons.compilation import main
+    # with Pogger("superspinsim-comparisons") as logger:
+    #     logger.set_context("compilation")
+    #     main = logger.record(["protocols", "pca_data"])(main)
+    #     main()
+    # plt.show()
 
     # from superspinsim.params import write_values
     # write_values()

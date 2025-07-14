@@ -1811,6 +1811,7 @@ def generate_7(
         return_full:bool = False):
 
     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
+    # lindbladian = _generate_lindbladian(coefficient_functions)
 
     if quiescent_magnetic_field is None:
         quiescent_magnetic_field = np.zeros(3)

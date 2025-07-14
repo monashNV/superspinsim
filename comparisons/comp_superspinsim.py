@@ -30,7 +30,7 @@ def main(use_rotating=False):
     wall_durations = []
     fine_divisions = []
 
-    fine_division = 256
+    fine_division = 16
     fine_division_multiple = 1.3
 
     error_min = math.inf
@@ -98,7 +98,7 @@ def run(
             inv_vectors_real, doubles, singles, _ = generate_return
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map, number_of_exponentials=2,
+            vectorisation_map=vectorisation_map, number_of_exponentials=1,
             number_of_fine_divisions=fine_division,
             use_rotating=True,
             vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
@@ -108,7 +108,7 @@ def run(
         lindbladian, generators_list, vectorisation_map, _ = generate_return
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map, number_of_exponentials=2,
+            vectorisation_map=vectorisation_map, number_of_exponentials=1,
             number_of_fine_divisions=fine_division,
         )
 
