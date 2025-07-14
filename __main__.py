@@ -8,21 +8,21 @@ if __name__ == "__main__":
 
     # from comparisons.comp_simos import main
 
-    from comparisons.comp_qutip import main
-    with Pogger("superspinsim-comparisons") as logger:
-        logger.set_context("qutip")
-        main = logger.record(
-            ["time_step", "density", "wall_duration", "error"],
-            ["s", None, "s", None])(main)
-        main()
-
-    # from comparisons.comp_superspinsim import main
+    # from comparisons.comp_qutip import main
     # with Pogger("superspinsim-comparisons") as logger:
-    #     logger.set_context("superspinsim")
+    #     logger.set_context("qutip")
     #     main = logger.record(
-    #         ["fine_division", "density", "wall_duration", "error"],
-    #         [None, None, "s", None])(main)
+    #         ["time_step", "density", "wall_duration", "error"],
+    #         ["s", None, "s", None])(main)
     #     main()
+
+    from comparisons.comp_superspinsim import main
+    with Pogger("superspinsim-comparisons") as logger:
+        logger.set_context("superspinsim")
+        main = logger.record(
+            ["fine_division", "density", "wall_duration", "error"],
+            [None, None, "s", None])(main)
+        main()
 
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:

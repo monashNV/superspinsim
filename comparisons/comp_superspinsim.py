@@ -10,10 +10,10 @@ from comparisons.lindbladians import contrast
 
 def main():
     # Setup
-    generate_return, generate_return_comparison = contrast(False)
-    # lindbladian, generators_list, vectorisation_map, vectors_real, \
-    #     inv_vectors_real, doubles, singles, _ = generate_return
-    lindbladian, generators_list, vectorisation_map, _ = generate_return
+    generate_return, generate_return_comparison = contrast(True)
+    lindbladian, generators_list, vectorisation_map, vectors_real, \
+        inv_vectors_real, doubles, singles, _ = generate_return
+    # lindbladian, generators_list, vectorisation_map, _ = generate_return
     time_step = generate_return_comparison[-2]
     time_end = generate_return_comparison[-1]
 
@@ -26,7 +26,7 @@ def main():
     wall_durations = []
     fine_divisions = []
 
-    fine_division = 16
+    fine_division = 256
     fine_division_multiple = 1.3
 
     error_min = math.inf
@@ -39,11 +39,11 @@ def main():
 
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map, number_of_exponentials=5,
+            vectorisation_map=vectorisation_map, number_of_exponentials=2,
             number_of_fine_divisions=fine_division,
-            # use_rotating=True,
-            # vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
-            # doubles=doubles, singles=singles
+            use_rotating=True,
+            vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
+            doubles=doubles, singles=singles
         )
         _, density = simulator(
             density_operator_initial, 0, time_end, time_step)
