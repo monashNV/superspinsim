@@ -30,7 +30,7 @@ def main(use_rotating=False):
     wall_durations = []
     fine_divisions = []
 
-    fine_division = 16
+    fine_division = 256
     fine_division_multiple = 1.3
 
     error_min = math.inf
@@ -55,7 +55,7 @@ def main(use_rotating=False):
             (None, "s", None, None, None, None)
         )(run)
         final_wrap = logger.record(
-            ("fine_divisions", "densities", "wall_durations", "errors"),
+            ("fine_division", "density", "wall_duration", "error"),
             (None, None, "s", None)
         )(final)
 
@@ -73,11 +73,13 @@ def main(use_rotating=False):
                         time_end=time_end,
                         density_operator_initial=density_operator_initial,
                         generate_return=generate_return,
-                        strikes_dict=strikes_dict
+                        strikes_dict=strikes_dict,
+                        use_rotating=use_rotating
                     )
                 if do_break:
                     break
-            except Exception:
+            except Exception as e:
+                print(e)
                 break
 
         logger.set_context("superspinsim")
