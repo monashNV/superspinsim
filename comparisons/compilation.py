@@ -330,6 +330,12 @@ def main():
             "timestamp": "2025-07-14T15-13-57",
             "plot_marker": ".",
             "data_label": "superspinsim"
+        },
+
+        "s3_cf2_d_server": {
+            "timestamp": "2025-07-14T17-04-43",
+            "plot_marker": ".",
+            "data_label": "superspinsim"
         }
     }
     protocol_ground_truth = "s3_cf5_server"
