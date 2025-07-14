@@ -16,14 +16,15 @@ if __name__ == "__main__":
     #         ["s", None, "s", None])(main)
     #     main()
 
-    from comparisons.comp_superspinsim import main
-    main(True)
+    # from comparisons.comp_superspinsim import main
+    # main(True)
 
-    # from comparisons.compilation import main
-    # with Pogger("superspinsim-comparisons") as logger:
-    #     logger.set_context("compilation")
-    #     main = logger.record(["protocols", "pca_data"])(main)
-    #     main()
+    from comparisons.compilation import main
+    with Pogger("superspinsim-comparisons") as logger:
+        logger.set_context("compilation")
+        main = logger.record(["protocols", "pca_data"])(main)
+        main()
+    plt.show()
 
     # from superspinsim.params import write_values
     # write_values()
@@ -33,5 +34,3 @@ if __name__ == "__main__":
     # benchmark.test_lindbladians.main()
     # benchmark.quartics.main()
     # benchmark.development_tests.scipy_exponentiate()
-
-    # plt.show()

@@ -6,23 +6,22 @@ from pogger import Read
 
 from comparisons.analysis import calculate_errors_diff, error_function
 
-weight_power = 48
-weight_power = 0
+weight_power = 24
 weight_power_pca = 2
 
 
 def weight_function(error):
-    # inverse_weight = (error/1e-14)**weight_power
-    # weight = 1/inverse_weight
-    # print(weight)
-    # weight[weight == np.nan] == 0
-    # return weight
-    return 1
+    inverse_weight = (error/1e-9)**weight_power
+    weight = 1/inverse_weight
+    print(weight)
+    weight[weight == np.nan] == 0
+    return weight
+    # return 1
 
 
 def weight_function_pca(error):
-    # return (1/error**weight_power_pca)
-    return 1
+    return (1/error**weight_power_pca)
+    # return 1
 
 
 def _circular_log(density_pca, smallest_error=-16):
@@ -302,32 +301,45 @@ def plot_circular_log(protocols: dict[str, dict]):
 
 def main():
     protocols = {
-        "qutip": {
+        "qt_pc": {
             # "timestamp": "2025-07-08T16-10-49",
             "timestamp": "2025-07-08T19-01-21",
-            "plot_marker": "^"
+            "plot_marker": "+",
+            "data_label": "qutip"
         },
 
-        "s3_pc": {
+        "s3_cf5_pc": {
             "timestamp": "2025-07-11T16-14-55",
+            "plot_marker": "p",
+            "data_label": "superspinsim"
+        },
+
+        "s3_cf5_server": {
+            "timestamp": "2025-07-11T18-31-56",
+            "plot_marker": "p",
+            "data_label": "superspinsim"
+        },
+
+        "s3_cf2_server": {
+            "timestamp": "2025-07-14T14-14-01",
             "plot_marker": ".",
             "data_label": "superspinsim"
         },
 
-        "s3_metaoptics": {
-            "timestamp": "2025-07-11T18-31-56",
-            "plot_marker": "o",
+        "s3_cf2_r_server": {
+            "timestamp": "2025-07-14T15-13-57",
+            "plot_marker": ".",
             "data_label": "superspinsim"
         }
     }
-    protocol_ground_truth = "s3_metaoptics"
+    protocol_ground_truth = "s3_cf5_server"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
     centre = protocols[protocol_ground_truth]["centre"]
     find_errors_from_centre(protocols, centre)
-    # pca_data = 0
-    pca_data = pca(protocols, centre)
-    plot_circular_log(protocols)
+    pca_data = 0
+    # pca_data = pca(protocols, centre)
+    # plot_circular_log(protocols)
 
     return (protocols, pca_data)
