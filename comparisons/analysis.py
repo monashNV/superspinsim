@@ -2,8 +2,11 @@ import numpy as np
 
 
 def error_function(left: np.ndarray, right: np.ndarray):
-    return np.sqrt(np.average(
+    left = np.array(left, dtype=np.complex256)
+    right = np.array(right, dtype=np.complex256)
+    error = np.sqrt(np.average(
         (left.real - right.real)**2 + (left.imag - right.imag)**2))
+    return error
 
 
 def calculate_errors_diff(densities: np.ndarray):

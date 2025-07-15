@@ -6,17 +6,33 @@ from pogger import Read
 
 from comparisons.analysis import calculate_errors_diff, error_function
 
-weight_power = 24
-weight_power_pca = 2
+weight_power = 48
+weight_temperature = 1e-12
+weight_power_pca = 8
 
 
-def weight_function(error):
+def weight_function_lp(error):
     inverse_weight = (error/1e-9)**weight_power
     weight = 1/inverse_weight
     print(weight)
     weight[weight == np.nan] == 0
     return weight
     # return 1
+
+
+def weight_function_boltzmann(error):
+    weight = np.exp(-error/weight_temperature)
+    return weight
+
+
+def weight_function_min(error):
+    weight = np.zeros_like(error)
+    weight[np.argmin(error)] = 1
+    return weight
+
+
+weight_function = weight_function_boltzmann
+weight_function_pca = weight_function_boltzmann
 
 
 def weight_function_pca(error):
@@ -72,19 +88,22 @@ def find_centre(protocol: dict):
 
     errors_diff = calculate_errors_diff(densities)
 
-    centre_index = np.argmin(errors_diff)
-    centre = densities[centre_index, :, :, :]
-    # centre = np.zeros_like(densities[0, :, :, :])
-    # for density, error in zip(densities, errors_diff):
-    #     centre += density*weight_function(error)
-    # centre /= np.sum(weight_function(error))
+    # centre_index = np.argmin(errors_diff)
+    # centre = densities[centre_index, :, :, :]
+    centre = np.zeros_like(densities[0, :, :, :])
+    for density, error in zip(densities, errors_diff):
+        centre += density*weight_function(error)
+    # centre = densities*weight_function(errors_diff)
+    centre /= np.sum(weight_function(errors_diff))
 
     protocol["centre"] = centre
     protocol["centre_weights"] = weight_function(errors_diff)
     protocol["centre_weight_power"] = weight_power
     protocol["errors_diff"] = errors_diff
 
-    plt.figure(label="differential_errors")
+    protocol_name = protocol["data_label"]
+
+    plt.figure(label=f"differential_errors_{protocol_name}")
     plt.loglog(wall_durations, errors_diff, "k.-")
     plt.xlabel("Time spent simulating (s)")
     plt.ylabel("Error between adjacent points")
@@ -92,7 +111,11 @@ def find_centre(protocol: dict):
     plt.draw()
 
 
-def find_errors_from_centre(protocols: dict[str, dict], centre: np.ndarray):
+def find_errors_from_centre(
+        protocols: dict[str, dict], centre: np.ndarray, label: str = None):
+    dict_label = "errors_centre"
+    if label is not None:
+        dict_label += "_" + label
     for protocol, protocol_data in protocols.items():
         densities = protocol_data["densities"]
 
@@ -102,11 +125,15 @@ def find_errors_from_centre(protocols: dict[str, dict], centre: np.ndarray):
             errors_centre.append(error)
         errors_centre = np.array(errors_centre)
 
-        protocol_data["errors_centre"] = errors_centre
+        protocol_data[dict_label] = errors_centre
 
-    plt.figure(label="error_from_centre")
+    figure_label = "error_from_centre"
+    if label is not None:
+        figure_label += "_" + label
+
+    plt.figure(label=figure_label)
     for index, (protocol, protocol_data) in enumerate(protocols.items()):
-        errors_centre = protocol_data["errors_centre"]
+        errors_centre = protocol_data[dict_label]
         wall_durations = protocol_data["wall_durations"]
         plot_marker = protocol_data["plot_marker"]
         plt.loglog(
@@ -166,7 +193,7 @@ def pca(protocols: dict[str, dict], centre: np.ndarray):
 
     np.random.seed(20250709**2 % 2**32)
     np.random.shuffle(sample)
-    sample = sample[:densities_flat.shape[1]//15]
+    sample = sample[:densities_flat.shape[1]//150]
     densities_flat = densities_flat[:, sample]
 
     # sample = np.random.choice(
@@ -199,7 +226,7 @@ def pca(protocols: dict[str, dict], centre: np.ndarray):
 
 
 def plot_circular_log(protocols: dict[str, dict]):
-    smallest_error = -17
+    smallest_error = -14
     largest_error = -4
 
     # Calculate circular log
@@ -299,51 +326,133 @@ def plot_circular_log(protocols: dict[str, dict]):
     plt.draw()
 
 
+def calculate_double_coordinates(
+        protocols: dict, centres: list[np.ndarray], labels: list[str]):
+    error_centres = error_function(*centres)
+    error_centres_log = 14 + np.log10(error_centres)
+
+    for protocol, protocol_data in protocols.items():
+        error_centre_logs = []
+        for label in labels:
+            dict_label = "errors_centre"
+            dict_label_log = "errors_centre_log"
+            if label is not None:
+                dict_label += "_" + label
+                dict_label_log += "_" + label
+            error_centre = protocol_data[dict_label]
+            error_centre_log = 14 + np.log10(error_centre)
+            protocol_data[dict_label_log] = error_centre_log
+            error_centre_logs.append(error_centre_log)
+
+        x = (error_centre_logs[0]**2 - error_centre_logs[1]**2
+             + error_centres_log**2)/(2*error_centres_log)
+        y = np.sqrt(error_centre_logs[0]**2 - x**2)
+        protocol_data["double_x"] = x
+        protocol_data["double_y"] = y
+    return error_centres_log
+
+
+def plot_double_coordinates(protocols: dict, error_centres_log: float):
+    plt.rcParams['text.usetex'] = True
+    plt.figure(label="double", figsize=(6.4, 3.6))
+    plt.plot([0], [0], "x", color=cm.hawaii(0))
+    plt.plot([error_centres_log], [0], "x", color=cm.hawaii(1/2))
+    angle = np.linspace(0, math.pi)
+    circle_x = np.cos(angle)
+    circle_y = np.sin(angle)
+    for scale in np.arange(0, 14, 3):
+        if scale > 0:
+            plt.plot(
+                scale*circle_x, scale*circle_y, "-",
+                alpha=0.2, color=cm.hawaii(0)
+            )
+            plt.plot(
+                scale*circle_x + error_centres_log, scale*circle_y, "-",
+                alpha=0.2, color=cm.hawaii(1/2)
+            )
+        plt.text(
+            -scale, -0.5, r"$10^{" + str(scale - 14) + r"}$", ha="center",
+            va="top", color=cm.hawaii(0)
+        )
+        plt.text(
+            error_centres_log + scale, -0.5,
+            r"$10^{" + str(scale - 14) + r"}$", ha="center", va="top",
+            color=cm.hawaii(1/2)
+        )
+    plt.text(
+        0, -1, "Error from qutip limit",
+        ha="right", va="top", color=cm.hawaii(0)
+    )
+    plt.text(
+        error_centres_log, -1, "Error from superspinsim limit",
+        ha="left", va="top", color=cm.hawaii(1/2)
+    )
+    for index, (protocol, protocol_data) in enumerate(protocols.items()):
+        x = protocol_data["double_x"]
+        y = protocol_data["double_y"]
+        plt.plot(
+            x, y, protocol_data["plot_marker"] + "-", label=protocol,
+            color=cm.hawaii(index/len(protocols))
+        )
+    plt.gca().axis("off")
+    plt.legend()
+    plt.draw()
+
+
 def main():
     protocols = {
-        "qt_pc": {
-            # "timestamp": "2025-07-08T16-10-49",
-            "timestamp": "2025-07-08T19-01-21",
+        "qt_server": {
+            "timestamp": "2025-07-11T19-01-16",
             "plot_marker": "+",
             "data_label": "qutip"
         },
 
-        "s3_cf5_pc": {
-            "timestamp": "2025-07-11T16-14-55",
-            "plot_marker": "p",
+        # "qt_pc": {
+        #     # "timestamp": "2025-07-08T16-10-49",
+        #     "timestamp": "2025-07-08T19-01-21",
+        #     "plot_marker": "+",
+        #     "data_label": "qutip"
+        # },
+
+        # "s3_cf65_pc": {
+        #     "timestamp": "2025-07-11T16-14-55",
+        #     "plot_marker": "p",
+        #     "data_label": "superspinsim"
+        # },
+
+        "s3_cf42_server": {
+            "timestamp": "2025-07-14T14-14-01",
+            "plot_marker": "o",
             "data_label": "superspinsim"
         },
 
-        "s3_cf5_server": {
+        "s3_cf65_server": {
             "timestamp": "2025-07-11T18-31-56",
             "plot_marker": "p",
             "data_label": "superspinsim"
         },
 
-        "s3_cf2_server": {
-            "timestamp": "2025-07-14T14-14-01",
-            "plot_marker": ".",
-            "data_label": "superspinsim"
-        },
-
-        "s3_cf2_r_server": {
-            "timestamp": "2025-07-14T15-13-57",
-            "plot_marker": ".",
-            "data_label": "superspinsim"
-        },
-
-        "s3_cf2_d_server": {
-            "timestamp": "2025-07-14T17-04-43",
+        "s3_cf12_r_server": {
+            "timestamp": "2025-07-14T17-41-46",
             "plot_marker": ".",
             "data_label": "superspinsim"
         }
+
     }
-    protocol_ground_truth = "s3_cf5_server"
+    protocol_ground_truth = "qt_server"
+    # protocol_ground_truth = "s3_cf65_server"
+    protocol_converge = "s3_cf65_server"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
-    centre = protocols[protocol_ground_truth]["centre"]
-    find_errors_from_centre(protocols, centre)
+    find_centre(protocols[protocol_converge])
+    centre_0 = protocols[protocol_ground_truth]["centre"]
+    find_errors_from_centre(protocols, centre_0, label="0")
+    centre_1 = protocols[protocol_converge]["centre"]
+    find_errors_from_centre(protocols, centre_1, label="1")
+    error_centres_log = calculate_double_coordinates(
+        protocols, [centre_0, centre_1], ["0", "1"])
+    plot_double_coordinates(protocols, error_centres_log)
     pca_data = 0
     # pca_data = pca(protocols, centre)
     # plot_circular_log(protocols)
