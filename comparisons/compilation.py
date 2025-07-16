@@ -432,16 +432,15 @@ def main():
             "data_label": "superspinsim"
         },
 
-        "s3_cf12_r_server": {
-            "timestamp": "2025-07-14T17-41-46",
-            "plot_marker": ".",
+        "s3_cf65_r_server": {
+            "timestamp": "2025-07-16T19-20-20",
+            "plot_marker": "p",
             "data_label": "superspinsim"
         }
-
     }
     protocol_ground_truth = "qt_server"
     # protocol_ground_truth = "s3_cf65_server"
-    protocol_converge = "s3_cf65_server"
+    protocol_converge = "s3_cf65_r_server"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
