@@ -271,6 +271,58 @@ def generate_simulator(
             _calculate_differential_kernel[grid_size, block_size] \
                 (time_step, generator, coefficient, differential)
 
+    def _calculate_differential_rotating(
+            time_step, generator, coefficient, weight, differential, y_index,
+            x_index):
+        scratch: datatype = 0
+        scratch_mult_0: datatype = 0
+        scratch_mult_1: datatype = 0
+        for node_index in range(generator.shape[0]):
+            for generator_index in range(generator.shape[1]):
+                scratch_mult_0 = \
+                    generator[node_index, generator_index, y_index, x_index] \
+                    * coefficient[node_index, generator_index]
+                scratch_mult_1 = time_step*weight[node_index]
+                scratch = nc.fma(scratch_mult_0, scratch_mult_1, scratch)
+        differential[y_index, x_index] = scratch
+
+    if use_cuda:
+        _calculate_differential_rotating = \
+            nc.jit(_calculate_differential_rotating, device=True)
+
+        def _calculate_differential_rotating_kernel(
+                time_step, generator, coefficient, weight, differential):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            coefficient_index_start = \
+                (nc.blockIdx.x//weight.shape[0]) \
+                * weight.shape[1]
+            coefficient_index_end = \
+                coefficient_index_start + weight.shape[1]
+            if x_index < operator_size and y_index < operator_size:
+                _calculate_differential_rotating(
+                    time_step, generator,
+                    coefficient[
+                        coefficient_index_start:coefficient_index_end, :],
+                    weight[nc.blockIdx.x % weight.shape[0], :],
+                    differential[nc.blockIdx.x, :, :],
+                    y_index, x_index
+                )
+
+        _calculate_differential_rotating_kernel = \
+            nc.jit(_calculate_differential_rotating_kernel)
+
+    def _calculate_differential_rotating_run(
+            time_step, generator, coefficient, weight, differential):
+        if use_cuda:
+            grid_size = (
+                differential.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
+            _calculate_differential_rotating_kernel[grid_size, block_size](
+                time_step, generator, coefficient, weight, differential)
+
     def _scale_differential_basic(differential, y_index, x_index):
         if use_cayley:
             differential[y_index, x_index] /= 2*scaling_for_quartics
@@ -1072,16 +1124,23 @@ def generate_simulator(
             # Sample coefficients from user function
             sample_run(time_sample_device, coefficients_device)
 
-            # Apply weighting to coefficients for commutator-free integrator
-            _combine_coefficients_run(
-                coefficients_device, weighted_coefficients_device,
-                weights_device)
+            if use_rotating:
+                _calculate_differential_rotating_run(
+                    time_step/number_of_fine_divisions, generators_device,
+                    coefficients_device, weights_device, superoperators_device)
+            else:
+                # Apply weighting to coefficients for commutator-free
+                # integrator
+                _combine_coefficients_run(
+                    coefficients_device, weighted_coefficients_device,
+                    weights_device)
 
-            # Scale generators by time step and reduction for exponentiation
-            _calculate_differential_run(
-                time_step/number_of_fine_divisions, generators_device,
-                weighted_coefficients_device, superoperators_device
-            )
+                # Scale generators by time step and reduction for
+                # exponentiation
+                _calculate_differential_run(
+                    time_step/number_of_fine_divisions, generators_device,
+                    weighted_coefficients_device, superoperators_device
+                )
 
             # Put Lindbladian superoperator in matrix form
             _scale_differential_basic_run(superoperators_device)

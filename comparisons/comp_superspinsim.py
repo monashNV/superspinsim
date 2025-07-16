@@ -10,7 +10,7 @@ from comparisons.analysis import calculate_errors_diff
 from comparisons.lindbladians import contrast
 
 
-def main(use_rotating=False):
+def main(use_rotating=False, number_of_exponentials=2):
     # Setup
     generate_return, generate_return_comparison = contrast(use_rotating)
     if use_rotating:
@@ -74,7 +74,8 @@ def main(use_rotating=False):
                         density_operator_initial=density_operator_initial,
                         generate_return=generate_return,
                         strikes_dict=strikes_dict,
-                        use_rotating=use_rotating
+                        use_rotating=use_rotating,
+                        number_of_exponentials=number_of_exponentials
                     )
                 if do_break:
                     break
@@ -90,7 +91,7 @@ def run(
         index: int, fine_division: int, densities: list, wall_durations: list,
         fine_divisions: list, time_step: float, time_end: float,
         density_operator_initial: np.ndarray, generate_return: dict,
-        strikes_dict: dict, use_rotating=False):
+        strikes_dict: dict, use_rotating=False, number_of_exponentials=2):
     wall_time_start = tm.perf_counter()
 
     if use_rotating:
@@ -98,7 +99,8 @@ def run(
             inv_vectors_real, doubles, singles, _ = generate_return
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map, number_of_exponentials=1,
+            vectorisation_map=vectorisation_map,
+            number_of_exponentials=number_of_exponentials,
             number_of_fine_divisions=fine_division,
             use_rotating=True,
             vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
@@ -108,7 +110,8 @@ def run(
         lindbladian, generators_list, vectorisation_map, _ = generate_return
         simulator = generate_simulator(
             lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map, number_of_exponentials=1,
+            vectorisation_map=vectorisation_map,
+            number_of_exponentials=number_of_exponentials,
             number_of_fine_divisions=fine_division,
         )
 
