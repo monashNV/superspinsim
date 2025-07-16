@@ -18,7 +18,7 @@ if __name__ == "__main__":
     #     main()
 
     from comparisons.comp_superspinsim import main
-    main(True)
+    main(False)
 
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:

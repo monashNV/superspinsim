@@ -137,7 +137,7 @@ def run(
         if error_min_current < strike_aim*error_min:
             error_min = error_min_current
             strikes = 0
-        else:
+        elif error_min < 1e-8:
             strikes += 1
             if strikes >= strikes_max:
                 do_break = True
