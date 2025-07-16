@@ -955,9 +955,9 @@ def generate_simulator(
                 sine = np.sin(doubles[:, 1]*time_sample_zero[index])
                 cosine = np.cos(doubles[:, 1]*time_sample_zero[index])
                 doubles_forward[index, :, 0] = attenuation*cosine
-                doubles_forward[index, :, 1] = attenuation*sine
+                doubles_forward[index, :, 1] = -attenuation*sine
                 doubles_backward[index, :, 0] = amplification*cosine
-                doubles_backward[index, :, 1] = -amplification*sine
+                doubles_backward[index, :, 1] = amplification*sine
 
             if use_residual:
                 singles_forward[-1, :] = \
@@ -966,7 +966,7 @@ def generate_simulator(
                 sin1 = np.sin(doubles[:, 1]*time_sample_zero[-1])
                 expmr = np.expm1(doubles[:, 0]*time_sample_zero[-1])
                 doubles_forward[-1, :, 0] = (1 + expmr)*sin2 + expmr
-                doubles_forward[-1, :, 1] = (1 + expmr)*sin1
+                doubles_forward[-1, :, 1] = -(1 + expmr)*sin1
 
             for sample_index in range(time_sample_zero.size - 1):
                 generators_rotating[sample_index, :, :, :] = generators

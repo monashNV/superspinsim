@@ -20,7 +20,7 @@ if __name__ == "__main__":
     from comparisons.comp_superspinsim import main
     main(
         use_rotating=True,
-        number_of_exponentials=5
+        number_of_exponentials=1
     )
 
     # from comparisons.compilation import main
