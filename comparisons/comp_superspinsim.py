@@ -92,37 +92,51 @@ def run(
         fine_divisions: list, time_step: float, time_end: float,
         density_operator_initial: np.ndarray, generate_return: dict,
         strikes_dict: dict, use_rotating=False, number_of_exponentials=2):
-    wall_time_start = tm.perf_counter()
+    wall_timeout = 1  # 30
+    # wall_timeout = 60
+    wall_timeout_std = 0.1
+    wall_duration_list = []
 
-    if use_rotating:
-        lindbladian, generators_list, vectorisation_map, vectors_real, \
-            inv_vectors_real, doubles, singles, _ = generate_return
-        simulator = generate_simulator(
-            lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map,
-            number_of_exponentials=number_of_exponentials,
-            number_of_fine_divisions=fine_division,
-            use_rotating=True,
-            vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
-            doubles=doubles, singles=singles
-        )
-    else:
-        lindbladian, generators_list, vectorisation_map, _ = generate_return
-        simulator = generate_simulator(
-            lindbladian, generators=np.array(generators_list),
-            vectorisation_map=vectorisation_map,
-            number_of_exponentials=number_of_exponentials,
-            number_of_fine_divisions=fine_division,
-        )
+    while True:
+        wall_time_start = tm.perf_counter()
+        if use_rotating:
+            lindbladian, generators_list, vectorisation_map, vectors_real, \
+                inv_vectors_real, doubles, singles, _ = generate_return
+            simulator = generate_simulator(
+                lindbladian, generators=np.array(generators_list),
+                vectorisation_map=vectorisation_map,
+                number_of_exponentials=number_of_exponentials,
+                number_of_fine_divisions=fine_division,
+                use_rotating=True,
+                vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
+                doubles=doubles, singles=singles
+            )
+        else:
+            lindbladian, generators_list, vectorisation_map, _ = \
+                generate_return
+            simulator = generate_simulator(
+                lindbladian, generators=np.array(generators_list),
+                vectorisation_map=vectorisation_map,
+                number_of_exponentials=number_of_exponentials,
+                number_of_fine_divisions=fine_division,
+            )
 
-    time, density = simulator(
-        density_operator_initial, 0, time_end, time_step)
+        time, density = simulator(
+            density_operator_initial, 0, time_end, time_step)
 
-    wall_duration = tm.perf_counter() - wall_time_start
+        wall_duration = tm.perf_counter() - wall_time_start
+        wall_duration_list.append(wall_duration)
+        wall_duration_mean = np.mean(wall_duration_list)
+        wall_duration_std = np.std(wall_duration_list)
+        if np.sum(wall_duration_list) > wall_timeout:
+            break
+        if len(wall_duration_list) > 1:
+            if wall_duration_std/wall_duration_mean < wall_timeout_std:
+                break
 
     fine_divisions.append(fine_division)
     densities.append(density)
-    wall_durations.append(wall_duration)
+    wall_durations.append(wall_duration_mean)
 
     strikes = strikes_dict["strikes"]
     strike_aim = strikes_dict["strike_aim"]
@@ -144,9 +158,12 @@ def run(
             strikes += 1
             if strikes >= strikes_max:
                 do_break = True
-        print(index, wall_duration, error_min_current, error_min, strikes)
+        print(
+            index, len(wall_duration_list), wall_duration_mean,
+            error_min_current, error_min, strikes
+        )
     else:
-        print(index, wall_duration)
+        print(index, len(wall_duration_list), wall_duration_mean)
 
     index += 1
     fine_division_previous = fine_division
