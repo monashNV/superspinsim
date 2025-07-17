@@ -1,4 +1,5 @@
 import numpy as np
+import math
 from matplotlib import pyplot as plt
 import time as tm
 
@@ -40,9 +41,31 @@ def calculate_errors_diff(densities: np.ndarray):
     return errors_diff
 
 
+def make_strikes():
+    error_min = math.inf
+    strikes = 0
+    strikes_max = 3
+    strike_aim = 3/4
+
+    strikes_dict = {}
+    strikes_dict["strikes"] = strikes
+    strikes_dict["strike_aim"] = strike_aim
+    strikes_dict["error_min"] = error_min
+    strikes_dict["strikes_max"] = strikes_max
+
+    return strikes_dict
+
+
 def loop(init_function: callable, init_arguments: dict):
-    trial_name, run_arguments, index, sweep_parameter = \
+    trial_name, run_arguments, sweep_parameter = \
         init_function(**init_arguments)
+
+    index = 0
+    densities = []
+    wall_durations = []
+    run_arguments["densities"] = densities
+    run_arguments["wall_durations"] = wall_durations
+
     with Pogger("superspinsim-comparisons") as logger:
         run_wrap = logger.record(
             (

@@ -1,8 +1,7 @@
 import numpy as np
-import math
 
 from superspinsim import generate_simulator
-from comparisons.general import loop
+from comparisons.general import loop, make_strikes
 from comparisons.lindbladians import contrast
 
 
@@ -40,11 +39,7 @@ def init_superspinsim(use_rotating=False, number_of_exponentials=2):
         "sweep_parameter_units": None
     }
 
-    densities = []
-    wall_durations = []
     fine_steps = []
-    run_arguments["densities"] = densities
-    run_arguments["wall_durations"] = wall_durations
     run_arguments["fine_steps"] = fine_steps
 
     fine_division = 16
@@ -52,21 +47,11 @@ def init_superspinsim(use_rotating=False, number_of_exponentials=2):
 
     trial_name = "superspinsim"
 
-    error_min = math.inf
-    strikes = 0
-    strikes_max = 3
-    strike_aim = 3/4
-    index = 0
-
-    strikes_dict = {}
-    strikes_dict["strikes"] = strikes
-    strikes_dict["strike_aim"] = strike_aim
-    strikes_dict["error_min"] = error_min
-    strikes_dict["strikes_max"] = strikes_max
+    strikes_dict = make_strikes()
     strikes_dict["fine_division_multiple"] = fine_division_multiple
     run_arguments["strikes_dict"] = strikes_dict
 
-    return trial_name, run_arguments, index, fine_division
+    return trial_name, run_arguments, fine_division
 
 
 def run_raw_superspinsim(**run_arguments):
