@@ -77,9 +77,14 @@ def contrast(use_rotating=False):
 
     time_step = 10e-9
 
+    density_operator_initial = np.zeros((7, 7))
+    density_operator_initial[0, 0] = 1/3
+    density_operator_initial[1, 1] = 1/3
+    density_operator_initial[2, 2] = 1/3
+
     generate_return_comparison = (
-        coefficients, generators_coherent, generators_jump, time_step,
-        time_end
+        coefficients, generators_coherent, generators_jump,
+        density_operator_initial, time_step, time_end
     )
 
     return generate_return, generate_return_comparison

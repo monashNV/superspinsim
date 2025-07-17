@@ -20,11 +20,7 @@ def main(use_rotating=False, number_of_exponentials=2):
         lindbladian, generators_list, vectorisation_map, _ = generate_return
     time_step = generate_return_comparison[-2]
     time_end = generate_return_comparison[-1]
-
-    density_operator_initial = np.zeros((7, 7, 2))
-    density_operator_initial[0, 0, 0] = 1/3
-    density_operator_initial[1, 1, 0] = 1/3
-    density_operator_initial[2, 2, 0] = 1/3
+    density_operator_initial = generate_return_comparison[-3]
 
     densities = []
     wall_durations = []
@@ -146,10 +142,7 @@ def run(
 
     do_break = False
     if index > 1:
-        errors = calculate_errors_diff(
-            np.asarray(densities)[:, :, 0]
-            + 1j*np.asarray(densities)[:, :, 1]
-        )
+        errors = calculate_errors_diff(np.array(densities))
         error_min_current = np.min(errors)
         if error_min_current < strike_aim*error_min:
             error_min = error_min_current
@@ -173,7 +166,7 @@ def run(
         fine_division += 1
 
     fluorescence = \
-        density[:, 3, 3, 0] + density[:, 4, 4, 0] + density[:, 5, 5, 0]
+        np.real(density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5])
     fluorescence /= np.max(fluorescence)
 
     plt.figure(label="fluorescence")
@@ -193,8 +186,7 @@ def run(
 
 
 def final(fine_divisions: list, densities: list, wall_durations: list):
-    errors = calculate_errors_diff(
-        np.asarray(densities)[:, :, 0] + 1j*np.asarray(densities)[:, :, 1])
+    errors = calculate_errors_diff(np.array(densities))
 
     fine_divisions = np.array(fine_divisions)
     densities = np.array(densities)
