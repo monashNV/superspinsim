@@ -6,7 +6,7 @@ from matplotlib import pyplot as plt
 from pogger import Pogger
 
 from superspinsim import generate_simulator
-from comparisons.analysis import calculate_errors_diff
+from comparisons.general import final, calculate_errors_diff
 from comparisons.lindbladians import contrast
 
 
@@ -24,7 +24,7 @@ def main(use_rotating=False, number_of_exponentials=2):
 
     densities = []
     wall_durations = []
-    fine_divisions = []
+    fine_steps = []
 
     fine_division = 16
     fine_division_multiple = 1.3
@@ -51,8 +51,8 @@ def main(use_rotating=False, number_of_exponentials=2):
             (None, "s", None, None, None, None)
         )(run)
         final_wrap = logger.record(
-            ("fine_division", "density", "wall_duration", "error"),
-            (None, None, "s", None)
+            ("fine_step", "density", "wall_duration", "error"),
+            ("s", None, "s", None)
         )(final)
 
         while True:
@@ -64,7 +64,7 @@ def main(use_rotating=False, number_of_exponentials=2):
                         fine_division=fine_division,
                         densities=densities,
                         wall_durations=wall_durations,
-                        fine_divisions=fine_divisions,
+                        fine_steps=fine_steps,
                         time_step=time_step,
                         time_end=time_end,
                         density_operator_initial=density_operator_initial,
@@ -80,12 +80,13 @@ def main(use_rotating=False, number_of_exponentials=2):
                 break
 
         logger.set_context("superspinsim")
-        final_wrap(fine_divisions, densities, wall_durations)
+        final_wrap(
+            fine_steps, "Integration step size (s)", densities, wall_durations)
 
 
 def run(
         index: int, fine_division: int, densities: list, wall_durations: list,
-        fine_divisions: list, time_step: float, time_end: float,
+        fine_steps: list, time_step: float, time_end: float,
         density_operator_initial: np.ndarray, generate_return: dict,
         strikes_dict: dict, use_rotating=False, number_of_exponentials=2):
     wall_timeout = 1  # 30
@@ -130,7 +131,7 @@ def run(
             if wall_duration_std/wall_duration_mean < wall_timeout_std:
                 break
 
-    fine_divisions.append(fine_division)
+    fine_steps.append(time_step/fine_division)
     densities.append(density)
     wall_durations.append(wall_duration_mean)
 
@@ -183,20 +184,3 @@ def run(
     strikes_dict["fine_division_multiple"] = fine_division_multiple
 
     return fine_division, wall_duration, density, strikes_dict, do_break, index
-
-
-def final(fine_divisions: list, densities: list, wall_durations: list):
-    errors = calculate_errors_diff(np.array(densities))
-
-    fine_divisions = np.array(fine_divisions)
-    densities = np.array(densities)
-    wall_durations = np.array(wall_durations)
-
-    plt.figure(label="errors_diff")
-    plt.loglog(wall_durations, errors, "k.-")
-    plt.xlabel("Simulation time (s)")
-    plt.ylabel("Error from adjacent")
-    plt.gca().spines[["top", "right"]].set_visible(False)
-    plt.draw()
-
-    return fine_divisions, densities, wall_durations, errors
