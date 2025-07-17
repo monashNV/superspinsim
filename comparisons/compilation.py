@@ -131,6 +131,8 @@ def find_errors_from_centre(
     if label is not None:
         figure_label += "_" + label
 
+    wall_duration_min = np.inf
+    wall_duration_max = -np.inf
     plt.figure(label=figure_label)
     for index, (protocol, protocol_data) in enumerate(protocols.items()):
         errors_centre = protocol_data[dict_label]
@@ -140,6 +142,17 @@ def find_errors_from_centre(
             wall_durations, errors_centre, plot_marker + "-",
             color=cm.hawaii(index/len(protocols)), label=protocol
         )
+
+        if np.min(wall_durations) < wall_duration_min:
+            wall_duration_min = np.min(wall_durations)
+        if np.max(wall_durations) > wall_duration_max:
+            wall_duration_max = np.max(wall_durations)
+
+    # plt.plot([wall_duration_min, wall_duration_max], [1e-7]*2, "k--")
+    # plt.text(wall_duration_min, 1e-7, "32b prec.", va="bottom")
+    # plt.plot([wall_duration_min, wall_duration_max], [1e-15]*2, "k--")
+    # plt.text(wall_duration_min, 1e-15, "64b prec.", va="bottom")
+
     plt.xlabel("Time spent simulating (s)")
     plt.ylabel("Error from centre")
     plt.gca().spines[["top", "right"]].set_visible(False)
@@ -438,6 +451,12 @@ def main():
             "data_label": "superspinsim"
         },
 
+        "CF4:2, R": {
+            "timestamp": "2025-07-17T13-32-31",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
         "CF6:5": {
             "timestamp": "2025-07-11T18-31-56",
             "plot_marker": "p",
@@ -451,8 +470,24 @@ def main():
         }
     }
     protocol_ground_truth = "qutip"
-    # protocol_ground_truth = "s3_cf65_server"
     protocol_converge = "CF6:5, R"
+
+    # protocols = {
+    #     "CF6:5, Y": {
+    #         "timestamp": "2025-07-17T15-35-19",
+    #         "plot_marker": "p",
+    #         "data_label": "superspinsim"
+    #     },
+
+    #     "CF6:5, YR": {
+    #         "timestamp": "2025-07-17T15-47-10",
+    #         "plot_marker": "p",
+    #         "data_label": "superspinsim"
+    #     }
+    # }
+
+    # protocol_ground_truth = "CF6:5, Y"
+    # protocol_converge = "CF6:5, YR"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
