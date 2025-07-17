@@ -401,7 +401,7 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
 
 def main():
     protocols = {
-        "qt_server": {
+        "qutip": {
             "timestamp": "2025-07-11T19-01-16",
             "plot_marker": "+",
             "data_label": "qutip"
@@ -420,27 +420,39 @@ def main():
         #     "data_label": "superspinsim"
         # },
 
-        "s3_cf42_server": {
+        "CF2:1": {
+            "timestamp": "2025-07-15T16-14-38",
+            "plot_marker": ".",
+            "data_label": "superspinsim"
+        },
+
+        "CF2:1, R": {
+            "timestamp": "2025-07-16T19-29-43",
+            "plot_marker": ".",
+            "data_label": "superspinsim"
+        },
+
+        "CF4:2": {
             "timestamp": "2025-07-14T14-14-01",
             "plot_marker": "o",
             "data_label": "superspinsim"
         },
 
-        "s3_cf65_server": {
+        "CF6:5": {
             "timestamp": "2025-07-11T18-31-56",
             "plot_marker": "p",
             "data_label": "superspinsim"
         },
 
-        "s3_cf65_r_server": {
+        "CF6:5, R": {
             "timestamp": "2025-07-16T19-20-20",
             "plot_marker": "p",
             "data_label": "superspinsim"
         }
     }
-    protocol_ground_truth = "qt_server"
+    protocol_ground_truth = "qutip"
     # protocol_ground_truth = "s3_cf65_server"
-    protocol_converge = "s3_cf65_r_server"
+    protocol_converge = "CF6:5, R"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
