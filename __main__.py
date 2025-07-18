@@ -10,12 +10,7 @@ if __name__ == "__main__":
     # from comparisons.comp_simos import main
 
     from comparisons.comp_qutip import main
-    # with Pogger("superspinsim-comparisons") as logger:
-    #     logger.set_context("qutip")
-    #     main = logger.record(
-    #         ["time_step", "density", "wall_duration", "error"],
-    #         ["s", None, "s", None])(main)
-    main()
+    main(use_jax=False)
 
     # from comparisons.comp_superspinsim import main
     # main(
