@@ -135,10 +135,17 @@ def run(**run_arguments):
                 break
 
     if "fine_division" in run_arguments:
-        fine_division = run_arguments["fine_division"]
+        sweep_parameter = run_arguments["fine_division"]
+        fine_division = sweep_parameter
         fine_steps = run_arguments["fine_steps"]
         fine_steps.append(time_step/fine_division)
         fine_division_multiple = strikes_dict["fine_division_multiple"]
+    elif "max_step" in run_arguments:
+        sweep_parameter = run_arguments["max_step"]
+        max_step = sweep_parameter
+        max_steps = run_arguments["max_steps"]
+        max_steps.append(max_step)
+        max_step_multiple = strikes_dict["max_step_multiple"]
 
     densities.append(density)
     wall_durations.append(wall_duration_mean)
@@ -178,7 +185,10 @@ def run(**run_arguments):
         fine_division = int(fine_division)
         if fine_division == fine_division_previous:
             fine_division += 1
-        strikes_dict["fine_division_multiple"] = fine_division_multiple
+        sweep_parameter = fine_division
+    elif "max_step" in run_arguments:
+        max_step *= max_step_multiple
+        sweep_parameter = max_step
 
     fluorescence = \
         np.real(density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5])
@@ -191,7 +201,10 @@ def run(**run_arguments):
     plt.gca().spines[["top", "right"]].set_visible(False)
     plt.draw()
 
-    return fine_division, wall_duration, density, strikes_dict, do_break, index
+    return_values = (
+        sweep_parameter, wall_duration, density, strikes_dict, do_break, index
+    )
+    return return_values
 
 
 def final(

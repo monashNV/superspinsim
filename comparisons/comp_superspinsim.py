@@ -5,16 +5,19 @@ from comparisons.general import loop, make_strikes
 from comparisons.lindbladians import contrast
 
 
-def main(use_rotating=False, number_of_exponentials=2):
+def main(lindbladian="contrast", use_rotating=False, number_of_exponentials=2):
     init_arguments = {
         "use_rotating": use_rotating,
-        "number_of_exponentials": number_of_exponentials
+        "number_of_exponentials": number_of_exponentials,
+        "lindbladian": lindbladian
     }
     loop(init_superspinsim, init_arguments)
 
 
-def init_superspinsim(use_rotating=False, number_of_exponentials=2):
-    generate_return, generate_return_comparison = contrast(use_rotating)
+def init_superspinsim(
+        lindbladian="contrast", use_rotating=False, number_of_exponentials=2):
+    if lindbladian == "contrast":
+        generate_return, generate_return_comparison = contrast(use_rotating)
     if use_rotating:
         lindbladian, generators_list, vectorisation_map, vectors_real, \
             inv_vectors_real, doubles, singles, _ = generate_return
@@ -39,13 +42,13 @@ def init_superspinsim(use_rotating=False, number_of_exponentials=2):
         "sweep_parameter_units": None
     }
 
+    trial_name = "superspinsim"
+
     fine_steps = []
     run_arguments["fine_steps"] = fine_steps
 
     fine_division = 16
     fine_division_multiple = 1.3
-
-    trial_name = "superspinsim"
 
     strikes_dict = make_strikes()
     strikes_dict["fine_division_multiple"] = fine_division_multiple

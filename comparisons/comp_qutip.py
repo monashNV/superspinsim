@@ -1,18 +1,28 @@
 import qutip as qt
 import numpy as np
 import math
+import warnings
 
 from comparisons.lindbladians import contrast
-from comparisons.general import loop
+from comparisons.general import loop, make_strikes
 
 
-def main():
-    loop(init_qutip, None)
+def main(lindbladian="contrast"):
+    init_arguments = {
+        "lindbladian": lindbladian
+    }
+    loop(init_qutip, init_arguments)
 
 
-def init_qutip():
+def init_qutip(lindbladian="contrast"):
+    # Suppress qutip's (wrong) FutureWarning.
+    warnings.filterwarnings("ignore", category=FutureWarning)
+
+    if lindbladian == "contrast":
+        generate_return, generate_return_comparison = contrast()
+
     coefficients, generators_coherent, generators_jump, density_initial, \
-        time_step, time_end = contrast()[1]
+        time_step, time_end = generate_return_comparison
 
     hamiltonian = [
         qt.Qobj(generators_coherent[3]),
@@ -32,24 +42,41 @@ def init_qutip():
 
     time = np.arange(0, time_end, time_step)
 
-    densities = []
-    wall_durations = []
+    run_arguments = {
+        "time_step": time_step,
+        "time_end": time_end,
+        "density_operator_initial": density_initial,
+        "generate_return": generate_return,
+        "hamiltonian": hamiltonian,
+        "jumps": jumps,
+        "time": time,
+        "run_raw": run_raw_qutip,
+        "sweep_display_label": "Max integration step size (s)",
+        "sweep_display_code": "max_steps",
+        "sweep_display_units": "s",
+        "sweep_parameter_code": "max_step",
+        "sweep_parameter_units": "s"
+    }
+
+    trial_name = "qutip"
+
     max_steps = []
+    run_arguments["max_steps"] = max_steps
 
     max_step = 100e-9
     max_step_multiple = 1/3
 
-    error_min = math.inf
-    strikes = 0
-    strikes_max = 3
-    strike_aim = 3/4
-    index = 0
+    strikes_dict = make_strikes()
+    strikes_dict["max_step_multiple"] = max_step_multiple
+    run_arguments["strikes_dict"] = strikes_dict
+
+    return trial_name, run_arguments, max_step
 
 
-def run_raw_qutip(run_arguments: dict):
+def run_raw_qutip(**run_arguments: dict):
     hamiltonian = run_arguments["hamiltonian"]
     jumps = run_arguments["jumps"]
-    density_initial = run_arguments["density_initial"]
+    density_initial = run_arguments["density_operator_initial"]
     time = run_arguments["time"]
     max_step = run_arguments["max_step"]
 
