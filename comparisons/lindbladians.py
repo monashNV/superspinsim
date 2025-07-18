@@ -3,7 +3,7 @@ import numpy as np
 from superspinsim.generate_generators import generate_7
 
 
-def contrast(use_rotating=False):
+def contrast(use_rotating=False, use_jax=False):
     duration_excitation = 3e-6
     duration_relax_wait = 250e-9
     duration_mw = 1/(2*10e6)
@@ -22,29 +22,54 @@ def contrast(use_rotating=False):
 
     quiescent_magnetic_field = np.array([0, 0, 1])*10e-3
 
-    def coefficient_x(time):
-        if time < time_one_start - duration_mw:
+    if use_jax:
+        from jax import numpy as npj
+
+        def coefficient_x(time):
+            return_value = \
+                (time >= time_one_start - duration_mw) \
+                * (time < time_one_start) \
+                * amplitude_mw*npj.sin(math.tau*frequency_mw*time)
+
+            return return_value
+
+        def coefficient_y(time):
             return 0
-        if time < time_one_start:
-            return amplitude_mw*math.sin(math.tau*frequency_mw*time)
-        return 0
 
-    def coefficient_y(time):
-        return 0
+        def coefficient_z(time):
+            return 0
 
-    def coefficient_z(time):
-        return 0
+        def coefficient_r(time):
+            return_value = \
+                (time < time_thermal_end)*excitation_amplitude \
+                + (time >= time_zero_start)*(time < time_zero_end) \
+                * excitation_amplitude \
+                + (time >= time_one_start)*excitation_amplitude
+            return return_value
+    else:
+        def coefficient_x(time):
+            if time < time_one_start - duration_mw:
+                return 0
+            if time < time_one_start:
+                return amplitude_mw*math.sin(math.tau*frequency_mw*time)
+            return 0
 
-    def coefficient_r(time):
-        if time < time_thermal_end:
+        def coefficient_y(time):
+            return 0
+
+        def coefficient_z(time):
+            return 0
+
+        def coefficient_r(time):
+            if time < time_thermal_end:
+                return excitation_amplitude
+            if time < time_zero_start:
+                return 0
+            if time < time_zero_end:
+                return excitation_amplitude
+            if time < time_one_start:
+                return 0
             return excitation_amplitude
-        if time < time_zero_start:
-            return 0
-        if time < time_zero_end:
-            return excitation_amplitude
-        if time < time_one_start:
-            return 0
-        return excitation_amplitude
 
     coefficients = [coefficient_x, coefficient_y, coefficient_z, coefficient_r]
 
@@ -77,7 +102,7 @@ def contrast(use_rotating=False):
 
     time_step = 10e-9
 
-    density_operator_initial = np.zeros((7, 7))
+    density_operator_initial = np.zeros((7, 7), dtype=np.complex128)
     density_operator_initial[0, 0] = 1/3
     density_operator_initial[1, 1] = 1/3
     density_operator_initial[2, 2] = 1/3
