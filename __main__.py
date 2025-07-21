@@ -12,7 +12,10 @@ if __name__ == "__main__":
     # from comparisons.comp_qutip import main
     # main(use_jax=False)
 
-    from comparisons.comp_dynamiqs import main
+    # from comparisons.comp_dynamiqs import main
+    # main()
+
+    from comparisons.comp_quantum_toolbox import main
     main()
 
     # from comparisons.comp_superspinsim import main
