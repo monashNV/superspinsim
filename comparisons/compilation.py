@@ -4,7 +4,7 @@ from matplotlib import pyplot as plt
 from cmcrameri import cm
 from pogger import Read
 
-from comparisons.analysis import calculate_errors_diff, error_function
+from comparisons.general import calculate_errors_diff, error_function
 
 weight_power = 48
 weight_temperature = 1e-12

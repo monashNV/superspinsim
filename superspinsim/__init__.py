@@ -1019,6 +1019,20 @@ def generate_simulator(
                         sample_index, :, :, 2*doubles.shape[0] + eigen_index
                     ] *= singles_forward[sample_index, eigen_index]
 
+        # Convert density operator into real matrix
+        density_operator_initial_real = np.empty(
+            (
+                density_operator_initial.shape[0],
+                density_operator_initial.shape[1], 2
+            ),
+            dtype=datatype
+        )
+        density_operator_initial_real[:, :, 0] = \
+            np.real(density_operator_initial)
+        density_operator_initial_real[:, :, 1] = \
+            np.imag(density_operator_initial)
+        density_operator_initial = density_operator_initial_real
+
         # Flatten density operator
         density_operator_initial_flat = \
             np.empty(vectorisation_map.shape[0], dtype=datatype)
@@ -1227,6 +1241,10 @@ def generate_simulator(
                     # Real part
                     density_operators[:, x_index, y_index, c_index] = \
                         density_operators_flat[:, operator_index]
+
+        # Make complex
+        density_operators = \
+            density_operators[:, :, :, 0] + 1j*density_operators[:, :, :, 1]
 
         # Remove numba warnings
         warnings.simplefilter(
