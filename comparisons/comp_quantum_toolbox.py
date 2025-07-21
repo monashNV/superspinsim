@@ -3,6 +3,7 @@ import h5py
 import numpy as np
 
 from matplotlib import pylab as plt
+from cmcrameri import cm
 
 from comparisons.lindbladians import contrast
 
@@ -44,6 +45,12 @@ def main(lindbladian="contrast"):
 
     plt.figure(label="fluorescence")
     plt.plot(time/1e-6, fluorescence/0.01, "k-")
+    plt.plot(time/1e-6, density[:, 0, 0]/0.01, "-", color=cm.hawaii(0/3))
+    plt.plot(time/1e-6, density[:, 1, 1]/0.01, "-", color=cm.hawaii(1/3))
+    plt.plot(time/1e-6, density[:, 2, 2]/0.01, "-", color=cm.hawaii(2/3))
+    plt.plot(time/1e-6, density[:, 3, 3]/0.01, "--", color=cm.hawaii(0/3))
+    plt.plot(time/1e-6, density[:, 4, 4]/0.01, "--", color=cm.hawaii(1/3))
+    plt.plot(time/1e-6, density[:, 5, 5]/0.01, "--", color=cm.hawaii(2/3))
     plt.xlabel("Time (us)")
     plt.ylabel("Fluorescence (%)")
     plt.gca().spines[["top", "right"]].set_visible(False)

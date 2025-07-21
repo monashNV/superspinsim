@@ -1,6 +1,7 @@
 import numpy as np
 import math
 from matplotlib import pyplot as plt
+from cmcrameri import cm
 import time as tm
 
 from pogger import Pogger
@@ -196,6 +197,18 @@ def run(**run_arguments):
 
     plt.figure(label="fluorescence")
     plt.plot(time/1e-6, fluorescence/0.01, "k-")
+    plt.plot(
+        time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 1, 1])/0.01, "-", color=cm.hawaii(1/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 2, 2])/0.01, "-", color=cm.hawaii(2/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 3, 3])/0.01, "--", color=cm.hawaii(0/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3))
     plt.xlabel("Time (us)")
     plt.ylabel("Fluorescence (%)")
     plt.gca().spines[["top", "right"]].set_visible(False)

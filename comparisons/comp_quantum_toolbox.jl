@@ -94,7 +94,14 @@ jumps = vcat(jumps_static, jumps_dynamic_true)
 
 time = 0:time_step:time_end
 
-result = mesolve(hamiltonian, density_operator_initial, time, jumps)
+result = mesolve(
+	hamiltonian,
+	density_operator_initial,
+	time,
+	jumps,
+	reltol=1e-15,
+	# dtmax = 0
+)
 density = result.states
 
 # Send to python
