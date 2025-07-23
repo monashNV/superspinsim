@@ -196,23 +196,38 @@ def run(**run_arguments):
     fluorescence /= np.max(fluorescence)
 
     plt.figure(label="fluorescence")
-    plt.plot(time/1e-6, fluorescence/0.01, "k-")
+    plt.plot(time/1e-6, fluorescence/0.01, "k-", label="Fluoro")
     plt.plot(
-        time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3))
+        time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3),
+        label="(g) mS=+1"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 1, 1])/0.01, "-", color=cm.hawaii(1/3))
+        time/1e-6, np.real(density[:, 1, 1])/0.01, "-", color=cm.hawaii(1/3),
+        label="(g) mS=0"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 2, 2])/0.01, "-", color=cm.hawaii(2/3))
+        time/1e-6, np.real(density[:, 2, 2])/0.01, "-", color=cm.hawaii(2/3),
+        label="(g) mS=-1"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 3, 3])/0.01, "--", color=cm.hawaii(0/3))
+        time/1e-6, np.real(density[:, 3, 3])/0.01, "--", color=cm.hawaii(0/3),
+        label="(e) mS=+1"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3))
+        time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3),
+        label="(e) mS=0"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3))
+        time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3),
+        label="(e) ms=-1"
+    )
     plt.plot(
-        time/1e-6, np.real(density[:, 6, 6])/0.01, "--", color=cm.hawaii(0.99))
+        time/1e-6, np.real(density[:, 6, 6])/0.01, "-", color=cm.hawaii(0.99),
+        label="(s)"
+    )
     plt.xlabel("Time (us)")
-    plt.ylabel("Fluorescence (%)")
+    plt.ylabel("Fluorescence (%); Population (%)")
+    plt.legend()
     plt.gca().spines[["top", "right"]].set_visible(False)
     plt.draw()
 

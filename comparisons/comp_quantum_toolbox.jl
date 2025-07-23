@@ -54,6 +54,7 @@ end
 h5_file = h5open("to_julia.h5", "r")
 time_step = attrs(h5_file)["time_step"]
 time_end = attrs(h5_file)["time_end"]
+max_step = attrs(h5_file)["max_step"]
 density_operator_initial = Qobj(read(h5_file["density_operator_initial"]))
 generator_x = Qobj(read(h5_file["generators_coherent/1"]))
 generator_y = Qobj(read(h5_file["generators_coherent/2"]))
@@ -78,7 +79,6 @@ close(h5_file)
 
 # Convert to QuantumToolboxJL language
 time = 0:time_step:time_end
-
 density_operator_initial = Qobj(density_operator_initial)
 coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_contrast()
 hamiltonian = QobjEvo((
@@ -88,32 +88,21 @@ hamiltonian = QobjEvo((
 	(generator_z, coefficient_z)
 ))
 
-coefficient_sampled_x = collect(coefficient_x.(0, time))
-coefficient_sampled_y = collect(coefficient_y.(0, time))
-coefficient_sampled_z = collect(coefficient_z.(0, time))
-coefficient_sampled_l = collect(coefficient_l.(0, time))
-# println(coefficient_sampled_x)
-
 jumps_dynamic_true = []
 for jump_dynamic in jumps_dynamic
 	push!(jumps_dynamic_true, QobjEvo(jump_dynamic, coefficient_l))
 end
 jumps = vcat(jumps_static, jumps_dynamic_true)
-# jumps = vcat(jumps_static, jumps_dynamic)
-# jumps = jumps_static
-
-println(size(jumps_static))
-println(size(jumps_dynamic))
-println(size(jumps_dynamic_true))
-println(size(jumps))
 
 result = mesolve(
 	hamiltonian,
 	density_operator_initial,
 	time,
 	jumps,
-	reltol=1e-15,
-	# dtmax = 0
+	reltol=max_step,
+	dtmax=max_step,
+	progress_bar=false,
+	maxiters=100e6
 )
 density = result.states
 
@@ -122,11 +111,5 @@ h5_file = h5open("from_julia.h5", "w")
 
 h5_file["time"] = collect(time)
 h5_file["density"] = stack(get_data.(density))
-
-group_sampled = create_group(h5_file, "sampled")
-group_sampled["x"] = coefficient_sampled_x
-group_sampled["y"] = coefficient_sampled_y
-group_sampled["z"] = coefficient_sampled_z
-group_sampled["l"] = coefficient_sampled_l
 
 close(h5_file)
