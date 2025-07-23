@@ -1,6 +1,5 @@
 using HDF5
 using QuantumToolbox
-using CUDA
 
 function generate_coefficients_contrast()
 	duration_excitation = 3e-6
@@ -58,7 +57,9 @@ time_end = attrs(h5_file)["time_end"]
 max_step = attrs(h5_file)["max_step"]
 
 use_cuda = false
+
 if use_cuda
+	using CUDA
 	CUDA.allowscalar(false)
 end
 
@@ -72,9 +73,9 @@ index = 1
 jumps_static = []
 while haskey(h5_file, "generators_jump_static/"*string(index))
 	if use_cuda
-		push!(jumps_static, Qobj(transpose(read(h5_file["generators_jump_static/"*string(index)]))))
-	else
 		push!(jumps_static, cu(Qobj(transpose(read(h5_file["generators_jump_static/"*string(index)])))))
+	else
+		push!(jumps_static, Qobj(transpose(read(h5_file["generators_jump_static/"*string(index)]))))
 	end
 	global index += 1
 end
@@ -98,19 +99,19 @@ else
 end
 coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_contrast()
 if use_cuda
-	hamiltonian = QobjEvo((
-		generator_0,
-		(generator_x, coefficient_x),
-		(generator_y, coefficient_y),
-		(generator_z, coefficient_z)
-	))
-else
 	hamiltonian = cu(QobjEvo((
 		generator_0,
 		(generator_x, coefficient_x),
 		(generator_y, coefficient_y),
 		(generator_z, coefficient_z)
 	)))
+else
+	hamiltonian = QobjEvo((
+		generator_0,
+		(generator_x, coefficient_x),
+		(generator_y, coefficient_y),
+		(generator_z, coefficient_z)
+	))
 end
 
 jumps_dynamic_true = []
