@@ -67,7 +67,7 @@ def init_dynamiqs(lindbladian="contrast"):
     # if use_jax:
     #     max_step = 1
     # else:
-    max_step = time_step
+    max_step = 1e9*time_step
     max_step_multiple = 1/3
 
     strikes_dict = make_strikes()
@@ -87,7 +87,10 @@ def run_raw_dynamiqs(**run_arguments):
     results = dq.mesolve(
         hamiltonian, jumps, density_operator_initial, time,
         method=dq.method.Tsit5(
-            max_steps=int(100e6), rtol=max_step, atol=max_step),
+            max_steps=int(100e6),
+            # rtol=max_step,
+            atol=max_step
+        ),
         options=dq.Options(progress_meter=False)
     )
     densities = results.states.to_numpy()
