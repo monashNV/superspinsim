@@ -40,7 +40,7 @@ def init_quantum_toolbox(lindbladian="contrast"):
     max_steps = []
     run_arguments["max_steps"] = max_steps
 
-    max_step = 100e-9
+    max_step = 10e-9
     max_step_multiple = 1/3
 
     strikes_dict = make_strikes()
