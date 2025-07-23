@@ -57,14 +57,16 @@ time_step = attrs(h5_file)["time_step"]
 time_end = attrs(h5_file)["time_end"]
 max_step = attrs(h5_file)["max_step"]
 
-use_cuda = true
-CUDA.allowscalar(false)
+use_cuda = false
+if use_cuda
+	CUDA.allowscalar(false)
+end
 
-density_operator_initial = Qobj(read(h5_file["density_operator_initial"]))
-generator_x = Qobj(read(h5_file["generators_coherent/1"]))
-generator_y = Qobj(read(h5_file["generators_coherent/2"]))
-generator_z = Qobj(read(h5_file["generators_coherent/3"]))
-generator_0 = Qobj(read(h5_file["generators_coherent/4"]))
+density_operator_initial = Qobj(transpose(read(h5_file["density_operator_initial"])))
+generator_x = Qobj(transpose(read(h5_file["generators_coherent/1"])))
+generator_y = Qobj(transpose(read(h5_file["generators_coherent/2"])))
+generator_z = Qobj(transpose(read(h5_file["generators_coherent/3"])))
+generator_0 = Qobj(transpose(read(h5_file["generators_coherent/4"])))
 
 index = 1
 jumps_static = []
