@@ -90,10 +90,10 @@ end
 close(h5_file)
 
 # Convert to QuantumToolboxJL language
-time = 0:time_step:time_end
+time_list = 0:time_step:time_end
 if use_cuda
 	density_operator_initial = cu(Qobj(density_operator_initial))
-	time = cu(time)
+	time_list = cu(time_list)
 else
 	density_operator_initial = Qobj(density_operator_initial)
 end
@@ -124,10 +124,12 @@ for jump_dynamic in jumps_dynamic
 end
 jumps = vcat(jumps_static, jumps_dynamic_true)
 
+wall_time_start = time()
+
 result = mesolve(
 	hamiltonian,
 	density_operator_initial,
-	time,
+	time_list,
 	jumps,
 	reltol=max_step,
 	dtmax=max_step,
@@ -136,10 +138,17 @@ result = mesolve(
 )
 density = result.states
 
+time_list = collect(time_list)
+density = stack(transpose.(get_data.(density)))
+
+wall_time_end = time()
+wall_duration = wall_time_end - wall_time_start
+
 # Send to python
 h5_file = h5open("from_julia.h5", "w")
 
-h5_file["time"] = collect(time)
-h5_file["density"] = stack(get_data.(density))
+h5_file["time"] = time_list
+h5_file["density"] = density
+attributes(h5_file)["wall_duration"] = wall_duration
 
 close(h5_file)

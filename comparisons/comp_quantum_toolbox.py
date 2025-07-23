@@ -32,7 +32,8 @@ def init_quantum_toolbox(lindbladian="contrast"):
         "sweep_display_code": "max_steps",
         "sweep_display_units": "s",
         "sweep_parameter_code": "max_step",
-        "sweep_parameter_units": "s"
+        "sweep_parameter_units": "s",
+        "do_overwrite_wall_duration": True
     }
 
     trial_name = "quantum_toolbox_jl"
@@ -78,8 +79,9 @@ def run_raw_quantum_toolbox(**run_arguments):
     with h5py.File("from_julia.h5", "r") as h5_file:
         time = np.asarray(h5_file["time"])
         density = np.asarray(h5_file["density"])
+        wall_duration = h5_file.attrs["wall_duration"]
 
     os.remove("to_julia.h5")
     os.remove("from_julia.h5")
 
-    return time, density
+    return time, density, wall_duration

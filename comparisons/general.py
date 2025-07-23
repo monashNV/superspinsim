@@ -123,9 +123,12 @@ def run(**run_arguments):
     while True:
         wall_time_start = tm.perf_counter()
 
-        time, density = run_raw(**run_arguments)
+        if "do_overwrite_wall_duration" in run_arguments:
+            time, density, wall_duration = run_raw(**run_arguments)
+        else:
+            time, density = run_raw(**run_arguments)
+            wall_duration = tm.perf_counter() - wall_time_start
 
-        wall_duration = tm.perf_counter() - wall_time_start
         wall_duration_list.append(wall_duration)
         wall_duration_mean = np.mean(wall_duration_list)
         wall_duration_std = np.std(wall_duration_list)
