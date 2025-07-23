@@ -209,6 +209,8 @@ def run(**run_arguments):
         time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3))
     plt.plot(
         time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3))
+    plt.plot(
+        time/1e-6, np.real(density[:, 6, 6])/0.01, "--", color=cm.hawaii(0.99))
     plt.xlabel("Time (us)")
     plt.ylabel("Fluorescence (%)")
     plt.gca().spines[["top", "right"]].set_visible(False)

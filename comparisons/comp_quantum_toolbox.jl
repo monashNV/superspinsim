@@ -20,29 +20,29 @@ function generate_coefficients_contrast()
 
 	function coefficient_x(p, t)
 		if t < time_one_start - duration_mw
-		    return 0
+		    return 0.0
 		end
 		if t < time_one_start
 			return amplitude_mw*sin(tau*frequency_mw*t)
 		end
-		return 0
+		return 0.0
 	end
 
-	coefficient_y(p, t) = 0
-	coefficient_z(p, t) = 0
+	coefficient_y(p, t) = 0.0
+	coefficient_z(p, t) = 0.0
 
 	function coefficient_l(p, t)
 		if t < time_thermal_end
 			return sqrt(excitation_amplitude)
 		end
 		if t < time_zero_start
-			return 0
+			return 0.0
 		end
 		if t < time_zero_end
 			return sqrt(excitation_amplitude)
 		end
 		if t < time_one_start
-			return 0
+			return 0.0
 		end
 		return sqrt(excitation_amplitude)
         end
@@ -63,20 +63,22 @@ generator_0 = Qobj(read(h5_file["generators_coherent/4"]))
 index = 1
 jumps_static = []
 while haskey(h5_file, "generators_jump_static/"*string(index))
-	push!(jumps_static, Qobj(read(h5_file["generators_jump_static/"*string(index)])))
+	push!(jumps_static, Qobj(transpose(read(h5_file["generators_jump_static/"*string(index)]))))
 	global index += 1
 end
 
 index = 1
 jumps_dynamic = []
 while haskey(h5_file, "generators_jump_dynamic/"*string(index))
-	push!(jumps_dynamic, Qobj(read(h5_file["generators_jump_dynamic/"*string(index)])))
+	push!(jumps_dynamic, Qobj(transpose(read(h5_file["generators_jump_dynamic/"*string(index)]))))
 	global index += 1
 end
 
 close(h5_file)
 
 # Convert to QuantumToolboxJL language
+time = 0:time_step:time_end
+
 density_operator_initial = Qobj(density_operator_initial)
 coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_contrast()
 hamiltonian = QobjEvo((
@@ -86,13 +88,24 @@ hamiltonian = QobjEvo((
 	(generator_z, coefficient_z)
 ))
 
+coefficient_sampled_x = collect(coefficient_x.(0, time))
+coefficient_sampled_y = collect(coefficient_y.(0, time))
+coefficient_sampled_z = collect(coefficient_z.(0, time))
+coefficient_sampled_l = collect(coefficient_l.(0, time))
+# println(coefficient_sampled_x)
+
 jumps_dynamic_true = []
 for jump_dynamic in jumps_dynamic
 	push!(jumps_dynamic_true, QobjEvo(jump_dynamic, coefficient_l))
 end
 jumps = vcat(jumps_static, jumps_dynamic_true)
+# jumps = vcat(jumps_static, jumps_dynamic)
+# jumps = jumps_static
 
-time = 0:time_step:time_end
+println(size(jumps_static))
+println(size(jumps_dynamic))
+println(size(jumps_dynamic_true))
+println(size(jumps))
 
 result = mesolve(
 	hamiltonian,
@@ -106,6 +119,14 @@ density = result.states
 
 # Send to python
 h5_file = h5open("from_julia.h5", "w")
+
 h5_file["time"] = collect(time)
 h5_file["density"] = stack(get_data.(density))
+
+group_sampled = create_group(h5_file, "sampled")
+group_sampled["x"] = coefficient_sampled_x
+group_sampled["y"] = coefficient_sampled_y
+group_sampled["z"] = coefficient_sampled_z
+group_sampled["l"] = coefficient_sampled_l
+
 close(h5_file)
