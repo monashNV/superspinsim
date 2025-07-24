@@ -420,6 +420,12 @@ def main():
             "data_label": "qutip"
         },
 
+        "qt.jl": {
+            "timestamp": "2025-07-24T11-11-45",
+            "plot_marker": "x",
+            "data_label": "quantum_toolbox_jl"
+        },
+
         # "qt_pc": {
         #     # "timestamp": "2025-07-08T16-10-49",
         #     "timestamp": "2025-07-08T19-01-21",
