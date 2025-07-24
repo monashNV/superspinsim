@@ -421,7 +421,7 @@ def main():
         },
 
         "qt.jl": {
-            "timestamp": "2025-07-23T18-46-18",
+            "timestamp": "2025-07-24T11-11-45",
             "plot_marker": "x",
             "data_label": "quantum_toolbox_jl"
         },
