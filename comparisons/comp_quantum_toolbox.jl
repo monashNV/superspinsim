@@ -132,9 +132,10 @@ result = mesolve(
 	time_list,
 	jumps,
 	reltol=max_step,
+	abstol=max_step,
 	dtmax=max_step,
 	progress_bar=false,
-	maxiters=100e6
+	maxiters=100e9
 )
 density = result.states
 
