@@ -205,6 +205,9 @@ def _add_electron(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
+        if "Rb<-a" in atom.keys():
+            g_spin = atom["Rb<-a"]@g_spin
+
         electron_gyro = g_spin*math.tau*s3p.fundamental.bohr_gyro
         atom["gyroS"] = electron_gyro
         tensor_labels.add("gyroS")
@@ -331,6 +334,9 @@ def _add_nucleus(
         g_spin[0, 0] = g_iso - g_dipole
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
+
+        if "Rb<-a" in atom.keys():
+            g_spin = atom["Rb<-a"]@g_spin
 
         atom["gyroI"] = -g_spin*math.tau*s3p.fundamental.nuclear_gyro
         tensor_labels |= {"gyroI"}
@@ -1808,7 +1814,8 @@ def generate_7(
         coefficient_functions: list[callable],
         quiescent_magnetic_field: np.ndarray = None,
         use_rotating: bool = False,
-        return_full:bool = False):
+        return_full: bool = False,
+        rotation_magnetic_gets_atom: str = None):
 
     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
     # lindbladian = _generate_lindbladian(coefficient_functions)
@@ -1862,6 +1869,11 @@ def generate_7(
             "1_gets_s": s3p.nv.room.isc.pm_gets_s
         }
     }
+
+    if rotation_magnetic_gets_atom is not None:
+        nv_ground["Rb<-a"] = rotation_magnetic_gets_atom
+        nv_excited["Rb<-a"] = rotation_magnetic_gets_atom
+        nv_singlet["Rb<-a"] = rotation_magnetic_gets_atom
 
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
