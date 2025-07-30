@@ -1,11 +1,12 @@
 if __name__ == "__main__":
-    from matplotlib import pyplot as plt
-    from pogger import Pogger
+    # from matplotlib import pyplot as plt
+    # from pogger import Pogger
 
     # from tests.odmr import main
     # from tests.contrast import main
+    from tests.odmr_4 import main
     # from superspinsim.generate_generators import main
-    # main()
+    main()
 
     # from comparisons.comp_simos import main
 
@@ -18,11 +19,11 @@ if __name__ == "__main__":
     # from comparisons.comp_quantum_toolbox import main
     # main()
 
-    from comparisons.comp_superspinsim import main
-    main(
-        use_rotating=True,
-        number_of_exponentials=5
-    )
+    # from comparisons.comp_superspinsim import main
+    # main(
+    #     use_rotating=True,
+    #     number_of_exponentials=5
+    # )
 
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:

@@ -1,4 +1,5 @@
 import math
+import numpy as np
 
 
 class fundamental:
@@ -2015,3 +2016,60 @@ class sensing:
             magnetic_normalised_units = "T"
 
 
+class PointGroups:
+    class T:
+        class Points:
+            e = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1]], dtype=np.float64)
+            a1p = np.array([[1, 0, 0, 0], [0, 0, 1, 0], [0, 0, 0, 1], [0, 1, 0, 0]], dtype=np.float64)
+            a1m = np.array([[1, 0, 0, 0], [0, 0, 0, 1], [0, 1, 0, 0], [0, 0, 1, 0]], dtype=np.float64)
+            a3p = np.array([[0, 0, 0, 1], [0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 1, 0]], dtype=np.float64)
+            a3m = np.array([[0, 0, 1, 0], [0, 1, 0, 0], [0, 0, 0, 1], [1, 0, 0, 0]], dtype=np.float64)
+            b2p = np.array([[0, 1, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0], [1, 0, 0, 0]], dtype=np.float64)
+            b2m = np.array([[0, 0, 0, 1], [1, 0, 0, 0], [0, 0, 1, 0], [0, 1, 0, 0]], dtype=np.float64)
+            b4p = np.array([[0, 0, 1, 0], [1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 0, 1]], dtype=np.float64)
+            b4m = np.array([[0, 1, 0, 0], [0, 0, 1, 0], [1, 0, 0, 0], [0, 0, 0, 1]], dtype=np.float64)
+            x = np.array([[0, 0, 1, 0], [0, 0, 0, 1], [1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float64)
+            y = np.array([[0, 0, 0, 1], [0, 0, 1, 0], [0, 1, 0, 0], [1, 0, 0, 0]], dtype=np.float64)
+            z = np.array([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, 0, 1], [0, 0, 1, 0]], dtype=np.float64)
+
+        class T100:
+            e = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+            a1p = np.array([[0, 1, 0], [0, 0, 1], [1, 0, 0]], dtype=np.float64)
+            a1m = np.array([[0, 0, 1], [1, 0, 0], [0, 1, 0]], dtype=np.float64)
+            a3p = np.array([[0, 1, 0], [0, 0, -1], [-1, 0, 0]], dtype=np.float64)
+            a3m = np.array([[0, 0, -1], [1, 0, 0], [0, -1, 0]], dtype=np.float64)
+            b2p = np.array([[0, -1, 0], [0, 0, 1], [-1, 0, 0]], dtype=np.float64)
+            b2m = np.array([[0, 0, -1], [-1, 0, 0], [0, 1, 0]], dtype=np.float64)
+            b4p = np.array([[0, -1, 0], [0, 0, -1], [1, 0, 0]], dtype=np.float64)
+            b4m = np.array([[0, 0, 1], [-1, 0, 0], [0, -1, 0]], dtype=np.float64)
+            x = np.array([[1, 0, 0], [0, -1, 0], [0, 0, -1]], dtype=np.float64)
+            y = np.array([[-1, 0, 0], [0, 1, 0], [0, 0, -1]], dtype=np.float64)
+            z = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]], dtype=np.float64)
+
+        class T110:
+            e = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+            a1p = np.array([[1/2, math.sqrt(3)/6, -math.sqrt(6)/3], [math.sqrt(3)/2, -1/6, math.sqrt(2)/3], [0, -2*math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            a1m = np.array([[1/2, math.sqrt(3)/2, 0], [math.sqrt(3)/6, -1/6, -2*math.sqrt(2)/3], [-math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            a3p = np.array([[1/2, -math.sqrt(3)/2, 0], [-math.sqrt(3)/6, -1/6, -2*math.sqrt(2)/3], [math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            a3m = np.array([[1/2, -math.sqrt(3)/6, math.sqrt(6)/3], [-math.sqrt(3)/2, -1/6, math.sqrt(2)/3], [0, -2*math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            b2p = np.array([[-1/2, math.sqrt(3)/2, 0], [-math.sqrt(3)/2, -1/2, 0], [0, 0, 1]], dtype=np.float64)
+            b2m = np.array([[-1/2, -math.sqrt(3)/2, 0], [math.sqrt(3)/2, -1/2, 0], [0, 0, 1]], dtype=np.float64)
+            b4p = np.array([[-1/2, -math.sqrt(3)/6, math.sqrt(6)/3], [math.sqrt(3)/6, 5/6, math.sqrt(2)/3], [-math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            b4m = np.array([[-1/2, math.sqrt(3)/6, -math.sqrt(6)/3], [-math.sqrt(3)/6, 5/6, math.sqrt(2)/3], [math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            x = np.array([[0, math.sqrt(3)/3, math.sqrt(6)/3], [math.sqrt(3)/3, -2/3, math.sqrt(2)/3], [math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            y = np.array([[0, -math.sqrt(3)/3, -math.sqrt(6)/3], [-math.sqrt(3)/3, -2/3, math.sqrt(2)/3], [-math.sqrt(6)/3, math.sqrt(2)/3, -1/3]], dtype=np.float64)
+            z = np.array([[-1, 0, 0], [0, 1/3, -2*math.sqrt(2)/3], [0, -2*math.sqrt(2)/3, -1/3]], dtype=np.float64)
+
+        class T111:
+            e = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]], dtype=np.float64)
+            a1p = np.array([[-1/2, math.sqrt(3)/2, 0], [-math.sqrt(3)/2, -1/2, 0], [0, 0, 1]], dtype=np.float64)
+            a1m = np.array([[-1/2, -math.sqrt(3)/2, 0], [math.sqrt(3)/2, -1/2, 0], [0, 0, 1]], dtype=np.float64)
+            a3p = np.array([[5/6, -math.sqrt(3)/6, -math.sqrt(2)/3], [math.sqrt(3)/6, -1/2, math.sqrt(6)/3], [-math.sqrt(2)/3, -math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            a3m = np.array([[5/6, math.sqrt(3)/6, -math.sqrt(2)/3], [-math.sqrt(3)/6, -1/2, -math.sqrt(6)/3], [-math.sqrt(2)/3, math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            b2p = np.array([[-1/6, -math.sqrt(3)/2, -math.sqrt(2)/3], [-math.sqrt(3)/6, 1/2, -math.sqrt(6)/3], [2*math.sqrt(2)/3, 0, -1/3]], dtype=np.float64)
+            b2m = np.array([[-1/6, -math.sqrt(3)/6, 2*math.sqrt(2)/3], [-math.sqrt(3)/2, 1/2, 0], [-math.sqrt(2)/3, -math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            b4p = np.array([[-1/6, math.sqrt(3)/6, 2*math.sqrt(2)/3], [math.sqrt(3)/2, 1/2, 0], [-math.sqrt(2)/3, math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            b4m = np.array([[-1/6, math.sqrt(3)/2, -math.sqrt(2)/3], [math.sqrt(3)/6, 1/2, math.sqrt(6)/3], [2*math.sqrt(2)/3, 0, -1/3]], dtype=np.float64)
+            x = np.array([[-2/3, -math.sqrt(3)/3, -math.sqrt(2)/3], [-math.sqrt(3)/3, 0, math.sqrt(6)/3], [-math.sqrt(2)/3, math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            y = np.array([[-2/3, math.sqrt(3)/3, -math.sqrt(2)/3], [math.sqrt(3)/3, 0, -math.sqrt(6)/3], [-math.sqrt(2)/3, -math.sqrt(6)/3, -1/3]], dtype=np.float64)
+            z = np.array([[1/3, 0, 2*math.sqrt(2)/3], [0, -1, 0], [2*math.sqrt(2)/3, 0, -1/3]], dtype=np.float64)
