@@ -15,14 +15,14 @@ if __name__ == "__main__":
     # from comparisons.comp_dynamiqs import main
     # main()
 
-    from comparisons.comp_quantum_toolbox import main
-    main()
+    # from comparisons.comp_quantum_toolbox import main
+    # main()
 
-    # from comparisons.comp_superspinsim import main
-    # main(
-    #     use_rotating=True,
-    #     number_of_exponentials=5
-    # )
+    from comparisons.comp_superspinsim import main
+    main(
+        use_rotating=True,
+        number_of_exponentials=5
+    )
 
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:

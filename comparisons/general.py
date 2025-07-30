@@ -194,44 +194,75 @@ def run(**run_arguments):
         max_step *= max_step_multiple
         sweep_parameter = max_step
 
+    # Plot
     fluorescence = \
         np.real(density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5])
     fluorescence /= np.max(fluorescence)
 
-    plt.figure(label="fluorescence")
+    coefficients = run_arguments["coefficients"]
+    time_step = run_arguments["time_step"]
+    time_end = run_arguments["time_end"]
+    time_coefficients_sample = np.arange(0, time_end, time_step/10)
+    coefficient_sample_x = np.empty_like(time_coefficients_sample)
+    coefficient_sample_l = np.empty_like(time_coefficients_sample)
+    for time_index, time_sample in enumerate(time_coefficients_sample):
+        coefficient_sample_x[time_index] = coefficients[0](time_sample)
+        coefficient_sample_l[time_index] = coefficients[3](time_sample)
+
+    plt.figure(label="fluorescence", figsize=(6.4, 6.4))
+    plt.subplot(2, 1, 1)
     plt.plot(time/1e-6, fluorescence/0.01, "k-", label="Fluoro")
     plt.plot(
         time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3),
-        label="(g) mS=+1"
+        label="(g+)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 1, 1])/0.01, "-", color=cm.hawaii(1/3),
-        label="(g) mS=0"
+        label="(g0)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 2, 2])/0.01, "-", color=cm.hawaii(2/3),
-        label="(g) mS=-1"
+        label="(g-)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 3, 3])/0.01, "--", color=cm.hawaii(0/3),
-        label="(e) mS=+1"
+        label="(e+)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3),
-        label="(e) mS=0"
+        label="(e0)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3),
-        label="(e) ms=-1"
+        label="(e-)"
     )
     plt.plot(
         time/1e-6, np.real(density[:, 6, 6])/0.01, "-", color=cm.hawaii(0.99),
         label="(s)"
     )
-    plt.xlabel("Time (us)")
+    plt.xlim(0, time_end/1e-6)
     plt.ylabel("Fluorescence (%); Population (%)")
     plt.legend()
+    plt.gca().set_xticklabels([])
     plt.gca().spines[["top", "right"]].set_visible(False)
+
+    plt.subplot(4, 1, 3)
+    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_x/1e-3, "k-")
+    plt.text(6.2, 0.3, "π", va="bottom")
+    plt.xlim(0, time_end/1e-6)
+    plt.ylabel("MW field (mT)")
+    plt.gca().set_xticklabels([])
+    plt.gca().spines[["top", "right"]].set_visible(False)
+
+    plt.subplot(4, 1, 4)
+    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_l/1e-2, "k-")
+    plt.xlim(0, time_end/1e-6)
+    plt.xlabel("Time (us)")
+    plt.ylabel("Optical excitation\n(% decay rate)")
+    plt.gca().spines[["top", "right"]].set_visible(False)
+
+    plt.tight_layout()
+
     plt.draw()
 
     return_values = (

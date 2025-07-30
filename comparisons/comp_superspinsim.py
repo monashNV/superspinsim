@@ -39,7 +39,8 @@ def init_superspinsim(
         "sweep_display_code": "fine_steps",
         "sweep_display_units": "s",
         "sweep_parameter_code": "fine_division",
-        "sweep_parameter_units": None
+        "sweep_parameter_units": None,
+        "coefficients": generate_return_comparison[0]
     }
 
     trial_name = "superspinsim"
