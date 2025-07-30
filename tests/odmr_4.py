@@ -13,26 +13,26 @@ def main():
 
     time_start = 1e-6
     time_end = 1000e-6
-    frequency_start = 2.72e9
-    frequency_width = 400e6
+    frequency_start = 2.62e9
+    frequency_width = 600e6
 
-    quiescent_magnetic_field = np.array([1, 0, 0])*1e-3
+    quiescent_magnetic_field = np.array([0, 1, 2])*2e-3
 
-    def coefficient_z(time):
+    def coefficient_x(time):
         if time > time_start:
             phase = math.tau*(
                 frequency_start*(time - time_start)
                 + frequency_width*((time - time_start)**2)
                 / (time_end - time_start)/2
             )
-            return 500e-6*math.sin(phase)
+            return 100e-6*math.sin(phase)
         else:
             return 0
 
     def coefficient_y(time):
         return 0
 
-    def coefficient_x(time):
+    def coefficient_z(time):
         return 0
 
     def coefficient_r(time):
