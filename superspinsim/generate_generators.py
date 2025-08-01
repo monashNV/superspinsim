@@ -1815,7 +1815,7 @@ def generate_7(
         quiescent_magnetic_field: np.ndarray = None,
         use_rotating: bool = False,
         return_full: bool = False,
-        rotation_magnetic_gets_atom: str = None):
+        rotation_magnetic_from_atom: str = None):
 
     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
     # lindbladian = _generate_lindbladian(coefficient_functions)
@@ -1870,10 +1870,10 @@ def generate_7(
         }
     }
 
-    if rotation_magnetic_gets_atom is not None:
-        nv_ground["Rb<-a"] = rotation_magnetic_gets_atom
-        nv_excited["Rb<-a"] = rotation_magnetic_gets_atom
-        nv_singlet["Rb<-a"] = rotation_magnetic_gets_atom
+    if rotation_magnetic_from_atom is not None:
+        nv_ground["Rb<-a"] = rotation_magnetic_from_atom
+        nv_excited["Rb<-a"] = rotation_magnetic_from_atom
+        nv_singlet["Rb<-a"] = rotation_magnetic_from_atom
 
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals

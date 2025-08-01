@@ -2073,3 +2073,8 @@ class PointGroups:
             x = np.array([[-2/3, -math.sqrt(3)/3, -math.sqrt(2)/3], [-math.sqrt(3)/3, 0, math.sqrt(6)/3], [-math.sqrt(2)/3, math.sqrt(6)/3, -1/3]], dtype=np.float64)
             y = np.array([[-2/3, math.sqrt(3)/3, -math.sqrt(2)/3], [math.sqrt(3)/3, 0, -math.sqrt(6)/3], [-math.sqrt(2)/3, -math.sqrt(6)/3, -1/3]], dtype=np.float64)
             z = np.array([[1/3, 0, 2*math.sqrt(2)/3], [0, -1, 0], [2*math.sqrt(2)/3, 0, -1/3]], dtype=np.float64)
+
+        class Transforms:
+            points_from_T100 = np.array([[math.sqrt(3)/3, math.sqrt(3)/3, math.sqrt(3)/3], [-math.sqrt(3)/3, -math.sqrt(3)/3, math.sqrt(3)/3], [math.sqrt(3)/3, -math.sqrt(3)/3, -math.sqrt(3)/3], [-math.sqrt(3)/3, math.sqrt(3)/3, -math.sqrt(3)/3]], dtype=np.float64)
+            T110_from_T100 = np.array([[math.sqrt(2)/2, math.sqrt(2)/2, 0], [math.sqrt(6)/6, -math.sqrt(6)/6, math.sqrt(6)/3], [math.sqrt(3)/3, -math.sqrt(3)/3, -math.sqrt(3)/3]], dtype=np.float64)
+            T111_from_T100 = np.array([[-math.sqrt(6)/6, -math.sqrt(6)/6, math.sqrt(6)/3], [math.sqrt(2)/2, -math.sqrt(2)/2, 0], [math.sqrt(3)/3, math.sqrt(3)/3, math.sqrt(3)/3]], dtype=np.float64)
