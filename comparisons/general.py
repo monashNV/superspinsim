@@ -199,15 +199,15 @@ def run(**run_arguments):
         np.real(density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5])
     fluorescence /= np.max(fluorescence)
 
-    coefficients = run_arguments["coefficients"]
+    # coefficients = run_arguments["coefficients"]
     time_step = run_arguments["time_step"]
     time_end = run_arguments["time_end"]
-    time_coefficients_sample = np.arange(0, time_end, time_step/10)
-    coefficient_sample_x = np.empty_like(time_coefficients_sample)
-    coefficient_sample_l = np.empty_like(time_coefficients_sample)
-    for time_index, time_sample in enumerate(time_coefficients_sample):
-        coefficient_sample_x[time_index] = coefficients[0](time_sample)
-        coefficient_sample_l[time_index] = coefficients[3](time_sample)
+    # time_coefficients_sample = np.arange(0, time_end, time_step/10)
+    # coefficient_sample_x = np.empty_like(time_coefficients_sample)
+    # coefficient_sample_l = np.empty_like(time_coefficients_sample)
+    # for time_index, time_sample in enumerate(time_coefficients_sample):
+    #     coefficient_sample_x[time_index] = coefficients[0](time_sample)
+    #     coefficient_sample_l[time_index] = coefficients[3](time_sample)
 
     plt.figure(
         label="fluorescence",

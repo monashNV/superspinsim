@@ -14,12 +14,19 @@ def main():
     hyperfine = False
 
     mw_amplitudes = [200e-6]  # np.geomspace(0.01e-6, 100e-6, 11)
-    spectra = []
+    fluorescences = []
+    carriers = np.array([
+        2.770896e+09, 2.796657e+09, 2.840870e+09, 2.864824e+09, 2.882645e+09,
+        2.905514e+09, 2.945065e+09, 2.966598e+09
+    ])
+    fm_modulation = np.array(
+        [6300, 26900, 10300, 113800, 70300, 43500, 16600, 3900])
+    fm_deviation = np.array([200e3]*8)
+
     for mw_amplitude in mw_amplitudes:
-        time_start = 10e-6
-        time_end = 2000e-6
-        frequency_start = 2.75e9
-        frequency_width = 250e6
+        # time_start = 10e-6
+        time_start = 0e-6
+        time_end = 100e-3
 
         quiescent_magnetic_field = np.array(
             [3300.91, 2026.51, -723.18], dtype=np.float64)*1e-6
@@ -32,12 +39,15 @@ def main():
 
         def coefficient_z(time):
             if time > time_start:
-                phase = math.tau*(
-                    frequency_start*(time - time_start)
-                    + frequency_width*((time - time_start)**2)
-                    / (time_end - time_start)/2
-                )
-                return mw_amplitude*math.sin(phase)
+                signal = 0.0
+                for index in range(8):
+                    signal += math.cos(
+                        math.tau*carriers[index]*time
+                        + (fm_deviation[index]/fm_modulation[index])
+                        * math.sin(math.tau*fm_modulation[index]*time)
+                    )
+                signal *= mw_amplitude
+                return signal
             else:
                 return 0
 
@@ -142,21 +152,20 @@ def main():
             else:
                 fluorescence_total += fluorescence
 
-        spectra.append(fluorescence_total)
+        fluorescences.append(fluorescence_total)
 
     with Pogger("superspinsim-generate") as logger:
         @logger.record(
             (
-                "time", "mw_amplitude", "spectra_full", "mw_frequency",
-                "spectra"
+                "time", "mw_amplitude", "fluorescences"
             ), ("s", "T", None, "Hz", None))
         def plot():
             plt.figure("odmr")
             for fluorescence_index, (fluorescence, mw_amplitude) \
-                    in enumerate(zip(spectra, mw_amplitudes)):
+                    in enumerate(zip(fluorescences, mw_amplitudes)):
                 plt.plot(
                     time/1e-6, 100*fluorescence/np.max(fluorescence), "-",
-                    color=cm.hawaii(fluorescence_index/len(spectra)),
+                    color=cm.hawaii(fluorescence_index/len(fluorescences)),
                     label=f"MW: {mw_amplitude/1e-6:.2f} mT"
                 )
             plt.xlabel("Time (us)")
@@ -165,39 +174,8 @@ def main():
             plt.gca().spines[["top", "right"]].set_visible(False)
             plt.draw()
 
-            carriers = [
-                2.770896e+09,
-                2.796657e+09,
-                2.840870e+09,
-                2.864824e+09,
-                2.882645e+09,
-                2.905514e+09,
-                2.945065e+09,
-                2.966598e+09
-            ]
-            plt.figure("odmr-sweep")
-            spectra_clip = np.array(spectra)[:, time > time_start*15]
-            mw_frequency = frequency_start + frequency_width*(
-                time[time > time_start*15] - time_start) \
-                / (time_end - time_start)
-            for fluorescence_index, (fluorescence, mw_amplitude) \
-                    in enumerate(zip(spectra_clip, mw_amplitudes)):
-                plt.plot(
-                    mw_frequency/1e9, 100*fluorescence/np.max(fluorescence),
-                    "-", color=cm.hawaii(fluorescence_index/len(spectra)),
-                    label=f"MW: {mw_amplitude/1e-6:.2f} uT"
-                )
-            for carrier in carriers:
-                plt.plot([carrier/1e9]*2, [99, 100], "--k")
-            plt.xlabel("Microwave frequency (GHz)")
-            plt.ylabel("Fluorescence (%)")
-            plt.legend()
-            plt.gca().spines[["top", "right"]].set_visible(False)
-            plt.draw()
-
             return (
-                time, np.array(mw_amplitudes), np.array(spectra),
-                mw_frequency, spectra_clip,
+                time, np.array(mw_amplitudes), np.array(fluorescences)
             )
 
         if hyperfine:
