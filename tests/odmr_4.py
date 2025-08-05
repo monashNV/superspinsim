@@ -13,16 +13,16 @@ from pogger import Pogger
 def main():
     hyperfine = False
 
-    mw_amplitudes = [500e-6]  # np.geomspace(0.01e-6, 100e-6, 11)
+    mw_amplitudes = [200e-6]  # np.geomspace(0.01e-6, 100e-6, 11)
     spectra = []
     for mw_amplitude in mw_amplitudes:
-        time_start = 1e-6
-        time_end = 1000e-6
+        time_start = 10e-6
+        time_end = 2000e-6
         frequency_start = 2.75e9
         frequency_width = 250e6
 
         quiescent_magnetic_field = np.array(
-            [3300.91, 2026.51, -723.18], dtype=np.float64)*1e-6
+            [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
         # quiescent_magnetic_field = np.array(
         #     [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
         # quiescent_magnetic_field /= np.linalg.norm(quiescent_magnetic_field)
@@ -48,8 +48,7 @@ def main():
         def coefficient_r(time):
             return 0.01
 
-        t100_from_t111 = np.linalg.inv(
-            s3p.PointGroups.T.Transforms.T111_from_T100)
+        t100_from_t111 = s3p.PointGroups.T.Transforms.T100_from_T111
         coefficients = [
             coefficient_x, coefficient_y, coefficient_z, coefficient_r]
         orientations = [
