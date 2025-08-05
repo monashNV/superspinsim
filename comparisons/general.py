@@ -209,8 +209,11 @@ def run(**run_arguments):
         coefficient_sample_x[time_index] = coefficients[0](time_sample)
         coefficient_sample_l[time_index] = coefficients[3](time_sample)
 
-    plt.figure(label="fluorescence", figsize=(6.4, 6.4))
-    plt.subplot(2, 1, 1)
+    plt.figure(
+        label="fluorescence",
+        # figsize=(6.4, 6.4)
+    )
+    # plt.subplot(2, 1, 1)
     plt.plot(time/1e-6, fluorescence/0.01, "k-", label="Fluoro")
     plt.plot(
         time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3),
@@ -243,25 +246,25 @@ def run(**run_arguments):
     plt.xlim(0, time_end/1e-6)
     plt.ylabel("Fluorescence (%); Population (%)")
     plt.legend()
-    plt.gca().set_xticklabels([])
+    # plt.gca().set_xticklabels([])
     plt.gca().spines[["top", "right"]].set_visible(False)
 
-    plt.subplot(4, 1, 3)
-    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_x/1e-3, "k-")
-    plt.text(6.2, 0.3, "π", va="bottom")
-    plt.xlim(0, time_end/1e-6)
-    plt.ylabel("MW field (mT)")
-    plt.gca().set_xticklabels([])
-    plt.gca().spines[["top", "right"]].set_visible(False)
+    # plt.subplot(4, 1, 3)
+    # plt.plot(time_coefficients_sample/1e-6, coefficient_sample_x/1e-3, "k-")
+    # plt.text(6.2, 0.3, "π", va="bottom")
+    # plt.xlim(0, time_end/1e-6)
+    # plt.ylabel("MW field (mT)")
+    # plt.gca().set_xticklabels([])
+    # plt.gca().spines[["top", "right"]].set_visible(False)
 
-    plt.subplot(4, 1, 4)
-    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_l/1e-2, "k-")
-    plt.xlim(0, time_end/1e-6)
+    # plt.subplot(4, 1, 4)
+    # plt.plot(time_coefficients_sample/1e-6, coefficient_sample_l/1e-2, "k-")
+    # plt.xlim(0, time_end/1e-6)
     plt.xlabel("Time (us)")
-    plt.ylabel("Optical excitation\n(% decay rate)")
-    plt.gca().spines[["top", "right"]].set_visible(False)
+    # plt.ylabel("Optical excitation\n(% decay rate)")
+    # plt.gca().spines[["top", "right"]].set_visible(False)
 
-    plt.tight_layout()
+    # plt.tight_layout()
 
     plt.draw()
 
