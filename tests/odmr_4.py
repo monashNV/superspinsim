@@ -23,6 +23,8 @@ def main():
 
         quiescent_magnetic_field = np.array(
             [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
+
+        coefficient_r_max = 0.1
         # quiescent_magnetic_field = np.array(
         #     [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
         # quiescent_magnetic_field /= np.linalg.norm(quiescent_magnetic_field)
@@ -45,21 +47,38 @@ def main():
         def coefficient_z(time):
             return 0
 
-        def coefficient_r(time):
-            return 0.01
+        # def coefficient_r(time):
+        #     return 0.01
 
         t100_from_t111 = s3p.PointGroups.T.Transforms.T100_from_T111
         coefficients = [
-            coefficient_x, coefficient_y, coefficient_z, coefficient_r]
+            coefficient_x, coefficient_y, coefficient_z]
         orientations = [
-             t100_from_t111@s3p.PointGroups.T.T111.a1p,
-             t100_from_t111@s3p.PointGroups.T.T111.a3p,
-             t100_from_t111@s3p.PointGroups.T.T111.b2p,
-             t100_from_t111@s3p.PointGroups.T.T111.b4p,
+             [t100_from_t111@s3p.PointGroups.T.T111.a1p],
+             [t100_from_t111@s3p.PointGroups.T.T111.a3p],
+             [t100_from_t111@s3p.PointGroups.T.T111.b2p],
+             [t100_from_t111@s3p.PointGroups.T.T111.b4p],
         ]
+        laser_direction = np.array([3, 2, 1], dtype=np.float64)
+        laser_direction /= np.linalg.norm(laser_direction)
+        for orientation in orientations:
+            factor = 1
+            # factor = \
+            #     (laser_direction.T@orientations[0][0]@laser_direction)**2 \
+            #     + 0.25
+            # coefficient_r = \
+            #     lambda time: coefficient_r_max*(factor + 1)/2
+            coefficient_r = \
+                lambda time: coefficient_r_max*factor
+
+            # def coefficient_r(time):
+            #     return coefficient_r_max*(factor + 1)/2
+
+            orientation.append(coefficients + [coefficient_r])
+            print(orientation)
 
         fluorescence_total = None
-        for orientation in orientations:
+        for (orientation, coefficients) in orientations:
             if hyperfine:
                 lindbladian, generators, vectorisation_map = generate_21(
                     coefficients, quiescent_magnetic_field)
@@ -126,7 +145,11 @@ def main():
         spectra.append(fluorescence_total)
 
     with Pogger("superspinsim-generate") as logger:
-        @logger.record(("time", "mw_amplitude", "spectra"), ("s", "T", None))
+        @logger.record(
+            (
+                "time", "mw_amplitude", "spectra_full", "mw_frequency",
+                "spectra"
+            ), ("s", "T", None, "Hz", None))
         def plot():
             plt.figure("odmr")
             for fluorescence_index, (fluorescence, mw_amplitude) \
@@ -142,25 +165,40 @@ def main():
             plt.gca().spines[["top", "right"]].set_visible(False)
             plt.draw()
 
+            carriers = [
+                2.770896e+09,
+                2.796657e+09,
+                2.840870e+09,
+                2.864824e+09,
+                2.882645e+09,
+                2.905514e+09,
+                2.945065e+09,
+                2.966598e+09
+            ]
             plt.figure("odmr-sweep")
+            spectra_clip = np.array(spectra)[:, time > time_start*15]
+            mw_frequency = frequency_start + frequency_width*(
+                time[time > time_start*15] - time_start) \
+                / (time_end - time_start)
             for fluorescence_index, (fluorescence, mw_amplitude) \
-                    in enumerate(zip(spectra, mw_amplitudes)):
+                    in enumerate(zip(spectra_clip, mw_amplitudes)):
                 plt.plot(
-                    frequency_start/1e9 + frequency_width/1e9*(
-                        time[time > time_start*15] - time_start)
-                        / (time_end - time_start),
-                    100*fluorescence[time > time_start*15] \
-                        / np.max(fluorescence), "-",
+                    mw_frequency/1e9, fluorescence, "-",
                     color=cm.hawaii(fluorescence_index/len(spectra)),
                     label=f"MW: {mw_amplitude/1e-6:.2f} uT"
                 )
+            for carrier in carriers:
+                plt.plot([carrier/1e9]*2, [99, 100], "--k")
             plt.xlabel("Microwave frequency (GHz)")
             plt.ylabel("Fluorescence (%)")
             plt.legend()
             plt.gca().spines[["top", "right"]].set_visible(False)
             plt.draw()
 
-            return time, np.array(mw_amplitudes), np.array(spectra)
+            return (
+                time, np.array(mw_amplitudes), np.array(spectra),
+                mw_frequency, spectra_clip,
+            )
 
         if hyperfine:
             logger.set_context("21-level")
