@@ -5,7 +5,7 @@ import numpy as np
 import math
 import warnings
 
-from comparisons.lindbladians import contrast
+from comparisons.lindbladians import contrast, odmr
 from comparisons.general import loop, make_strikes
 
 
@@ -23,6 +23,8 @@ def init_qutip(lindbladian="contrast", use_jax=False):
 
     if lindbladian == "contrast":
         generate_return, generate_return_comparison = contrast()
+    if lindbladian == "odmr":
+        generate_return, generate_return_comparison = odmr()
 
     coefficients, generators_coherent, generators_jump, density_initial, \
         time_step, time_end = generate_return_comparison

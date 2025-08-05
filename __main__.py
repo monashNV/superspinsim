@@ -2,16 +2,19 @@ if __name__ == "__main__":
     # from matplotlib import pyplot as plt
     # from pogger import Pogger
 
-    # from tests.odmr import main
-    # from tests.contrast import main
-    from tests.odmr_4 import main
-    # from superspinsim.generate_generators import main
-    main()
+    # # from tests.odmr import main
+    # # from tests.contrast import main
+    # from tests.odmr_4 import main
+    # # from superspinsim.generate_generators import main
+    # main()
 
     # from comparisons.comp_simos import main
 
-    # from comparisons.comp_qutip import main
-    # main(use_jax=False)
+    from comparisons.comp_qutip import main
+    main(
+        lindbladian="odmr",
+        use_jax=False
+    )
 
     # from comparisons.comp_dynamiqs import main
     # main()
@@ -21,6 +24,7 @@ if __name__ == "__main__":
 
     # from comparisons.comp_superspinsim import main
     # main(
+    #     lindbladian="odmr",
     #     use_rotating=True,
     #     number_of_exponentials=5
     # )

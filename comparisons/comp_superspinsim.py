@@ -2,7 +2,7 @@ import numpy as np
 
 from superspinsim import generate_simulator
 from comparisons.general import loop, make_strikes
-from comparisons.lindbladians import contrast
+from comparisons.lindbladians import contrast, odmr
 
 
 def main(lindbladian="contrast", use_rotating=False, number_of_exponentials=2):
@@ -18,6 +18,8 @@ def init_superspinsim(
         lindbladian="contrast", use_rotating=False, number_of_exponentials=2):
     if lindbladian == "contrast":
         generate_return, generate_return_comparison = contrast(use_rotating)
+    elif lindbladian == "odmr":
+        generate_return, generate_return_comparison = odmr(use_rotating)
     if use_rotating:
         lindbladian, generators_list, vectorisation_map, vectors_real, \
             inv_vectors_real, doubles, singles, _ = generate_return
