@@ -23,13 +23,80 @@ def main():
         [6300, 26900, 10300, 113800, 70300, 43500, 16600, 3900])
     fm_deviation = np.array([200e3]*8)
 
+    dipole_moment_strength = 0.77
+    dipole_rotation_frequency = 220
+    dipole_moment_position = np.array(
+        [-0.215, -0.01, -0.033], dtype=np.float64)
+    magnetic_permeability_normalised = 0.99999999987*1e-7
+    dipole_moment_direction_i = np.array([1, -1, 0], dtype=np.float64)
+    dipole_moment_direction_q = np.array([0, 0, 1], dtype=np.float64)
+    dipole_moment_i = \
+        dipole_moment_strength*dipole_moment_direction_i \
+        / np.linalg.norm(dipole_moment_direction_i)
+    dipole_moment_q = \
+        dipole_moment_strength*dipole_moment_direction_q \
+        / np.linalg.norm(dipole_moment_direction_q)
+    dipole_magnetic_field_i = magnetic_permeability_normalised*(
+        -3*dipole_moment_position
+        * np.dot(-dipole_moment_position, dipole_moment_i)
+        / np.linalg.norm(dipole_moment_position)**5
+        - dipole_moment_i/np.linalg.norm(dipole_moment_position)**3
+    )
+    dipole_magnetic_field_q = magnetic_permeability_normalised*(
+        -3*dipole_moment_position
+        * np.dot(-dipole_moment_position, dipole_moment_q)
+        / np.linalg.norm(dipole_moment_position)**5
+        - dipole_moment_q/np.linalg.norm(dipole_moment_position)**3
+    )
+
+    # time_sample = np.linspace(0, 100e-3, int(1e3))
+    # magnetic_field_x = \
+    #     np.cos(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_i[0] \
+    #     + np.sin(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_q[0]
+    # magnetic_field_y = \
+    #     np.cos(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_i[1] \
+    #     + np.sin(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_q[1]
+    # magnetic_field_z = \
+    #     np.cos(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_i[2] \
+    #     + np.sin(math.tau*dipole_rotation_frequency*time_sample) \
+    #     * dipole_magnetic_field_q[2]
+
+    # with Pogger("superspinsim-generate") as logger:
+    #     @logger.record((), ())
+    #     def draw_fields():
+    #         plt.figure(label="dipole_fields")
+    #         plt.plot(
+    #             time_sample/1e-3, magnetic_field_x/1e-6, "-",
+    #             color=cm.hawaii(0/3), label="x"
+    #         )
+    #         plt.plot(
+    #             time_sample/1e-3, magnetic_field_y/1e-6, "-",
+    #             color=cm.hawaii(1/3), label="y"
+    #         )
+    #         plt.plot(
+    #             time_sample/1e-3, magnetic_field_z/1e-6, "-",
+    #             color=cm.hawaii(2/3), label="z"
+    #         )
+    #         plt.xlabel("Time (ms)")
+    #         plt.ylabel("Magnetic field (uT)")
+    #         plt.legend()
+    #         plt.draw()
+    #     draw_fields()
+    # return
+
     for mw_amplitude in mw_amplitudes:
         # time_start = 10e-6
         time_start = 0e-6
-        time_end = 100e-3
+        # time_end = 100e-3
+        time_end = 20e-3
 
         quiescent_magnetic_field = np.array(
-            [3300.91, 2026.51, -723.18], dtype=np.float64)*1e-6
+            [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
 
         coefficient_r_max = 0.1
         # quiescent_magnetic_field = np.array(
@@ -38,24 +105,38 @@ def main():
         # quiescent_magnetic_field *= 7e-3
 
         def coefficient_z(time):
-            if time > time_start:
-                signal = 0.0
-                for index in range(8):
-                    signal += math.cos(
-                        math.tau*carriers[index]*time
-                        + (fm_deviation[index]/fm_modulation[index])
-                        * math.sin(math.tau*fm_modulation[index]*time)
-                    )
-                signal *= mw_amplitude
-                return signal
-            else:
-                return 0
+            signal = 0.0
+            signal += \
+                np.cos(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_i[2] \
+                + np.sin(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_q[2]
+            for index in range(8):
+                signal += math.cos(
+                    math.tau*carriers[index]*time
+                    + (fm_deviation[index]/fm_modulation[index])
+                    * math.sin(math.tau*fm_modulation[index]*time)
+                )
+            signal *= mw_amplitude
+            return signal
 
         def coefficient_y(time):
-            return 0
+            signal = 0.0
+            signal += \
+                np.cos(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_i[1] \
+                + np.sin(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_q[1]
+            return signal
 
         def coefficient_x(time):
-            return 0
+            signal = 0.0
+            signal += \
+                np.cos(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_i[0] \
+                + np.sin(math.tau*dipole_rotation_frequency*time) \
+                * dipole_magnetic_field_q[0]
+            return signal
 
         # def coefficient_r(time):
         #     return 0.01
