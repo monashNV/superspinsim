@@ -1,13 +1,11 @@
 if __name__ == "__main__":
-    # from matplotlib import pyplot as plt
-    # from pogger import Pogger
 
-    # from tests.odmr import main
-    # from tests.contrast import main
-    # from tests.odmr_4 import main
-    from tests.modulation import main
-    # from superspinsim.generate_generators import main
-    main()
+    # # from tests.odmr import main
+    # # from tests.contrast import main
+    # # from tests.odmr_4 import main
+    # from tests.modulation import main
+    # # from superspinsim.generate_generators import main
+    # main()
 
     # from comparisons.comp_simos import main
 
@@ -30,12 +28,15 @@ if __name__ == "__main__":
     #     number_of_exponentials=5
     # )
 
-    # from comparisons.compilation import main
-    # with Pogger("superspinsim-comparisons") as logger:
-    #     logger.set_context("compilation")
-    #     main = logger.record(["protocols", "pca_data"])(main)
-    #     main()
-    # plt.show()
+    from matplotlib import pyplot as plt
+    from pogger import Pogger
+
+    from comparisons.compilation import main
+    with Pogger("superspinsim-comparisons") as logger:
+        logger.set_context("compilation")
+        main = logger.record(["protocols", "pca_data"])(main)
+        main()
+    plt.show()
 
     # from superspinsim.params import write_values
     # write_values()
