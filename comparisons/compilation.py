@@ -505,19 +505,26 @@ def main():
     # === ODMR ===
 
     protocols = {
+        "CF4:2, R": {
+            "timestamp": "2025-08-07T16-57-27",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
         "CF6:5, R": {
             "timestamp": "2025-08-07T11-25-11",
             "plot_marker": "p",
             "data_label": "superspinsim"
         },
 
-        "qutip": {
-            "timestamp": "2025-08-05T17-17-18",
-            "plot_marker": "+",
-            "data_label": "qutip"
-        }
+        # "qutip": {
+        #     "timestamp": "2025-08-05T17-17-18",
+        #     "plot_marker": "+",
+        #     "data_label": "qutip"
+        # }
     }
-    protocol_ground_truth = "qutip"
+    # protocol_ground_truth = "qutip"
+    protocol_ground_truth = "CF4:2, R"
     protocol_converge = "CF6:5, R"
 
     read_archives(protocols)
