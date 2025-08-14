@@ -4,10 +4,12 @@ if __name__ == "__main__":
 
     # from tests.odmr import main
     # from tests.contrast import main
-    # from tests.odmr_4 import main
-    from tests.modulation import main
-    # from superspinsim.generate_generators import main
-    main()
+    # from tests.odmr_4 import main as main_0
+    # main_0()
+
+    # from tests.modulation import main
+    # # from superspinsim.generate_generators import main
+    # main()
 
     # from comparisons.comp_simos import main
 
@@ -23,12 +25,13 @@ if __name__ == "__main__":
     # from comparisons.comp_quantum_toolbox import main
     # main()
 
-    # from comparisons.comp_superspinsim import main
-    # main(
-    #     lindbladian="odmr",
-    #     use_rotating=True,
-    #     number_of_exponentials=5
-    # )
+    from comparisons.comp_superspinsim import main
+    for number in [5, 2, 1]:
+        main(
+            lindbladian="odmr",
+            use_rotating=False,
+            number_of_exponentials=number
+        )
 
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:

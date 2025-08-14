@@ -22,7 +22,7 @@ def main():
         frequency_width = 250e6
 
         quiescent_magnetic_field = np.array(
-            [3300.91, 2026.51, -723.18], dtype=np.float64)*1e-6
+            [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
 
         coefficient_r_max = 0.1
         # quiescent_magnetic_field = np.array(

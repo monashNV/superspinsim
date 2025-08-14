@@ -93,7 +93,7 @@ def main():
         # time_start = 10e-6
         time_start = 0e-6
         # time_end = 100e-3
-        time_end = 20e-3
+        time_end = 100e-3
 
         quiescent_magnetic_field = np.array(
             [3300.91, 723.18, 2026.51], dtype=np.float64)*1e-6
