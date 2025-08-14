@@ -23,7 +23,7 @@ def weight_function_lp(error):
     # return 1
 
 
-def weight_function_boltzmann(error):
+def weight_function_boltzmann(error, weight_temperature=1e-12):
     weight = np.exp(-error/weight_temperature)
     return weight
 
@@ -69,8 +69,26 @@ def read_archives(protocols: dict[str, dict]):
         read = Read(project_name, protocol_data["timestamp"])
         if "data_label" in protocol_data:
             protocol = protocol_data["data_label"]
-        densities = read.read_array("density", protocol)
-        wall_durations, _ = read.read_array("wall_duration", protocol)
+
+        try:
+            densities = read.read_array("density", protocol)
+            wall_durations, _ = read.read_array("wall_duration", protocol)
+        except KeyError:
+            trial_index = 0
+            densities = []
+            wall_durations = []
+            while True:
+                path = f"{protocol}/trials/{trial_index}"
+                try:
+                    density = read.read_array("density", path)
+                    wall_duration, _ = read.read_value("wall_duration", path)
+                    densities.append(density)
+                    wall_durations.append(wall_duration)
+                    trial_index += 1
+                except KeyError:
+                    break
+            densities = np.array(densities)
+            wall_durations = np.array(wall_durations)
 
         order = np.argsort(wall_durations)
         densities = densities[order]
@@ -93,11 +111,12 @@ def find_centre(protocol: dict):
 
     # centre_index = np.argmin(errors_diff)
     # centre = densities[centre_index, :, :, :]
+    weight_temperature = np.min(errors_diff)
     centre = np.zeros_like(densities[0, :, :, :])
     for density, error in zip(densities, errors_diff):
-        centre += density*weight_function(error)
+        centre += density*weight_function(error, weight_temperature)
     # centre = densities*weight_function(errors_diff)
-    centre /= np.sum(weight_function(errors_diff))
+    centre /= np.sum(weight_function(errors_diff, weight_temperature))
 
     protocol["centre"] = centre
     protocol["centre_weights"] = weight_function(errors_diff)
@@ -505,9 +524,33 @@ def main():
     # === ODMR ===
 
     protocols = {
+        "qutip": {
+            "timestamp": "2025-08-05T17-17-18",
+            "plot_marker": "+",
+            "data_label": "qutip"
+        },
+
+        "CF2:1, R": {
+            "timestamp": "2025-08-08T12-15-25",
+            "plot_marker": ".",
+            "data_label": "superspinsim"
+        },
+
+        "CF4:2": {
+            "timestamp": "2025-08-12T17-46-08",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
         "CF4:2, R": {
             "timestamp": "2025-08-07T16-57-27",
             "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
+        "CF6:5": {
+            "timestamp": "2025-08-12T12-27-02",
+            "plot_marker": "p",
             "data_label": "superspinsim"
         },
 
@@ -515,16 +558,10 @@ def main():
             "timestamp": "2025-08-07T11-25-11",
             "plot_marker": "p",
             "data_label": "superspinsim"
-        },
-
-        # "qutip": {
-        #     "timestamp": "2025-08-05T17-17-18",
-        #     "plot_marker": "+",
-        #     "data_label": "qutip"
-        # }
+        }
     }
-    # protocol_ground_truth = "qutip"
-    protocol_ground_truth = "CF4:2, R"
+    protocol_ground_truth = "qutip"
+    # protocol_ground_truth = "CF4:2, R"
     protocol_converge = "CF6:5, R"
 
     read_archives(protocols)
