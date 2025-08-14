@@ -1,10 +1,11 @@
 if __name__ == "__main__":
-    # # from tests.odmr import main
-    # # from tests.contrast import main
-    # # from tests.odmr_4 import main
+    # from tests.odmr import main
+    # from tests.contrast import main
+    # from tests.odmr_4 import main
     # from tests.modulation import main
-    # # from superspinsim.generate_generators import main
-    # main()
+    from tests.sugar_mesolve import main
+    # from superspinsim.generate_generators import main
+    main()
 
     # from comparisons.comp_simos import main
 
@@ -20,14 +21,14 @@ if __name__ == "__main__":
     # from comparisons.comp_quantum_toolbox import main
     # main()
 
-    from comparisons.comp_superspinsim import main
-    for number in [5, 2, 1]:
-        print("Number of exponentials:", number)
-        main(
-            lindbladian="odmr",
-            use_rotating=False,
-            number_of_exponentials=number
-        )
+    # from comparisons.comp_superspinsim import main
+    # for number in [5, 2, 1]:
+    #     print("Number of exponentials:", number)
+    #     main(
+    #         lindbladian="odmr",
+    #         use_rotating=False,
+    #         number_of_exponentials=number
+    #     )
 
     # from matplotlib import pyplot as plt
     # from pogger import Pogger
