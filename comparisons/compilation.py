@@ -536,12 +536,6 @@ def main():
             "data_label": "superspinsim"
         },
 
-        "CF4:2": {
-            "timestamp": "2025-08-12T17-46-08",
-            "plot_marker": "o",
-            "data_label": "superspinsim"
-        },
-
         "CF4:2, R": {
             "timestamp": "2025-08-07T16-57-27",
             "plot_marker": "o",
@@ -549,7 +543,7 @@ def main():
         },
 
         "CF6:5": {
-            "timestamp": "2025-08-12T12-27-02",
+            "timestamp": "2025-08-14T11-10-16",
             "plot_marker": "p",
             "data_label": "superspinsim"
         },
