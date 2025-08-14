@@ -8,6 +8,9 @@ from comparisons.general import calculate_errors_diff, error_function
 
 weight_power = 48
 weight_temperature = 1e-12
+double_limit = 14
+# weight_temperature = 1e-9
+# double_limit = 11
 weight_power_pca = 8
 
 
@@ -20,7 +23,7 @@ def weight_function_lp(error):
     # return 1
 
 
-def weight_function_boltzmann(error):
+def weight_function_boltzmann(error, weight_temperature=1e-12):
     weight = np.exp(-error/weight_temperature)
     return weight
 
@@ -66,8 +69,26 @@ def read_archives(protocols: dict[str, dict]):
         read = Read(project_name, protocol_data["timestamp"])
         if "data_label" in protocol_data:
             protocol = protocol_data["data_label"]
-        densities = read.read_array("density", protocol)
-        wall_durations, _ = read.read_array("wall_duration", protocol)
+
+        try:
+            densities = read.read_array("density", protocol)
+            wall_durations, _ = read.read_array("wall_duration", protocol)
+        except KeyError:
+            trial_index = 0
+            densities = []
+            wall_durations = []
+            while True:
+                path = f"{protocol}/trials/{trial_index}"
+                try:
+                    density = read.read_array("density", path)
+                    wall_duration, _ = read.read_value("wall_duration", path)
+                    densities.append(density)
+                    wall_durations.append(wall_duration)
+                    trial_index += 1
+                except KeyError:
+                    break
+            densities = np.array(densities)
+            wall_durations = np.array(wall_durations)
 
         order = np.argsort(wall_durations)
         densities = densities[order]
@@ -90,11 +111,12 @@ def find_centre(protocol: dict):
 
     # centre_index = np.argmin(errors_diff)
     # centre = densities[centre_index, :, :, :]
+    weight_temperature = np.min(errors_diff)
     centre = np.zeros_like(densities[0, :, :, :])
     for density, error in zip(densities, errors_diff):
-        centre += density*weight_function(error)
+        centre += density*weight_function(error, weight_temperature)
     # centre = densities*weight_function(errors_diff)
-    centre /= np.sum(weight_function(errors_diff))
+    centre /= np.sum(weight_function(errors_diff, weight_temperature))
 
     protocol["centre"] = centre
     protocol["centre_weights"] = weight_function(errors_diff)
@@ -342,7 +364,7 @@ def plot_circular_log(protocols: dict[str, dict]):
 def calculate_double_coordinates(
         protocols: dict, centres: list[np.ndarray], labels: list[str]):
     error_centres = error_function(*centres)
-    error_centres_log = 14 + np.log10(error_centres)
+    error_centres_log = double_limit + np.log10(error_centres)
 
     for protocol, protocol_data in protocols.items():
         error_centre_logs = []
@@ -353,7 +375,7 @@ def calculate_double_coordinates(
                 dict_label += "_" + label
                 dict_label_log += "_" + label
             error_centre = protocol_data[dict_label]
-            error_centre_log = 14 + np.log10(error_centre)
+            error_centre_log = double_limit + np.log10(error_centre)
             protocol_data[dict_label_log] = error_centre_log
             error_centre_logs.append(error_centre_log)
 
@@ -373,7 +395,7 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
     angle = np.linspace(0, math.pi)
     circle_x = np.cos(angle)
     circle_y = np.sin(angle)
-    for scale in np.arange(0, 14, 3):
+    for scale in np.arange(0, double_limit, 3):
         if scale > 0:
             plt.plot(
                 scale*circle_x, scale*circle_y, "-",
@@ -384,20 +406,21 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
                 alpha=0.2, color=cm.hawaii(1/2)
             )
         plt.text(
-            -scale, -0.5, r"$10^{" + str(scale - 14) + r"}$", ha="center",
-            va="top", color=cm.hawaii(0)
+            -scale, -0.5, r"$10^{" + str(scale - double_limit) + r"}$",
+            ha="center", va="top", color=cm.hawaii(0)
         )
         plt.text(
             error_centres_log + scale, -0.5,
-            r"$10^{" + str(scale - 14) + r"}$", ha="center", va="top",
-            color=cm.hawaii(1/2)
+            r"$10^{" + str(scale - double_limit) + r"}$", ha="center",
+            va="top", color=cm.hawaii(1/2)
         )
     plt.text(
         0, -1, "Error from qutip limit",
         ha="right", va="top", color=cm.hawaii(0)
     )
     plt.text(
-        error_centres_log, -1, "Error from superspinsim limit",
+        # error_centres_log, -1, "Error from superspinsim limit",
+        error_centres_log, -1, "Error from qt.jl limit",
         ha="left", va="top", color=cm.hawaii(1/2)
     )
     for index, (protocol, protocol_data) in enumerate(protocols.items()):
@@ -413,70 +436,73 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
 
 
 def main():
-    protocols = {
-        "qutip": {
-            "timestamp": "2025-07-11T19-01-16",
-            "plot_marker": "+",
-            "data_label": "qutip"
-        },
+    # protocols = {
+    #     "qutip": {
+    #         "timestamp": "2025-07-11T19-01-16",
+    #         "plot_marker": "+",
+    #         "data_label": "qutip"
+    #     },
 
-        "qt.jl": {
-            "timestamp": "2025-07-24T11-11-45",
-            "plot_marker": "x",
-            "data_label": "quantum_toolbox_jl"
-        },
+    #     "qt.jl": {
+    #         "timestamp": "2025-07-24T11-11-45",
+    #         "plot_marker": "x",
+    #         "data_label": "quantum_toolbox_jl"
+    #     },
 
-        # "qt_pc": {
-        #     # "timestamp": "2025-07-08T16-10-49",
-        #     "timestamp": "2025-07-08T19-01-21",
-        #     "plot_marker": "+",
-        #     "data_label": "qutip"
-        # },
+    #     # "qt_pc": {
+    #     #     # "timestamp": "2025-07-08T16-10-49",
+    #     #     "timestamp": "2025-07-08T19-01-21",
+    #     #     "plot_marker": "+",
+    #     #     "data_label": "qutip"
+    #     # },
 
-        # "s3_cf65_pc": {
-        #     "timestamp": "2025-07-11T16-14-55",
-        #     "plot_marker": "p",
-        #     "data_label": "superspinsim"
-        # },
+    #     # "s3_cf65_pc": {
+    #     #     "timestamp": "2025-07-11T16-14-55",
+    #     #     "plot_marker": "p",
+    #     #     "data_label": "superspinsim"
+    #     # },
 
-        "CF2:1": {
-            "timestamp": "2025-07-15T16-14-38",
-            "plot_marker": ".",
-            "data_label": "superspinsim"
-        },
+    #     "CF2:1": {
+    #         "timestamp": "2025-07-15T16-14-38",
+    #         "plot_marker": ".",
+    #         "data_label": "superspinsim"
+    #     },
 
-        "CF2:1, R": {
-            "timestamp": "2025-07-16T19-29-43",
-            "plot_marker": ".",
-            "data_label": "superspinsim"
-        },
+    #     "CF2:1, R": {
+    #         "timestamp": "2025-07-16T19-29-43",
+    #         "plot_marker": ".",
+    #         "data_label": "superspinsim"
+    #     },
 
-        "CF4:2": {
-            "timestamp": "2025-07-14T14-14-01",
-            "plot_marker": "o",
-            "data_label": "superspinsim"
-        },
+    #     "CF4:2": {
+    #         "timestamp": "2025-07-14T14-14-01",
+    #         "plot_marker": "o",
+    #         "data_label": "superspinsim"
+    #     },
 
-        "CF4:2, R": {
-            "timestamp": "2025-07-17T13-32-31",
-            "plot_marker": "o",
-            "data_label": "superspinsim"
-        },
+    #     "CF4:2, R": {
+    #         "timestamp": "2025-07-17T13-32-31",
+    #         "plot_marker": "o",
+    #         "data_label": "superspinsim"
+    #     },
 
-        "CF6:5": {
-            "timestamp": "2025-07-11T18-31-56",
-            "plot_marker": "p",
-            "data_label": "superspinsim"
-        },
+    #     "CF6:5": {
+    #         "timestamp": "2025-07-11T18-31-56",
+    #         "plot_marker": "p",
+    #         "data_label": "superspinsim"
+    #     },
 
-        "CF6:5, R": {
-            "timestamp": "2025-07-16T19-20-20",
-            "plot_marker": "p",
-            "data_label": "superspinsim"
-        }
-    }
-    protocol_ground_truth = "qutip"
-    protocol_converge = "CF6:5, R"
+    #     "CF6:5, R": {
+    #         "timestamp": "2025-07-16T19-20-20",
+    #         "plot_marker": "p",
+    #         "data_label": "superspinsim"
+    #     }
+    # }
+    # protocol_ground_truth = "qutip"
+    # protocol_converge = "CF6:5, R"
+    # # protocol_converge = "qt.jl"
+
+    # # === Y protocols ===
 
     # protocols = {
     #     "CF6:5, Y": {
@@ -494,6 +520,49 @@ def main():
 
     # protocol_ground_truth = "CF6:5, Y"
     # protocol_converge = "CF6:5, YR"
+
+    # === ODMR ===
+
+    protocols = {
+        "qutip": {
+            "timestamp": "2025-08-05T17-17-18",
+            "plot_marker": "+",
+            "data_label": "qutip"
+        },
+
+        "CF2:1, R": {
+            "timestamp": "2025-08-08T12-15-25",
+            "plot_marker": ".",
+            "data_label": "superspinsim"
+        },
+
+        "CF4:2": {
+            "timestamp": "2025-08-12T17-46-08",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
+        "CF4:2, R": {
+            "timestamp": "2025-08-07T16-57-27",
+            "plot_marker": "o",
+            "data_label": "superspinsim"
+        },
+
+        "CF6:5": {
+            "timestamp": "2025-08-12T12-27-02",
+            "plot_marker": "p",
+            "data_label": "superspinsim"
+        },
+
+        "CF6:5, R": {
+            "timestamp": "2025-08-07T11-25-11",
+            "plot_marker": "p",
+            "data_label": "superspinsim"
+        }
+    }
+    protocol_ground_truth = "qutip"
+    # protocol_ground_truth = "CF4:2, R"
+    protocol_converge = "CF6:5, R"
 
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])

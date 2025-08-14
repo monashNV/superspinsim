@@ -1,12 +1,7 @@
 if __name__ == "__main__":
-    # from matplotlib import pyplot as plt
-    # from pogger import Pogger
-
-    # from tests.odmr import main
-    # from tests.contrast import main
-    # from tests.odmr_4 import main as main_0
-    # main_0()
-
+    # # from tests.odmr import main
+    # # from tests.contrast import main
+    # # from tests.odmr_4 import main
     # from tests.modulation import main
     # # from superspinsim.generate_generators import main
     # main()
@@ -27,12 +22,15 @@ if __name__ == "__main__":
 
     from comparisons.comp_superspinsim import main
     for number in [5, 2, 1]:
+        print("Number of exponentials:", number)
         main(
             lindbladian="odmr",
             use_rotating=False,
             number_of_exponentials=number
         )
 
+    # from matplotlib import pyplot as plt
+    # from pogger import Pogger
     # from comparisons.compilation import main
     # with Pogger("superspinsim-comparisons") as logger:
     #     logger.set_context("compilation")

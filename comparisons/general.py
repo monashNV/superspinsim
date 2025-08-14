@@ -60,6 +60,7 @@ def make_strikes():
 def loop(init_function: callable, init_arguments: dict):
     trial_name, run_arguments, sweep_parameter = \
         init_function(**init_arguments)
+    run_arguments["lindbladian"] = init_arguments["lindbladian"]
 
     index = 0
     densities = []
@@ -199,21 +200,36 @@ def run(**run_arguments):
         np.real(density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5])
     fluorescence /= np.max(fluorescence)
 
-    # coefficients = run_arguments["coefficients"]
+    if run_arguments["lindbladian"] == "contrast":
+        plot_contrast(time, density, fluorescence, run_arguments)
+    elif run_arguments["lindbladian"] == "odmr":
+        plot_odmr(time, density, fluorescence, run_arguments)
+
+    return_values = (
+        sweep_parameter, wall_duration, density, strikes_dict, do_break, index
+    )
+    return return_values
+
+
+def plot_contrast(
+        time: np.ndarray, density: np.ndarray, fluorescence: np.ndarray,
+        run_arguments: dict):
+    coefficients = run_arguments["coefficients"]
     time_step = run_arguments["time_step"]
     time_end = run_arguments["time_end"]
-    # time_coefficients_sample = np.arange(0, time_end, time_step/10)
-    # coefficient_sample_x = np.empty_like(time_coefficients_sample)
-    # coefficient_sample_l = np.empty_like(time_coefficients_sample)
-    # for time_index, time_sample in enumerate(time_coefficients_sample):
-    #     coefficient_sample_x[time_index] = coefficients[0](time_sample)
-    #     coefficient_sample_l[time_index] = coefficients[3](time_sample)
+
+    time_coefficients_sample = np.arange(0, time_end, time_step/10)
+    coefficient_sample_x = np.empty_like(time_coefficients_sample)
+    coefficient_sample_l = np.empty_like(time_coefficients_sample)
+    for time_index, time_sample in enumerate(time_coefficients_sample):
+        coefficient_sample_x[time_index] = coefficients[0](time_sample)
+        coefficient_sample_l[time_index] = coefficients[3](time_sample)
 
     plt.figure(
         label="fluorescence",
-        # figsize=(6.4, 6.4)
+        figsize=(6.4, 6.4)
     )
-    # plt.subplot(2, 1, 1)
+    plt.subplot(2, 1, 1)
     plt.plot(time/1e-6, fluorescence/0.01, "k-", label="Fluoro")
     plt.plot(
         time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3),
@@ -246,32 +262,102 @@ def run(**run_arguments):
     plt.xlim(0, time_end/1e-6)
     plt.ylabel("Fluorescence (%); Population (%)")
     plt.legend()
-    # plt.gca().set_xticklabels([])
+    plt.gca().set_xticklabels([])
     plt.gca().spines[["top", "right"]].set_visible(False)
 
-    # plt.subplot(4, 1, 3)
-    # plt.plot(time_coefficients_sample/1e-6, coefficient_sample_x/1e-3, "k-")
-    # plt.text(6.2, 0.3, "π", va="bottom")
-    # plt.xlim(0, time_end/1e-6)
-    # plt.ylabel("MW field (mT)")
-    # plt.gca().set_xticklabels([])
-    # plt.gca().spines[["top", "right"]].set_visible(False)
+    plt.subplot(4, 1, 3)
+    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_x/1e-3, "k-")
+    plt.text(6.2, 0.3, "π", va="bottom")
+    plt.xlim(0, time_end/1e-6)
+    plt.ylabel("MW field (mT)")
+    plt.gca().set_xticklabels([])
+    plt.gca().spines[["top", "right"]].set_visible(False)
 
-    # plt.subplot(4, 1, 4)
-    # plt.plot(time_coefficients_sample/1e-6, coefficient_sample_l/1e-2, "k-")
-    # plt.xlim(0, time_end/1e-6)
+    plt.subplot(4, 1, 4)
+    plt.plot(time_coefficients_sample/1e-6, coefficient_sample_l/1e-2, "k-")
+    plt.xlim(0, time_end/1e-6)
     plt.xlabel("Time (us)")
-    # plt.ylabel("Optical excitation\n(% decay rate)")
-    # plt.gca().spines[["top", "right"]].set_visible(False)
+    plt.ylabel("Optical excitation\n(% decay rate)")
+    plt.gca().spines[["top", "right"]].set_visible(False)
 
     # plt.tight_layout()
 
     plt.draw()
 
-    return_values = (
-        sweep_parameter, wall_duration, density, strikes_dict, do_break, index
+
+def plot_odmr(
+        time: np.ndarray, density: np.ndarray, fluorescence: np.ndarray,
+        run_arguments: dict):
+    # time_step = run_arguments["time_step"]
+    time_end = run_arguments["time_end"]
+
+    plt.figure(
+        label="fluorescence",
+        figsize=(6.4, 6.4)
     )
-    return return_values
+    plt.subplot(2, 1, 1)
+    plt.plot(time/1e-6, fluorescence/0.01, "k-", label="Fluoro")
+    plt.plot(
+        time/1e-6, np.real(density[:, 0, 0])/0.01, "-", color=cm.hawaii(0/3),
+        label="(g+)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 1, 1])/0.01, "-", color=cm.hawaii(1/3),
+        label="(g0)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 2, 2])/0.01, "-", color=cm.hawaii(2/3),
+        label="(g-)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 3, 3])/0.01, "--", color=cm.hawaii(0/3),
+        label="(e+)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 4, 4])/0.01, "--", color=cm.hawaii(1/3),
+        label="(e0)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 5, 5])/0.01, "--", color=cm.hawaii(2/3),
+        label="(e-)"
+    )
+    plt.plot(
+        time/1e-6, np.real(density[:, 6, 6])/0.01, "-", color=cm.hawaii(0.99),
+        label="(s)"
+    )
+    plt.xlim(0, time_end/1e-6)
+    plt.xlabel("Time (us)")
+    plt.ylabel("Fluorescence (%); Population (%)")
+    plt.legend()
+    plt.gca().spines[["top", "right"]].set_visible(False)
+
+    time_start = 1e-6
+    frequency_start = 2.82e9
+    frequency_width = 100e6
+    mw_frequency = frequency_start \
+        + frequency_width*(time - 20*time_start)/(time_end - 20*time_start)
+    mw_frequency = mw_frequency[time > 20*time_start]
+    clipped_odmr = fluorescence[time > 20*time_start]
+
+    plt.subplot(4, 1, 3)
+    plt.plot(time[time > 20*time_start]/1e-6, mw_frequency/1e9, "k-")
+    plt.gca().set_xticklabels([])
+    plt.xlim(0, time_end/1e-6)
+    plt.ylim(2.8, 3)
+    plt.ylabel("MW frequency (GHz)")
+    plt.gca().spines[["bottom", "right"]].set_visible(False)
+    plt.gca().xaxis.tick_top()
+
+    plt.subplot(4, 1, 4)
+    plt.plot(mw_frequency/1e9, clipped_odmr/1e-2, "k-")
+    plt.xlim(frequency_start/1e9, (frequency_start + frequency_width)/1e9)
+    plt.xlabel("MW frequency (GHz)")
+    plt.ylabel("Fluorescence (%)")
+    plt.gca().spines[["top", "right"]].set_visible(False)
+
+    plt.tight_layout()
+
+    plt.draw()
 
 
 def final(
