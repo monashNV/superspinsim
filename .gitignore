@@ -4,3 +4,4 @@ profile/*
 .activate_venv.ps1
 julia_env/Manifest.toml
 *.gif
+nohup.out
