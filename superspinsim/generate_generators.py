@@ -12,7 +12,7 @@ meta_datatype = np.float64
 
 def generate_atoms(
     description: list[list[dict]], atom_interactions: list[dict],
-    block_interactions: dict, verbose=False
+    block_interactions: dict
 ) -> [dict, dict, list[dict], dict]:
     """
         Define a system of multiple spins.
