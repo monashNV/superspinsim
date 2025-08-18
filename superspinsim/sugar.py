@@ -1,6 +1,10 @@
 import numpy as np
 from numba import cuda as nc
 
+import os
+import sys
+from importlib import util as ilu
+
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
     _generate_valid_indices, _generate_superoperators, real_eig
@@ -111,34 +115,42 @@ def mesolve(
     #     for coefficient_index, coefficient in enumerate(coefficients):
     #         sample[coefficient_index] = coefficient(time)
 
+    # Write coefficient function factory
+    PYTHON_TAB = " "*4
     python_str = ""
+    python_str += "def make_lindbladian(coefficients):\n"
     for coefficient_index in range(len(coefficients)):
-        python_str += \
+        python_str += PYTHON_TAB + \
             f"coefficient_{coefficient_index}" \
             f" = coefficients[{coefficient_index}]\n"
-    python_str += "\ndef lindbladian(time, sample):\n"
-    python_tab = " "*4
+    python_str += "\n" + PYTHON_TAB + "def lindbladian(time, sample):\n"
     for coefficient_index in range(len(coefficients)):
-        python_str += python_tab \
+        python_str += 2*PYTHON_TAB \
             + f"sample[{coefficient_index}]" \
             + f" = coefficient_{coefficient_index}(time)\n"
+    python_str += "\n" + PYTHON_TAB + "return lindbladian"
 
-    local_dict = {"coefficients": coefficients}
-    exec(python_str)  # globals=globals(), locals=local_dict)
-    print(locals())
-    # for local_key, local_element in local_dict.items():
-    #     locals()[local_key] = local_element
+    # Save as python module
+    import_name = "jit_package"
+    temp_directory = "~/.temp"
+    temp_directory = os.path.expanduser(temp_directory)
+    import_directory = f"{temp_directory}/superspinsim"
+    if not os.path.exists(import_directory):
+        os.makedirs(import_directory)
+    import_path = f"{import_directory}/{import_name}"
+    import_index = 0
+    while os.path.exists(f"{import_path}_{import_index}.py"):
+        import_index += 1
+    import_path = f"{import_path}_{import_index}.py"
+    with open(import_path, "w") as file:
+        file.write(python_str)
 
-    # lindbladian = local_dict["lindbladian"]
-    # coefficient_0 = local_dict["coefficient_0"]
+    spec = ilu.spec_from_file_location(import_name, import_path)
+    import_module = ilu.module_from_spec(spec)
+    sys.modules[import_name] = import_module
+    spec.loader.exec_module(import_module)
 
-    # def lindbladian(time, sample):
-    #     sample[0] = coefficient_0(time)
-
-    # lindbladian = local_dict["lindbladian"]
-
-    print(python_str)
-    print(local_dict)
+    lindbladian = import_module.make_lindbladian(coefficients)
 
     simulator = generate_simulator(
         lindbladian, superoperators_time_dependent, valid_indices,
@@ -149,6 +161,19 @@ def mesolve(
     )
     return_value = simulator(rho0, ti, tf, dt)
     print(return_value)
+
+    # Cleanup
+    os.remove(import_path)
+    import_directory_ls = os.listdir(import_directory)
+    if len(import_directory_ls) == 0:
+        os.removedirs(import_directory)
+    elif len(import_directory_ls) == 1 and \
+            import_directory_ls[0] == "__pycache__":
+        pycache_directory = f"{import_directory}/__pycache__"
+        for file_name in os.listdir(pycache_directory):
+            os.remove(f"{pycache_directory}/{file_name}")
+        os.removedirs(pycache_directory)
+
     return return_value
 
 
