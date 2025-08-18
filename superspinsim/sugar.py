@@ -5,6 +5,8 @@ import os
 import sys
 from importlib import util as ilu
 
+import qutip as qt
+
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
     _generate_valid_indices, _generate_superoperators, real_eig
@@ -111,10 +113,6 @@ def mesolve(
         coefficient_device = nc.jit(device=True)(coefficient_sqrt)
         coefficients.append(coefficient_device)
 
-    # def lindbladian(time, sample):
-    #     for coefficient_index, coefficient in enumerate(coefficients):
-    #         sample[coefficient_index] = coefficient(time)
-
     # Write coefficient function factory
     PYTHON_TAB = " "*4
     python_str = ""
@@ -194,6 +192,9 @@ def _sort_operators(operators, operator_label: str):
     if isinstance(operators, np.ndarray):
         quiescent.append(operators)
         return return_value
+    elif isinstance(operators, qt.Qobj):
+        quiescent.append(operators.full())
+        return return_value
     elif type(operators) is not list:
         raise TypeError(type_error_message)
 
@@ -213,6 +214,9 @@ def _sort_operators(operators, operator_label: str):
         if isinstance(operator, np.ndarray):
             quiescent.append(operator)
             continue
+        if isinstance(operator, qt.Qobj):
+            quiescent.append(operator.full())
+            continue
 
         # Time-dependent case
         if not _check_time_dependent_pair(
@@ -229,6 +233,11 @@ def _check_time_dependent_pair(
 
     if isinstance(pair[0], np.ndarray) and callable(pair[1]):
         time_dependent.append(pair[0])
+        coefficients.append(pair[1])
+        return True
+
+    if isinstance(pair[0], qt.Qobj) and callable(pair[1]):
+        time_dependent.append(pair[0].full())
         coefficients.append(pair[1])
         return True
     return False
