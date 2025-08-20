@@ -111,7 +111,7 @@ def find_centre(protocol: dict):
 
     # centre_index = np.argmin(errors_diff)
     # centre = densities[centre_index, :, :, :]
-    weight_temperature = np.min(errors_diff)
+    weight_temperature = np.min(errors_diff)*10
     centre = np.zeros_like(densities[0, :, :, :])
     for density, error in zip(densities, errors_diff):
         centre += density*weight_function(error, weight_temperature)
@@ -436,33 +436,21 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
 
 
 def select_test(test: str):
-    if test == "contrast":
+    if test == "contrast-internal":
+        # "qt_pc": {
+        #     # "timestamp": "2025-07-08T16-10-49",
+        #     "timestamp": "2025-07-08T19-01-21",
+        #     "plot_marker": "+",
+        #     "data_label": "qutip"
+        # },
+
+        # "s3_cf65_pc": {
+        #     "timestamp": "2025-07-11T16-14-55",
+        #     "plot_marker": "p",
+        #     "data_label": "superspinsim"
+        # },
+
         protocols = {
-            "qutip": {
-                "timestamp": "2025-07-11T19-01-16",
-                "plot_marker": "+",
-                "data_label": "qutip"
-            },
-
-            "qt.jl": {
-                "timestamp": "2025-07-24T11-11-45",
-                "plot_marker": "x",
-                "data_label": "quantum_toolbox_jl"
-            },
-
-            # "qt_pc": {
-            #     # "timestamp": "2025-07-08T16-10-49",
-            #     "timestamp": "2025-07-08T19-01-21",
-            #     "plot_marker": "+",
-            #     "data_label": "qutip"
-            # },
-
-            # "s3_cf65_pc": {
-            #     "timestamp": "2025-07-11T16-14-55",
-            #     "plot_marker": "p",
-            #     "data_label": "superspinsim"
-            # },
-
             "CF2:1": {
                 "timestamp": "2025-07-15T16-14-38",
                 "plot_marker": ".-",
@@ -499,18 +487,51 @@ def select_test(test: str):
                 "data_label": "superspinsim"
             }
         }
-        protocol_ground_truth = "qutip"
+        protocol_ground_truth = "CF4:2"
         protocol_converge = "CF6:5, R"
-        # protocol_converge = "qt.jl"
 
-    elif test == "odmr":
+    elif test == "contrast-external":
         protocols = {
             "qutip": {
-                "timestamp": "2025-08-05T17-17-18",
+                "timestamp": "2025-07-11T19-01-16",
                 "plot_marker": "+",
                 "data_label": "qutip"
             },
 
+            "qt.jl": {
+                "timestamp": "2025-07-24T11-11-45",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            },
+
+            "superspinsim": {
+                "timestamp": "2025-07-16T19-20-20",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "superspinsim"
+
+    elif test == "contrast-both":
+        protocols = {
+            "qutip": {
+                "timestamp": "2025-07-11T19-01-16",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-07-24T11-11-45",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "qt.jl"
+
+    elif test == "odmr-internal":
+        protocols = {
             "CF2:1": {
                 "timestamp": "2025-08-15T05-24-36",
                 "plot_marker": ".-",
@@ -547,8 +568,25 @@ def select_test(test: str):
                 "data_label": "superspinsim"
             }
         }
-        protocol_ground_truth = "qutip"
+        protocol_ground_truth = "CF4:2, R"
         protocol_converge = "CF6:5, R"
+
+    elif test == "odmr-both":
+        protocols = {
+            "qutip": {
+                "timestamp": "2025-08-05T17-17-18",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "superspinsim": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "superspinsim"
 
     elif test == "y":
         protocols = {
@@ -590,11 +628,20 @@ def main_unwrapped(test: str):
     return (protocols, )
 
 
-def main(tests: list[str]):
+def main():
     from pogger import Pogger as Logger
 
     with Logger("superspinsim-comparisons") as logger:
         main_wrapped = logger.record(("protocols",), (None,))(main_unwrapped)
+
+        tests = [
+            "contrast-internal",
+            "contrast-external",
+            "contrast-both",
+            "odmr-internal",
+            "odmr-both",
+        ]
+
         for test in tests:
             logger.set_context(test)
             main_wrapped(test)

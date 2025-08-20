@@ -30,11 +30,7 @@ if __name__ == "__main__":
     #     )
 
     from comparisons.compilation import main
-    tests = [
-        "contrast",
-        "odmr"
-    ]
-    main(tests)
+    main()
 
     # from superspinsim.params import write_values
     # write_values()
