@@ -29,14 +29,12 @@ if __name__ == "__main__":
     #         number_of_exponentials=number
     #     )
 
-    from matplotlib import pyplot as plt
-    from pogger import Pogger
     from comparisons.compilation import main
-    with Pogger("superspinsim-comparisons") as logger:
-        logger.set_context("compilation")
-        main = logger.record(["protocols", "pca_data"])(main)
-        main()
-    plt.show()
+    tests = [
+        "contrast",
+        "odmr"
+    ]
+    main(tests)
 
     # from superspinsim.params import write_values
     # write_values()
