@@ -2,7 +2,7 @@ import os
 import h5py
 import numpy as np
 
-from comparisons.lindbladians import contrast
+from comparisons.lindbladians import contrast, odmr
 from comparisons.general import loop, make_strikes
 
 
@@ -16,6 +16,8 @@ def main(lindbladian="contrast"):
 def init_quantum_toolbox(lindbladian="contrast"):
     if lindbladian == "contrast":
         generate_return, generate_return_comparison = contrast()
+    elif lindbladian == "odmr":
+        generate_return, generate_return_comparison = odmr()
 
     coefficients, generators_coherent, generators_jump, density_initial, \
         time_step, time_end = generate_return_comparison
@@ -33,7 +35,8 @@ def init_quantum_toolbox(lindbladian="contrast"):
         "sweep_display_units": "s",
         "sweep_parameter_code": "max_step",
         "sweep_parameter_units": "s",
-        "do_overwrite_wall_duration": True
+        "do_overwrite_wall_duration": True,
+        "lindbladian": lindbladian
     }
 
     trial_name = "quantum_toolbox_jl"
@@ -58,11 +61,13 @@ def run_raw_quantum_toolbox(**run_arguments):
     generators_coherent = run_arguments["generators_coherent"]
     generators_jump = run_arguments["generators_jump"]
     max_step = run_arguments["max_step"]
+    lindbladian = run_arguments["lindbladian"]
 
     with h5py.File("to_julia.h5", "w") as h5_file:
         h5_file.attrs["time_step"] = time_step
         h5_file.attrs["time_end"] = time_end
         h5_file.attrs["max_step"] = max_step
+        h5_file.attrs["lindbladian"] = lindbladian
         h5_file["density_operator_initial"] = density_initial
         group_coherent = h5_file.create_group("generators_coherent")
         for index, generator_coherent in enumerate(generators_coherent):

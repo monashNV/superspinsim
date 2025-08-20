@@ -50,11 +50,39 @@ function generate_coefficients_contrast()
 	return coefficient_x, coefficient_y, coefficient_z, coefficient_l
 end
 
+function generate_coefficients_odmr()
+	time_start = 1e-6
+	time_end = 1000e-6
+	time_step = 150e-9
+	frequency_start = 2.82e9
+	frequency_width = 100e6
+
+	tau = 2*pi
+
+	function coefficient_x(p, t)
+		if time > time_start
+			phase = tau*(frequency_start*(time - time_start) + frequency_width*((time - time_start)^2) / (time_end - time_start)/2)
+			return 100e-6*sin(phase)
+		end
+		return 0.0
+	end
+
+	coefficient_y(p, t) = 0.0
+	coefficient_z(p, t) = 0.0
+
+	function coefficient_l(p, t)
+		return sqrt(0.01)
+        end
+
+	return coefficient_x, coefficient_y, coefficient_z, coefficient_l
+end
+
 # Read from python
 h5_file = h5open("to_julia.h5", "r")
 time_step = attrs(h5_file)["time_step"]
 time_end = attrs(h5_file)["time_end"]
 max_step = attrs(h5_file)["max_step"]
+lindbladian = attrs(h5_file)["lindbladian"]
 
 use_cuda = false
 
@@ -97,7 +125,12 @@ if use_cuda
 else
 	density_operator_initial = Qobj(density_operator_initial)
 end
-coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_contrast()
+if lindbladian == "contrast"
+	coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_contrast()
+end
+if lindbladian == "odmr"
+	coefficient_x, coefficient_y, coefficient_z, coefficient_l = generate_coefficients_odmr()
+end
 if use_cuda
 	hamiltonian = cu(QobjEvo((
 		generator_0,
