@@ -20,82 +20,17 @@ def mesolve(
         simulators.
     """
 
-    # Sort hamiltonians
     ham_quiescent, ham_time_dependent, ham_coefficients = \
         _sort_operators(H, "H")
     ham_quiescent = [sum(ham_quiescent)]
-    # Sort collapse operators
     jump_quiescent, jump_time_dependent, jump_coefficients = \
         _sort_operators(c_ops, "c_ops")
 
-    # Make superoperators
-    operator_dict = {}
-    for gen_index, gen in enumerate(ham_quiescent):
-        operator_dict[f"Hq{gen_index}"] = gen
-    for gen_index, gen in enumerate(ham_time_dependent):
-        operator_dict[f"Ht{gen_index}"] = gen
-    for gen_index, gen in enumerate(jump_quiescent):
-        operator_dict[f"Lq{gen_index}"] = gen
-    for gen_index, gen in enumerate(jump_time_dependent):
-        operator_dict[f"Lt{gen_index}"] = gen
-
-    new_operator_dict = {}
-    for label, operator in operator_dict.items():
-        print(label, operator)
-        new_operator = np.empty(
-            (operator.shape[0], operator.shape[1], 2), np.float64)
-        new_operator[:, :, 0] = np.real(operator)
-        new_operator[:, :, 1] = np.imag(operator)
-        new_operator_dict[label] = new_operator
-    operator_dict = new_operator_dict
-
-    if allowed is None:
-        if len(ham_quiescent) > 0:
-            allowed = np.ones_like(ham_quiescent[0])
-        elif len(ham_time_dependent) > 0:
-            allowed = np.ones_like(ham_time_dependent[0])
-        elif len(jump_quiescent) > 0:
-            allowed = np.ones_like(jump_quiescent[0])
-        elif len(jump_time_dependent) > 0:
-            allowed = np.ones_like(jump_time_dependent[0])
-        else:
-            raise TypeError("No operators specified.")
-    valid_indices = _generate_valid_indices(allowed)
-
-    superoperators = _generate_superoperators(operator_dict, valid_indices)
-
-    # Compile time-independent superoperators
-    superoperators_quiescent = _compile_superoperators(superoperators, "Hq")
-    superoperators_quiescent += _compile_superoperators(superoperators, "Lq")
-    if len(superoperators_quiescent):
-        superoperator_quiescent = sum(superoperators_quiescent)
-    else:
-        superoperator_quiescent = None
-
-    # Compile time-dependent superoperators
-    superoperators_time_dependent = \
-        _compile_superoperators(superoperators, "Ht")
-    superoperators_time_dependent += \
-        _compile_superoperators(superoperators, "Lt")
-
-    if superoperator_quiescent is None:
-        # Set the time-independent von-neumann to the shape of the dissipators
-        if len(superoperator_quiescent):
-            superoperator_quiescent = \
-                np.zeros_like(np.zeros_like(superoperators_time_dependent[0]))
-        else:
-            raise TypeError("No operators defined.")
-
-    if use_rotating:
-        return_value = _make_rotating(
-            superoperator_quiescent, superoperators_time_dependent)
-        superoperators_time_dependent, vectors_real, inv_vectors_real, \
-            doubles, singles = return_value
-    else:
-        superoperators_time_dependent = \
-            [superoperator_quiescent] + superoperators_time_dependent
-    superoperators_time_dependent = np.array(superoperators_time_dependent)
-    print(superoperators_time_dependent)
+    superoperators_time_dependent, valid_indices, vectors_real, \
+        inv_vectors_real, doubles, singles = _make_superoperators(
+            ham_quiescent, ham_time_dependent, jump_quiescent,
+            jump_time_dependent, allowed, use_rotating
+        )
 
     # Compile coefficients
     coefficients = []
@@ -114,35 +49,8 @@ def mesolve(
         coefficients.append(coefficient_device)
 
     # Write coefficient function factory
-    PYTHON_TAB = " "*4
-    python_str = ""
-    python_str += "def make_lindbladian(coefficients):\n"
-    for coefficient_index in range(len(coefficients)):
-        python_str += PYTHON_TAB + \
-            f"coefficient_{coefficient_index}" \
-            f" = coefficients[{coefficient_index}]\n"
-    python_str += "\n" + PYTHON_TAB + "def lindbladian(time, sample):\n"
-    for coefficient_index in range(len(coefficients)):
-        python_str += 2*PYTHON_TAB \
-            + f"sample[{coefficient_index}]" \
-            + f" = coefficient_{coefficient_index}(time)\n"
-    python_str += "\n" + PYTHON_TAB + "return lindbladian"
-
-    # Save as python module
-    import_name = "jit_package"
-    temp_directory = "~/.temp"
-    temp_directory = os.path.expanduser(temp_directory)
-    import_directory = f"{temp_directory}/superspinsim"
-    if not os.path.exists(import_directory):
-        os.makedirs(import_directory)
-    import_path = f"{import_directory}/{import_name}"
-    import_index = 0
-    while os.path.exists(f"{import_path}_{import_index}.py"):
-        import_index += 1
-    import_path = f"{import_path}_{import_index}.py"
-    with open(import_path, "w") as file:
-        file.write(python_str)
-
+    import_name, import_path, import_directory = \
+        _write_python_module(len(coefficients))
     spec = ilu.spec_from_file_location(import_name, import_path)
     import_module = ilu.module_from_spec(spec)
     sys.modules[import_name] = import_module
@@ -158,19 +66,9 @@ def mesolve(
         doubles=doubles, singles=singles,
     )
     return_value = simulator(rho0, ti, tf, dt)
-    print(return_value)
 
     # Cleanup
-    os.remove(import_path)
-    import_directory_ls = os.listdir(import_directory)
-    if len(import_directory_ls) == 0:
-        os.removedirs(import_directory)
-    elif len(import_directory_ls) == 1 and \
-            import_directory_ls[0] == "__pycache__":
-        pycache_directory = f"{import_directory}/__pycache__"
-        for file_name in os.listdir(pycache_directory):
-            os.remove(f"{pycache_directory}/{file_name}")
-        os.removedirs(pycache_directory)
+    _remove_python_module(import_path, import_directory)
 
     return return_value
 
@@ -253,6 +151,131 @@ def _compile_superoperators(superoperators: dict, key_prefix: str):
         superoperators_list.append(superoperators.pop(key))
         jump_index += 1
     return superoperators_list
+
+
+def _write_python_module(number_of_coefficients: int):
+    PYTHON_TAB = " "*4
+    python_str = ""
+    python_str += "def make_lindbladian(coefficients):\n"
+    for coefficient_index in range(number_of_coefficients):
+        python_str += PYTHON_TAB + \
+            f"coefficient_{coefficient_index}" \
+            f" = coefficients[{coefficient_index}]\n"
+    python_str += "\n" + PYTHON_TAB + "def lindbladian(time, sample):\n"
+    for coefficient_index in range(number_of_coefficients):
+        python_str += 2*PYTHON_TAB \
+            + f"sample[{coefficient_index}]" \
+            + f" = coefficient_{coefficient_index}(time)\n"
+    python_str += "\n" + PYTHON_TAB + "return lindbladian"
+
+    # Save as python module
+    import_name = "jit_package"
+    temp_directory = "~/.temp"
+    temp_directory = os.path.expanduser(temp_directory)
+    import_directory = f"{temp_directory}/superspinsim"
+    if not os.path.exists(import_directory):
+        os.makedirs(import_directory)
+    import_path = f"{import_directory}/{import_name}"
+    import_index = 0
+    while os.path.exists(f"{import_path}_{import_index}.py"):
+        import_index += 1
+    import_path = f"{import_path}_{import_index}.py"
+    with open(import_path, "w") as file:
+        file.write(python_str)
+
+    return import_name, import_path, import_directory
+
+
+def _remove_python_module(import_path: str, import_directory: str):
+    os.remove(import_path)
+    import_directory_ls = os.listdir(import_directory)
+    if len(import_directory_ls) == 0:
+        os.removedirs(import_directory)
+    elif len(import_directory_ls) == 1 and \
+            import_directory_ls[0] == "__pycache__":
+        pycache_directory = f"{import_directory}/__pycache__"
+        for file_name in os.listdir(pycache_directory):
+            os.remove(f"{pycache_directory}/{file_name}")
+        os.removedirs(pycache_directory)
+
+
+def _make_superoperators(
+        ham_quiescent: list[np.ndarray], ham_time_dependent: list[np.ndarray],
+        jump_quiescent: list[np.ndarray],
+        jump_time_dependent: list[np.ndarray], allowed: np.ndarray,
+        use_rotating: bool):
+    operator_dict = {}
+    for gen_index, gen in enumerate(ham_quiescent):
+        operator_dict[f"Hq{gen_index}"] = gen
+    for gen_index, gen in enumerate(ham_time_dependent):
+        operator_dict[f"Ht{gen_index}"] = gen
+    for gen_index, gen in enumerate(jump_quiescent):
+        operator_dict[f"Lq{gen_index}"] = gen
+    for gen_index, gen in enumerate(jump_time_dependent):
+        operator_dict[f"Lt{gen_index}"] = gen
+
+    new_operator_dict = {}
+    for label, operator in operator_dict.items():
+        # print(label, operator)
+        new_operator = np.empty(
+            (operator.shape[0], operator.shape[1], 2), np.float64)
+        new_operator[:, :, 0] = np.real(operator)
+        new_operator[:, :, 1] = np.imag(operator)
+        new_operator_dict[label] = new_operator
+    operator_dict = new_operator_dict
+
+    if allowed is None:
+        if len(ham_quiescent) > 0:
+            allowed = np.ones_like(ham_quiescent[0])
+        elif len(ham_time_dependent) > 0:
+            allowed = np.ones_like(ham_time_dependent[0])
+        elif len(jump_quiescent) > 0:
+            allowed = np.ones_like(jump_quiescent[0])
+        elif len(jump_time_dependent) > 0:
+            allowed = np.ones_like(jump_time_dependent[0])
+        else:
+            raise TypeError("No operators specified.")
+    valid_indices = _generate_valid_indices(allowed)
+
+    superoperators = _generate_superoperators(operator_dict, valid_indices)
+
+    # Compile time-independent superoperators
+    superoperators_quiescent = _compile_superoperators(superoperators, "Hq")
+    superoperators_quiescent += _compile_superoperators(superoperators, "Lq")
+    if len(superoperators_quiescent):
+        superoperator_quiescent = sum(superoperators_quiescent)
+    else:
+        superoperator_quiescent = None
+
+    # Compile time-dependent superoperators
+    superoperators_time_dependent = \
+        _compile_superoperators(superoperators, "Ht")
+    superoperators_time_dependent += \
+        _compile_superoperators(superoperators, "Lt")
+
+    if superoperator_quiescent is None:
+        # Set the time-independent von-neumann to the shape of the dissipators
+        if len(superoperator_quiescent):
+            superoperator_quiescent = \
+                np.zeros_like(np.zeros_like(superoperators_time_dependent[0]))
+        else:
+            raise TypeError("No operators defined.")
+
+    if use_rotating:
+        return_value = _make_rotating(
+            superoperator_quiescent, superoperators_time_dependent)
+        superoperators_time_dependent, vectors_real, inv_vectors_real, \
+            doubles, singles = return_value
+    else:
+        superoperators_time_dependent = \
+            [superoperator_quiescent] + superoperators_time_dependent
+    superoperators_time_dependent = np.array(superoperators_time_dependent)
+
+    return_value = (
+        superoperators_time_dependent, valid_indices, vectors_real,
+        inv_vectors_real, doubles, singles
+    )
+    return return_value
 
 
 def _make_rotating(
