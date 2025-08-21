@@ -3,7 +3,8 @@ if __name__ == "__main__":
     # from tests.contrast import main
     # from tests.odmr_4 import main
     # from tests.modulation import main
-    from tests.sugar_mesolve import main
+    # from tests.sugar_mesolve import main
+    from tests.sugar_simspins import main
     # from superspinsim.generate_generators import main
     main()
 

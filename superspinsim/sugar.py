@@ -1,5 +1,6 @@
 import numpy as np
 from numba import cuda as nc
+from copy import deepcopy
 
 import os
 import sys
@@ -9,12 +10,14 @@ import qutip as qt
 
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
-    _generate_valid_indices, _generate_superoperators, real_eig
+    _generate_valid_indices, _generate_superoperators, real_eig, \
+    generate_atoms, _generate_lindbladian
 
 
 def mesolve(
         H, rho0: np.ndarray, ti: float, tf: float, dt: float, c_ops=None,
-        allowed: np.ndarray = None, use_rotating: bool = True):
+        allowed: np.ndarray = None, use_rotating: bool = True,
+        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10):
     """
         A wrapper for superspinsim to provide a similar syntax to other
         simulators.
@@ -26,8 +29,8 @@ def mesolve(
     jump_quiescent, jump_time_dependent, jump_coefficients = \
         _sort_operators(c_ops, "c_ops")
 
-    superoperators_time_dependent, valid_indices, vectors_real, \
-        inv_vectors_real, doubles, singles = _make_superoperators(
+    superoperators_time_dependent, valid_indices, rotating_dict = \
+        _make_superoperators(
             ham_quiescent, ham_time_dependent, jump_quiescent,
             jump_time_dependent, allowed, use_rotating
         )
@@ -60,10 +63,9 @@ def mesolve(
 
     simulator = generate_simulator(
         lindbladian, superoperators_time_dependent, valid_indices,
-        number_of_exponentials=5, number_of_fine_divisions=10,
-        use_rotating=True,
-        vectors_real=vectors_real, inv_vectors_real=inv_vectors_real,
-        doubles=doubles, singles=singles,
+        number_of_exponentials=number_of_exponentials,
+        number_of_fine_divisions=number_of_fine_divisions,
+        use_rotating=use_rotating, **rotating_dict
     )
     return_value = simulator(rho0, ti, tf, dt)
 
@@ -266,15 +268,21 @@ def _make_superoperators(
             superoperator_quiescent, superoperators_time_dependent)
         superoperators_time_dependent, vectors_real, inv_vectors_real, \
             doubles, singles = return_value
+        rotating_dict = {
+            "vectors_real": vectors_real,
+            "inv_vectors_real": inv_vectors_real,
+            "doubles": doubles,
+            "singles": singles
+        }
     else:
         superoperators_time_dependent = \
             [superoperator_quiescent] + superoperators_time_dependent
+        rotating_dict = {}
+
     superoperators_time_dependent = np.array(superoperators_time_dependent)
 
-    return_value = (
-        superoperators_time_dependent, valid_indices, vectors_real,
-        inv_vectors_real, doubles, singles
-    )
+    return_value = \
+        (superoperators_time_dependent, valid_indices, rotating_dict)
     return return_value
 
 
@@ -293,5 +301,49 @@ def _make_rotating(
         superoperators_time_dependent_new, vectors_real, inv_vectors_real,
         doubles, singles
     )
+    return return_value
 
+
+def simspins(
+        coefficients: list[callable], time_start: float, time_end: float,
+        time_step: float, spins: list[list[dict]],
+        spin_interactions: list[dict], group_interactions: dict,
+        density_initial: np.ndarray, number_of_exponentials: int = 5,
+        number_of_fine_divisions: int = 1,
+        rotation_magnetic_from_spin: str = None,
+        number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
+        use_residual: bool = True):
+
+    if rotation_magnetic_from_spin is not None:
+        spins = deepcopy(spins)
+        for group in spins:
+            for spin in group:
+                spin["Rb<-a"] = rotation_magnetic_from_spin
+
+    generators, vectorisation_map = generate_atoms(
+        spins, spin_interactions, group_interactions)
+    generators = list(generators["generators"].values())
+
+    if use_rotating:
+        generators, vectors_real, inv_vectors_real, doubles, singles = \
+            _make_rotating(generators[0], generators[1:])
+        rotating_dict = {
+            "vectors_real": vectors_real,
+            "inv_vectors_real": inv_vectors_real,
+            "doubles": doubles,
+            "singles": singles
+        }
+    else:
+        rotating_dict = {}
+
+    lindbladian = _generate_lindbladian(coefficients, use_rotating)
+    simulator = generate_simulator(
+        lindbladian, np.array(generators), vectorisation_map,
+        use_residual=use_residual,
+        number_of_exponentials=number_of_exponentials,
+        number_of_fine_divisions=number_of_fine_divisions,
+        number_of_quartic_repeats=number_of_quadratic_repeats,
+        **rotating_dict
+    )
+    return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value
