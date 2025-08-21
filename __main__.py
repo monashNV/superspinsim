@@ -18,7 +18,9 @@ if __name__ == "__main__":
     # main()
 
     from comparisons.comp_quantum_toolbox import main
-    main()
+    main(
+        lindbladian="odmr"
+    )
 
     # from comparisons.comp_superspinsim import main
     # for number in [5, 2, 1]:

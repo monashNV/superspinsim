@@ -60,8 +60,8 @@ function generate_coefficients_odmr()
 	tau = 2*pi
 
 	function coefficient_x(p, t)
-		if time > time_start
-			phase = tau*(frequency_start*(time - time_start) + frequency_width*((time - time_start)^2) / (time_end - time_start)/2)
+		if t > time_start
+			phase = tau*(frequency_start*(t - time_start) + frequency_width*((t - time_start)^2) / (time_end - time_start)/2)
 			return 100e-6*sin(phase)
 		end
 		return 0.0

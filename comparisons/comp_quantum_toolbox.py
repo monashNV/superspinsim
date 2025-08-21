@@ -35,8 +35,7 @@ def init_quantum_toolbox(lindbladian="contrast"):
         "sweep_display_units": "s",
         "sweep_parameter_code": "max_step",
         "sweep_parameter_units": "s",
-        "do_overwrite_wall_duration": True,
-        "lindbladian": lindbladian
+        "do_overwrite_wall_duration": True
     }
 
     trial_name = "quantum_toolbox_jl"
