@@ -45,7 +45,7 @@ def main():
 
     time, density = simspins(
         coefficients, 0, time_end, time_step, *nv_7(quiescent_magnetic_field),
-        density_initial, number_of_fine_divisions=30, use_rotating=False
+        density_initial, number_of_fine_divisions=3, use_rotating=True
     )
     fluorescence = density[:, 3, 3] + density[:, 4, 4] + density[:, 5, 5]
     fluorescence = np.real(fluorescence)

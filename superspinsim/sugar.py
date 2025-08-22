@@ -343,6 +343,7 @@ def simspins(
         number_of_exponentials=number_of_exponentials,
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
+        use_rotating=use_rotating,
         **rotating_dict
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
