@@ -1,7 +1,6 @@
-profile/*
 *__pycache__*
-.env
-.activate_venv.ps1
+
+dist/*
+
 julia_env/Manifest.toml
-*.gif
 nohup.out
