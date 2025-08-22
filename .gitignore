@@ -1,6 +1,8 @@
 *__pycache__*
 
 dist/*
+docs/*
+poetry.lock
 
 julia_env/Manifest.toml
 nohup.out
