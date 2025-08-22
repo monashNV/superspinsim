@@ -11,16 +11,16 @@ import warnings
 
 
 def generate_simulator(
-        sampler,
-        generators,
-        vectorisation_map=None,
-        use_cuda=True,
+        sampler: callable,
+        generators: np.ndarray,
+        vectorisation_map: np.ndarray = None,
+        use_cuda: bool = True,
         datatype=np.float64,
-        use_residual=True,
-        number_of_quartic_repeats=35,  # 35,
-        number_of_exponentials=2,
-        number_of_fine_divisions=1,
-        use_cayley=False,
+        use_residual: bool = True,
+        number_of_quartic_repeats: int = 35,  # 35,
+        number_of_exponentials: int = 2,
+        number_of_fine_divisions: int = 1,
+        use_cayley: bool = False,
 
         use_rotating: bool = False,
         vectors_real: np.ndarray = None,
