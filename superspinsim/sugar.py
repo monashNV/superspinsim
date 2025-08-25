@@ -18,10 +18,55 @@ def mesolve(
         H, rho0: np.ndarray, ti: float, tf: float, dt: float, c_ops=None,
         allowed: np.ndarray = None, use_rotating: bool = True,
         number_of_exponentials: int = 5, number_of_fine_divisions: int = 10):
-    """
-        A wrapper for superspinsim to provide a similar syntax to other
-        simulators.
-    """
+    """A wrapper for superspinsim to provide a similar syntax to other
+    simulators, like `qutip.mesolve`.
+
+    Parameters
+    ----------
+    H
+        Hamiltonian of the system.
+        Static Hamiltonians can be defined as either a `numpy.ndarray`, or a
+        `qutip.Qobj`.
+        Dynamic Hamiltonians can be defined using a two-element `list`, where
+        the first element is a static Hamiltonian, and the second element is a
+        python function which defines a time-dependent coefficient of said
+        Hamiltonian.
+        Multiple static and dynamic Hamiltonians can be combined by providing
+        a `list` of Hamiltonians in the format described above.
+    rho0 : `numpy.ndarray`
+        The initial density matrix of the system.
+    ti : `float`
+        The initial time of the simulation.
+    tf : `float`
+        The final time of the simulation.
+    dt : `float`
+        The time step at which to provide solutions.
+        These steps are conducted in parallel.
+    c_ops (optional)
+        Jump (collapse) operators of the system.
+        Static jump operators can be defined as either a `numpy.ndarray`, or a
+        `qutip.Qobj`.
+        Dynamic jump operators can be defined using a two-element `list`, where
+        the first element is a static jump operator, and the second element is
+        a python function which defines a time-dependent coefficient of said
+        jump operator.
+        Multiple static and dynamic jump operators can be combined by providing
+        a `list` of jump operators in the format described above.
+    allowed : `numpy.ndarray` (optional)
+        A mask (matrix of zeroes and ones) of the locations of allowed non-zero
+        density matrix elements.
+        This can be used to exclude certain elements that are known to be zero,
+        *i.e.*, the coherences of between known incoherent states.
+    use_rotating : `bool` (default is `True`)
+        Whether or not to transform the problem into the generalised rotating
+        frame.
+    number_of_exponentials : `int` (default is 5)
+        The choice of which commutator-free magnus integrator to use, labelled
+        by the number of exponentials per step used in said integrator.
+    number_of_fine_divisions : `int` (default is 10)
+        The number of integration steps to conduct per every time step given in
+        the solution.
+        These steps are not conducted in parallel."""
 
     ham_quiescent, ham_time_dependent, ham_coefficients = \
         _sort_operators(H, "H")
