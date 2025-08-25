@@ -390,8 +390,10 @@ def calculate_double_coordinates(
 def plot_double_coordinates(protocols: dict, error_centres_log: float):
     plt.rcParams['text.usetex'] = True
     plt.figure(label="double", figsize=(6.4, 3.6))
-    plt.plot([0], [0], "x", color=cm.hawaii(0))
-    plt.plot([error_centres_log], [0], "x", color=cm.hawaii(1/2))
+    colour_0 = cm.hawaii(1/3)
+    colour_1 = cm.hawaii(2/3)
+    plt.plot([0], [0], "x", color=colour_0)
+    plt.plot([error_centres_log], [0], "x", color=colour_1)
     angle = np.linspace(0, math.pi)
     circle_x = np.cos(angle)
     circle_y = np.sin(angle)
@@ -399,29 +401,29 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
         if scale > 0:
             plt.plot(
                 scale*circle_x, scale*circle_y, "-",
-                alpha=0.2, color=cm.hawaii(0)
+                alpha=0.2, color=colour_0
             )
             plt.plot(
                 scale*circle_x + error_centres_log, scale*circle_y, "-",
-                alpha=0.2, color=cm.hawaii(1/2)
+                alpha=0.2, color=colour_1
             )
         plt.text(
             -scale, -0.5, r"$10^{" + str(scale - double_limit) + r"}$",
-            ha="center", va="top", color=cm.hawaii(0)
+            ha="center", va="top", color=colour_0
         )
         plt.text(
             error_centres_log + scale, -0.5,
             r"$10^{" + str(scale - double_limit) + r"}$", ha="center",
-            va="top", color=cm.hawaii(1/2)
+            va="top", color=colour_1
         )
     plt.text(
         0, -1, "Error from qutip limit",
-        ha="right", va="top", color=cm.hawaii(0)
+        ha="right", va="top", color=colour_0
     )
     plt.text(
         # error_centres_log, -1, "Error from superspinsim limit",
         error_centres_log, -1, "Error from qt.jl limit",
-        ha="left", va="top", color=cm.hawaii(1/2)
+        ha="left", va="top", color=colour_1
     )
     for index, (protocol, protocol_data) in enumerate(protocols.items()):
         x = protocol_data["double_x"]
@@ -492,29 +494,12 @@ def select_test(test: str):
 
     elif test == "contrast-external":
         protocols = {
-            "qutip": {
-                "timestamp": "2025-07-11T19-01-16",
-                "plot_marker": "+",
-                "data_label": "qutip"
-            },
-
-            "qt.jl": {
-                "timestamp": "2025-07-24T11-11-45",
-                "plot_marker": "x",
-                "data_label": "quantum_toolbox_jl"
-            },
-
             "superspinsim": {
                 "timestamp": "2025-07-16T19-20-20",
                 "plot_marker": "p",
                 "data_label": "superspinsim"
-            }
-        }
-        protocol_ground_truth = "qutip"
-        protocol_converge = "superspinsim"
+            },
 
-    elif test == "contrast-both":
-        protocols = {
             "qutip": {
                 "timestamp": "2025-07-11T19-01-16",
                 "plot_marker": "+",
@@ -529,6 +514,29 @@ def select_test(test: str):
         }
         protocol_ground_truth = "qutip"
         protocol_converge = "qt.jl"
+
+    elif test == "contrast-both":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-07-16T19-20-20",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-07-11T19-01-16",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-07-24T11-11-45",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "superspinsim"
 
     elif test == "odmr-internal":
         protocols = {
@@ -573,20 +581,49 @@ def select_test(test: str):
 
     elif test == "odmr-both":
         protocols = {
+            "superspinsim": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
             "qutip": {
                 "timestamp": "2025-08-05T17-17-18",
                 "plot_marker": "+",
                 "data_label": "qutip"
             },
 
-            "superspinsim": {
-                "timestamp": "2025-08-07T11-25-11",
-                "plot_marker": "p",
-                "data_label": "superspinsim"
+            "qt.jl": {
+                "timestamp": "2025-08-20T17-37-41",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
             }
         }
         protocol_ground_truth = "qutip"
         protocol_converge = "superspinsim"
+
+    elif test == "odmr-external":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-08-05T17-17-18",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-08-20T17-37-41",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "qt.jl"
 
     elif test == "y":
         protocols = {
@@ -639,6 +676,7 @@ def main():
             "contrast-external",
             "contrast-both",
             "odmr-internal",
+            "odmr-external",
             "odmr-both",
         ]
 
