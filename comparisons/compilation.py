@@ -176,7 +176,7 @@ def find_errors_from_centre(
     # plt.text(wall_duration_min, 1e-15, "64b prec.", va="bottom")
 
     plt.xlabel("Time spent simulating (s)")
-    plt.ylabel("Error from centre")
+    plt.ylabel("Error from limit")
     plt.gca().spines[["top", "right"]].set_visible(False)
     plt.legend()
     plt.draw()
