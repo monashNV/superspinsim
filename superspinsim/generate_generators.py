@@ -204,8 +204,8 @@ def _add_electron(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        if "Rb<-a" in atom.keys():
-            g_spin = atom["Rb<-a"]@g_spin
+        if "Rb_gets_a" in atom.keys():
+            g_spin = atom["Rb_gets_a"]@g_spin
 
         electron_gyro = g_spin*math.tau*s3p.fundamental.bohr_gyro
         atom["gyroS"] = electron_gyro
@@ -334,8 +334,8 @@ def _add_nucleus(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        if "Rb<-a" in atom.keys():
-            g_spin = atom["Rb<-a"]@g_spin
+        if "Rb_gets_a" in atom.keys():
+            g_spin = atom["Rb_gets_a"]@g_spin
 
         atom["gyroI"] = -g_spin*math.tau*s3p.fundamental.nuclear_gyro
         tensor_labels |= {"gyroI"}
@@ -1870,9 +1870,9 @@ def generate_7(
     }
 
     if rotation_magnetic_from_atom is not None:
-        nv_ground["Rb<-a"] = rotation_magnetic_from_atom
-        nv_excited["Rb<-a"] = rotation_magnetic_from_atom
-        nv_singlet["Rb<-a"] = rotation_magnetic_from_atom
+        nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
 
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals

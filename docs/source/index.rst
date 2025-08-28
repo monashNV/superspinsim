@@ -65,6 +65,8 @@ Then from the `docs/` directory, use,
 API
 ===
 
+See :doc:`spin_descriptions`.
+
 .. autofunction:: superspinsim.simspins
 
 .. autofunction:: superspinsim.mesolve

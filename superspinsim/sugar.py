@@ -33,13 +33,13 @@ def mesolve(
         Hamiltonian.
         Multiple static and dynamic Hamiltonians can be combined by providing
         a `list` of Hamiltonians in the format described above.
-    rho0 : `numpy.ndarray`
+    rho0: `numpy.ndarray`
         The initial density matrix of the system.
-    ti : `float`
+    ti: `float`
         The initial time of the simulation.
-    tf : `float`
+    tf: `float`
         The final time of the simulation.
-    dt : `float`
+    dt: `float`
         The time step at which to provide solutions.
         These steps are conducted in parallel.
     c_ops (optional)
@@ -52,18 +52,18 @@ def mesolve(
         jump operator.
         Multiple static and dynamic jump operators can be combined by providing
         a `list` of jump operators in the format described above.
-    allowed : `numpy.ndarray` (optional)
+    allowed: `numpy.ndarray` (optional)
         A mask (matrix of zeroes and ones) of the locations of allowed non-zero
         density matrix elements.
         This can be used to exclude certain elements that are known to be zero,
         *i.e.*, the coherences of between known incoherent states.
-    use_rotating : `bool` (default is `True`)
+    use_rotating: `bool` (default is `True`)
         Whether or not to transform the problem into the generalised rotating
         frame.
-    number_of_exponentials : `int` (default is 5)
+    number_of_exponentials: `int` (default is 5)
         The choice of which commutator-free magnus integrator to use, labelled
         by the number of exponentials per step used in said integrator.
-    number_of_fine_divisions : `int` (default is 10)
+    number_of_fine_divisions: `int` (default is 10)
         The number of integration steps to conduct per every time step given in
         the solution.
         These steps are not conducted in parallel."""
@@ -358,6 +358,28 @@ def simspins(
         rotation_magnetic_from_spin: str = None,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True):
+    """Run a simulation based on a description of spins.
+
+    Parameters
+    ----------
+    coefficients: list[callable]
+        A list of the coefficients of the von Neumann and Dissipator
+        generators.
+        The first entries are the x, y, and z magnetic fields, in Tesla.
+        The final entry is the inceherent optical excitation as fraction of
+        saturation.
+    time_start: `float`
+        The initial time of the simulation.
+    time_end: `float`
+        The final time of the simulation.
+    time_step: `float`
+        The time step at which to provide solutions.
+        These steps are conducted in parallel.
+    spins: list[list[dict]]
+        Descriptions of individual "atoms" of spin.
+        These include any electron and nuclear spins, their gyromagnetic ratios
+        and zero-field splittings, and any hyperfine interactions.
+    """
 
     if rotation_magnetic_from_spin is not None:
         spins = deepcopy(spins)
