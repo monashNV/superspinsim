@@ -103,6 +103,13 @@ Each of these individual descriptions for just two spins are organised into an
 encompassing :obj:`dict` for the entire coherent block.
 Here, the keys for the block :obj:`dict` are python :obj:`tuple` s of the
 :obj:`list` indices of the individual atom description.
+For example, the :obj:`dict` under the key :obj:`(0, 1)` will define the
+coupling between spins 0 and 1.
+There is then an encompassing :obj:`list` which contains the :obj:`dict` s that
+describe each coherent block.
+
+Therefore, the description of the coherent interactions between spins takes the
+form of a :obj:`list` of :obj:`dict` s of :obj:`dict` s.
 
 =============  ==========================================================
 Key            Description
@@ -115,6 +122,19 @@ Key            Description
 
 Incoherent interactions between coherent blocks
 ===============================================
+
+The incoherent interaction between two spins in different coherent blocks is
+defined by a python :obj:`dict`, with keys as defined below.
+These :obj:`dict` s are organised into an encompassing :obj:`dict` under keys
+of the form :obj:`((block_0, spin_0), (block_1, spin_1))`.
+Here, the spin of index :obj:`spin_0` from coherent block :obj:`block_0` is
+interacting with a spin of index :obj:`spin_0` from coherent block
+:obj:`block_0` .
+
+Therefore, the description of the incoherent interactions between spins of
+different blocks takes the form of a :obj:`dict` of :obj:`dict` s.
+
+These blocks are designed to model the orbital interactions of the NV centre.
 
 ===============  ==============================================================
 Key              Description
