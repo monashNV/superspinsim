@@ -2,8 +2,8 @@
 SuperSpinsim Documentation
 ##########################
 
-Contents
-========
+Documentation contents
+======================
 
 .. toctree::
    

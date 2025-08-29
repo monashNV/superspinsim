@@ -355,10 +355,10 @@ def simspins(
         spin_interactions: list[dict], group_interactions: dict,
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
-        rotation_magnetic_from_spin: str = None,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True):
-    """Run a simulation based on a description of spins.
+    """Run a simulation based on a description of spins, as described in
+    `Spin description syntax`_.
 
     Parameters
     ----------
@@ -377,15 +377,34 @@ def simspins(
         These steps are conducted in parallel.
     spins: list[list[dict]]
         Descriptions of individual "atoms" of spin.
-        These include any electron and nuclear spins, their gyromagnetic ratios
-        and zero-field splittings, and any hyperfine interactions.
+        See `Individual spins`_ .
+    spin_interactions: list[dict[tuple[int, int], dict]]
+        Descriptions of coherent interactions between spins.
+        See `Spin-spin interaction description`_ .
+    group_interactions: dict[tuple[tuple[int, int], tuple[int, int]], dict]
+        Description of incoherent interactions between spins.
+        See `Incoherent interactions between coherent blocks`_ .
+    density_initial: numpy.ndarray
+        Initial density matrix to evolve through time.
+    number_of_exponentials: int (default is 5)
+        A shorthand for the kind of commutator-free Magnus integrator method
+        being used in the simulator.
+        Choose :obj:`1` for the CF2:1 second-order method.
+        Choose :obj:`2` for the CF4:2 fourth-order method.
+        Choose :obj:`3` for the CF4:3 fourth-order method.
+        Choose :obj:`5` for the CF6:5 sixth-order method.
+        Choose :obj:`6` for the CF6:6 sixth-order method.
+    number_of_fine_divisions: int (default is 1)
+        The number of integration steps to conduct per every time step given in
+        the solution.
+        These steps are not conducted in parallel.
+    number_of_quadratic_repeats: int (default is 35)
+        Twice the number of repeated squares to use in matrix exponentiation.
+    use_rotating: bool (default is True)
+        Whether or not to use the generalised rotating frame technique.
+    use_residual: bool (default is True)
+        Whether or not to use the residual arithmetic technique.
     """
-
-    if rotation_magnetic_from_spin is not None:
-        spins = deepcopy(spins)
-        for group in spins:
-            for spin in group:
-                spin["Rb<-a"] = rotation_magnetic_from_spin
 
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions)
