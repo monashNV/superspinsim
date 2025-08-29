@@ -2,14 +2,12 @@
 API
 ###
 
+Simulations using spin descriptions
+===================================
+
 .. autofunction:: superspinsim.simspins
 
-.. autofunction:: superspinsim.mesolve
-
-.. autofunction:: superspinsim.generate_simulator
-
-.. autofunction:: superspinsim.colour_complex_matrix
-
+.. autofunction:: superspinsim.models.nv_7
 
 Spin description syntax
 =======================
@@ -167,3 +165,18 @@ Key              Description
                  of a triplet, in population/second.
                  Useful for modelling NV centres in diamond.
 ===============  ==============================================================
+
+
+Simulations using QuTiP-syntax
+==============================
+
+.. autofunction:: superspinsim.mesolve
+
+.. .. autofunction:: superspinsim.generate_simulator
+
+Visualisation
+=============
+
+.. autofunction:: superspinsim.colour_complex_matrix
+
+

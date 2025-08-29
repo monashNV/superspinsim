@@ -1,6 +1,5 @@
 import numpy as np
 from numba import cuda as nc
-from copy import deepcopy
 
 import os
 import sys
@@ -66,7 +65,15 @@ def mesolve(
     number_of_fine_divisions: `int` (default is 10)
         The number of integration steps to conduct per every time step given in
         the solution.
-        These steps are not conducted in parallel."""
+        These steps are not conducted in parallel.
+
+    Returns
+    -------
+    time: np.ndarray
+        Time samples in seconds.
+    density: np.ndarray
+        Evaluated density matrices at the times given by :obj"`time` .
+    """
 
     ham_quiescent, ham_time_dependent, ham_coefficients = \
         _sort_operators(H, "H")
@@ -404,6 +411,13 @@ def simspins(
         Whether or not to use the generalised rotating frame technique.
     use_residual: bool (default is True)
         Whether or not to use the residual arithmetic technique.
+
+    Returns
+    -------
+    time: np.ndarray
+        Time samples in seconds.
+    density: np.ndarray
+        Evaluated density matrices at the times given by :obj"`time` .
     """
 
     generators, vectorisation_map = generate_atoms(
