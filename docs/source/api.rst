@@ -1,6 +1,18 @@
-#################
-Spin descriptions
-#################
+###
+API
+###
+
+.. autofunction:: superspinsim.simspins
+
+.. autofunction:: superspinsim.mesolve
+
+.. autofunction:: superspinsim.generate_simulator
+
+.. autofunction:: superspinsim.colour_complex_matrix
+
+
+Spin description syntax
+=======================
 
 SuperSpinsim comes with helper tools to construct spin systems, like NV centres
 in diamond, using a description from standard python datastructures.
@@ -21,7 +33,7 @@ This can be used to model the incoherent transitions between orbitals in an
 NV centre.
 
 Individual spins
-================
+----------------
 
 The description of each individual spin is organised into a python :obj:`dict`
 using the keys as described below.
@@ -36,7 +48,7 @@ Here the main :obj:`list` contains the :obj:`list` s of group descriptions, and
 the group descriptions contain the :obj:`dict` s spin descriptions.
 
 General
--------
+~~~~~~~
 
 ================  =============================================================
 Key               Description
@@ -56,7 +68,7 @@ Key               Description
 ================  =============================================================
 
 Electron
---------
+~~~~~~~~
 
 =============  ================================================
 Key            Description
@@ -72,7 +84,7 @@ Key            Description
 =============  ================================================
 
 Nucleus
--------
+~~~~~~~
 
 ==============  ===============================================================
 Key             Description
@@ -95,7 +107,7 @@ Key             Description
 ==============  ===============================================================
 
 Spin-spin interaction description
-=================================
+---------------------------------
 
 The interaction between two spins within a coherent block is described by a
 python :obj:`dict`, using the keys as described below.
@@ -121,7 +133,7 @@ Key            Description
 =============  ==========================================================
 
 Incoherent interactions between coherent blocks
-===============================================
+-----------------------------------------------
 
 The incoherent interaction between two spins in different coherent blocks is
 defined by a python :obj:`dict`, with keys as defined below.
