@@ -2172,7 +2172,7 @@ def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
 # Main ========================================================================
 
 
-def main():
+def rotation():
     import matplotlib.pyplot as plt
     from cmcrameri import cm
 
@@ -2355,6 +2355,10 @@ def main():
     # plot_operators(generators)
 
     # plt.draw()
+
+
+def main():
+    _rotation()
 
 
 if __name__ == "__main__":
