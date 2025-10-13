@@ -182,6 +182,8 @@ def _add_electron(
 
         atom["Dten"] = zfs
         tensor_labels.add("Dten")
+    else:
+        zfs_generator = None
 
     # Electron Zeeman
     if spin > 0:
@@ -309,6 +311,8 @@ def _add_nucleus(
 
             atom["Pten"] = zfs
             tensor_labels.add("Pten")
+        else:
+            zfs_generator = None
 
     else:
         spin = 0
@@ -401,6 +405,9 @@ def _add_thermalisation(
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
     temp_labels = set()
+
+    if zfs_generator is None:
+        zfs_generator = np.zeros_like(_read_spin_vec(spin_label, atom)[0])
 
     if f"T{spin_label}1" in atom.keys():
         thermalisation_time = atom[f"T{spin_label}1"]
