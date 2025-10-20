@@ -81,11 +81,12 @@ def generate_atoms(
     operator_dicts["coherent"] = coherent_blocks
 
     # Generate superoperators
-    operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
-    valid_indices = _generate_valid_indices(allowed)
-    superoperators = _generate_superoperators(
-        operators_to_super, valid_indices)
-    dissipator_dict = _combine_superoperators(superoperators)
+    if operator_dicts["jump"]:
+        operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
+        valid_indices = _generate_valid_indices(allowed)
+        superoperators = _generate_superoperators(
+            operators_to_super, valid_indices)
+        dissipator_dict = _combine_superoperators(superoperators)
 
     operator_dicts["super_all"] = superoperators
     operator_dicts["dissipators"] = dissipator_dict
