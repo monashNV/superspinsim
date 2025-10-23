@@ -3,6 +3,21 @@ import numpy as np
 
 
 def colour_complex_matrix(inp: np.ndarray):
+    """Returns an RGB image representing a complex matrix.
+    Complex phase is represented by hue.
+    Can be used to plot a density matrix.
+
+    Parameters
+    ----------
+    inp: numpy.ndarray
+        The complex matrix to visualise.
+
+    Returns
+    -------
+    out: numpy.ndarray
+        An RGB matrix representing the complex matrix.
+    """
+
     out = np.zeros(
         (inp.shape[0], inp.shape[1], 3),
         dtype=np.float64

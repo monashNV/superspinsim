@@ -1,5 +1,4 @@
 import numpy as np
-# import scipy.linalg as spl
 import math
 import copy
 
@@ -13,7 +12,7 @@ meta_datatype = np.float64
 
 def generate_atoms(
     description: list[list[dict]], atom_interactions: list[dict],
-    block_interactions: dict, verbose=False
+    block_interactions: dict
 ) -> [dict, dict, list[dict], dict]:
     """
         Define a system of multiple spins.
@@ -183,6 +182,8 @@ def _add_electron(
 
         atom["Dten"] = zfs
         tensor_labels.add("Dten")
+    else:
+        zfs_generator = None
 
     # Electron Zeeman
     if spin > 0:
@@ -205,8 +206,8 @@ def _add_electron(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        if "Rb<-a" in atom.keys():
-            g_spin = atom["Rb<-a"]@g_spin
+        if "Rb_gets_a" in atom.keys():
+            g_spin = atom["Rb_gets_a"]@g_spin
 
         electron_gyro = g_spin*math.tau*s3p.fundamental.bohr_gyro
         atom["gyroS"] = electron_gyro
@@ -310,6 +311,8 @@ def _add_nucleus(
 
             atom["Pten"] = zfs
             tensor_labels.add("Pten")
+        else:
+            zfs_generator = None
 
     else:
         spin = 0
@@ -335,8 +338,8 @@ def _add_nucleus(
         g_spin[1, 1] = g_iso - g_dipole
         g_spin[2, 2] = g_iso + 2*g_dipole
 
-        if "Rb<-a" in atom.keys():
-            g_spin = atom["Rb<-a"]@g_spin
+        if "Rb_gets_a" in atom.keys():
+            g_spin = atom["Rb_gets_a"]@g_spin
 
         atom["gyroI"] = -g_spin*math.tau*s3p.fundamental.nuclear_gyro
         tensor_labels |= {"gyroI"}
@@ -402,6 +405,9 @@ def _add_thermalisation(
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
     temp_labels = set()
+
+    if zfs_generator is None:
+        zfs_generator = np.zeros_like(_read_spin_vec(spin_label, atom)[0])
 
     if f"T{spin_label}1" in atom.keys():
         thermalisation_time = atom[f"T{spin_label}1"]
@@ -1871,9 +1877,9 @@ def generate_7(
     }
 
     if rotation_magnetic_from_atom is not None:
-        nv_ground["Rb<-a"] = rotation_magnetic_from_atom
-        nv_excited["Rb<-a"] = rotation_magnetic_from_atom
-        nv_singlet["Rb<-a"] = rotation_magnetic_from_atom
+        nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
 
     generators, vectorisation_map = generate_atoms(
         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals

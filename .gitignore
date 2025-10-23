@@ -1,7 +1,8 @@
-profile/*
 *__pycache__*
-.env
-.activate_venv.ps1
+
+dist/*
+docs/build/*
+poetry.lock
+
 julia_env/Manifest.toml
-*.gif
 nohup.out
