@@ -1,5 +1,7 @@
 import numpy as np
 import math
+import sympy as sy
+
 import copy
 
 import numba.cuda as nc
@@ -64,6 +66,7 @@ def generate_atoms(
         description, atom_interactions, field_labels)
 
     allowed = _combine_blocks(description, coherent_atoms, label_sets)
+    allowed = np.ones_like(allowed)
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
@@ -182,6 +185,8 @@ def _add_electron(
 
         atom["Dten"] = zfs
         tensor_labels.add("Dten")
+    else:
+        zfs_generator = None
 
     # Electron Zeeman
     if spin > 0:
@@ -309,6 +314,8 @@ def _add_nucleus(
 
             atom["Pten"] = zfs
             tensor_labels.add("Pten")
+        else:
+            zfs_generator = None
 
     else:
         spin = 0
@@ -401,6 +408,9 @@ def _add_thermalisation(
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
     temp_labels = set()
+
+    if zfs_generator is None:
+        zfs_generator = np.zeros_like(_read_spin_vec(spin_label, atom)[0])
 
     if f"T{spin_label}1" in atom.keys():
         thermalisation_time = atom[f"T{spin_label}1"]
@@ -2168,11 +2178,154 @@ def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
                 operator_out[y_out_index, x_out_index, c_out_index]
     return superoperator
 
+# Kernel ======================================================================
+
+def _find_row(generators: np.ndarray):
+    rows = []
+
+    for generator in generators:
+        vals, vecs = np.linalg.eig(generator)
+        # print(vals.imag)
+        for val, vec in zip(vals, vecs):
+            if val != 0:
+                rows.append(vec)
+    rows = np.array(rows)
+    rank = np.linalg.matrix_rank(rows)
+
+
+def _rref(matrix: np.ndarray):
+    matrix_sy = sy.Matrix(matrix)
+    rref_sy, pivot_sy = matrix_sy.rref()
+    rref = np.array(rref_sy, np.float64)
+    pivot = np.array(pivot_sy, np.float64)
+    return rref, pivot
+
+
+def _make_real(kernels: list[np.ndarray]):
+    kernels_real = []
+    for kernel in kernels:
+        kernel_real = []
+        for vec in kernel:
+            vec_real = np.real(vec)
+            vec_imag = np.imag(vec)
+            kernel_real.append(vec_real)
+            kernel_real.append(vec_imag)
+        kernel_real = np.array(kernel_real, dtype=np.float64)
+        kernel_real, pivot = _rref(kernel_real)
+
+        kernel_rref = []
+        for row in kernel_real:
+            if np.sum(row**2) < 1e-9:
+                continue
+            kernel_rref.append(row)
+        kernel_real = np.array(kernel_rref, np.float64)
+        kernels_real.append(kernel_real)
+    return kernels_real
+
+
+def _apply_zassenhaus(kernels: list[np.ndarray]):
+    current_intersection = kernels[0]
+    for kernel_index in range(1, len(kernels)):
+        kernel = kernels[kernel_index]
+        zassenhaus_matrix = np.zeros(
+            (
+                current_intersection.shape[0] + kernel.shape[0],
+                current_intersection.shape[1] + kernel.shape[1]
+            ), dtype=np.float64
+        )
+        zassenhaus_matrix[
+            0:current_intersection.shape[0], 0:current_intersection.shape[1]
+        ] = current_intersection
+        zassenhaus_matrix[
+            0:current_intersection.shape[0], current_intersection.shape[1]:
+        ] = current_intersection
+        zassenhaus_matrix[
+            current_intersection.shape[0]:, 0:kernel.shape[1]
+        ] = kernel
+
+        rref, _ = _rref(zassenhaus_matrix)
+
+        intersection_bound = \
+            min(current_intersection.shape[0], kernel.shape[0])
+        intersection_end = None
+        for row_index in range(intersection_bound):
+            row_index_negative = rref.shape[0] - 1 - row_index
+
+            if intersection_end is None:
+                row_right = \
+                    rref[row_index_negative, current_intersection.shape[1]:]
+                if np.sum(row_right**2) >= 1e-9:
+                    intersection_end = row_index_negative + 1
+
+            row_left = \
+                rref[row_index_negative, :current_intersection.shape[1]]
+            if np.sum(row_left**2) >= 1e-9:
+                intersection_start = row_index_negative + 1
+                break
+        if intersection_end is None:
+            intersection_end = intersection_start
+        if intersection_end != intersection_start:
+            current_intersection = rref[
+                intersection_start:intersection_end,
+                current_intersection.shape[1]:
+            ]
+
+    return current_intersection.T
+
+
+def _gram_schmidt(initial: list, avoid: list = None):
+    final = []
+    for column in initial:
+        if avoid is not None:
+            for direction in avoid:
+                column -= np.dot(direction, column)*direction
+        for direction in final:
+            column -= np.dot(direction, column)*direction
+        norm = np.linalg.norm(column)
+        if norm < 1e-9:
+            continue
+        column /= norm
+        final.append(column)
+    return final
+
+
+def _find_orthogonal(intersection: np.ndarray):
+    intersection_orthogonal = _gram_schmidt(intersection.T)
+    intersection_orthogonal_a = \
+        np.array(intersection_orthogonal, dtype=np.float64).T
+
+    image = _gram_schmidt(
+        np.eye(intersection.shape[0]), copy.deepcopy(intersection_orthogonal))
+    image_a = np.array(image, dtype=np.float64).T
+
+    full_basis_a = \
+        np.array(image + intersection_orthogonal, dtype=np.float64).T
+
+    return image_a, intersection_orthogonal_a, full_basis_a
+
+
+def find_kernel(generators: np.ndarray):
+    kernels = []
+    for generator in generators:
+        vals, vecs = np.linalg.eig(generator)
+        kernel = vecs[:, np.abs(vals) < np.max(np.abs(vals))/1e9].copy()
+        kernels.append(kernel.T)
+
+    kernels = _make_real(kernels)
+
+    intersection = _apply_zassenhaus(kernels)
+    image, kernel, full = _find_orthogonal(intersection)
+
+    generators_image = []
+    for generator in generators:
+        generator_image = image.T@generator@image
+        generators_image.append(generator_image)
+
+    return full, image, generators_image
 
 # Main ========================================================================
 
-
-def rotation():
+def _rotation():
     import matplotlib.pyplot as plt
     from cmcrameri import cm
 
@@ -2258,103 +2411,6 @@ def rotation():
             [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}],
             nv_orbitals
         )
-
-        generators_list = list(generators["generators"].values())
-
-        eig = logger.record(
-            ("vectors", "inv_vectors", "values_double", "values_single"))(
-            real_eig
-        )
-
-        @logger.record()
-        def schur():
-            quiescent = generators_list[0]
-            quiescent /= np.linalg.matrix_norm(quiescent)
-
-            operator = quiescent@quiescent.T - quiescent.T@quiescent
-
-            print(np.linalg.matrix_norm(quiescent))
-            print(np.linalg.matrix_norm(operator))
-
-            # operator = generators["super_all"]["[0, 0] LS1"]
-
-            # schur = spl.schur(quiescent, "real")[0]
-            # schur_max = np.max(np.abs(schur))
-            # schur = schur*(np.abs(schur) > schur_max*1e-3)
-
-            # operator = schur
-
-            plt.figure(label="schur")
-            operator = np.sign(operator)*(
-                np.log10(np.abs(operator) + 1e-20) + 20)
-            plt.imshow(colour_complex_matrix(
-                operator/(np.max(np.abs(operator)))),
-                       interpolation="nearest")
-            plt.xticks([], [])
-            plt.yticks([], [])
-            plt.tight_layout()
-            plt.draw()
-
-        # schur()
-
-        # plt.show()
-
-        @logger.record()
-        def plot(
-                vectors_real: np.ndarray, inv_vectors_real: np.ndarray,
-                generators: list):
-            plt.figure(label="real_eigenvectors")
-            plt.imshow(
-                colour_complex_matrix(
-                    vectors_real/np.max(np.abs(vectors_real))
-                )
-            )
-            plt.draw()
-
-            plt.figure(label="inv_real_eigenvectors")
-            plt.imshow(
-                colour_complex_matrix(
-                    inv_vectors_real
-                    / np.max(np.abs(inv_vectors_real))
-                )
-            )
-            plt.draw()
-
-            label_list = ["Lq", "Gx", "Gy", "Gz", "Go"]
-            for generator, label in zip(generators, label_list):
-                generator_transform = inv_vectors_real@generator@vectors_real
-                plt.figure(label=label, figsize=(6.4, 4.8*2))
-                plt.suptitle(label)
-                plt.subplot(2, 1, 1)
-                plt.title("Real basis")
-                plt.imshow(
-                    colour_complex_matrix(
-                        generator
-                        / np.max(np.abs(generator))
-                    )
-                )
-
-                plt.subplot(2, 1, 2)
-                plt.title("Real eigenbasis")
-                plt.imshow(
-                    colour_complex_matrix(
-                        generator_transform
-                        / np.max(np.abs(generator_transform))
-                    )
-                )
-                plt.draw()
-
-        logger.set_context("real_diagonalisation")
-        vectors_real, inv_vectors_real, _, _ = eig(generators_list[0])
-        plot(vectors_real, inv_vectors_real, generators_list)
-
-        plt.show()
-
-    # logger.set_context("operator_generation")
-    # plot_operators = logger.record(("operators"))(_plot_operators)
-    # plot_operators(generators)
-
-    # plt.draw()
 
 
 def main():

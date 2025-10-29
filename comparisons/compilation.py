@@ -111,7 +111,7 @@ def find_centre(protocol: dict):
 
     # centre_index = np.argmin(errors_diff)
     # centre = densities[centre_index, :, :, :]
-    weight_temperature = np.min(errors_diff)
+    weight_temperature = np.min(errors_diff)*10
     centre = np.zeros_like(densities[0, :, :, :])
     for density, error in zip(densities, errors_diff):
         centre += density*weight_function(error, weight_temperature)
@@ -176,7 +176,7 @@ def find_errors_from_centre(
     # plt.text(wall_duration_min, 1e-15, "64b prec.", va="bottom")
 
     plt.xlabel("Time spent simulating (s)")
-    plt.ylabel("Error from centre")
+    plt.ylabel("Error from limit")
     plt.gca().spines[["top", "right"]].set_visible(False)
     plt.legend()
     plt.draw()
@@ -390,8 +390,10 @@ def calculate_double_coordinates(
 def plot_double_coordinates(protocols: dict, error_centres_log: float):
     plt.rcParams['text.usetex'] = True
     plt.figure(label="double", figsize=(6.4, 3.6))
-    plt.plot([0], [0], "x", color=cm.hawaii(0))
-    plt.plot([error_centres_log], [0], "x", color=cm.hawaii(1/2))
+    colour_0 = cm.hawaii(1/3)
+    colour_1 = cm.hawaii(2/3)
+    plt.plot([0], [0], "x", color=colour_0)
+    plt.plot([error_centres_log], [0], "x", color=colour_1)
     angle = np.linspace(0, math.pi)
     circle_x = np.cos(angle)
     circle_y = np.sin(angle)
@@ -399,29 +401,29 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
         if scale > 0:
             plt.plot(
                 scale*circle_x, scale*circle_y, "-",
-                alpha=0.2, color=cm.hawaii(0)
+                alpha=0.2, color=colour_0
             )
             plt.plot(
                 scale*circle_x + error_centres_log, scale*circle_y, "-",
-                alpha=0.2, color=cm.hawaii(1/2)
+                alpha=0.2, color=colour_1
             )
         plt.text(
             -scale, -0.5, r"$10^{" + str(scale - double_limit) + r"}$",
-            ha="center", va="top", color=cm.hawaii(0)
+            ha="center", va="top", color=colour_0
         )
         plt.text(
             error_centres_log + scale, -0.5,
             r"$10^{" + str(scale - double_limit) + r"}$", ha="center",
-            va="top", color=cm.hawaii(1/2)
+            va="top", color=colour_1
         )
     plt.text(
         0, -1, "Error from qutip limit",
-        ha="right", va="top", color=cm.hawaii(0)
+        ha="right", va="top", color=colour_0
     )
     plt.text(
         # error_centres_log, -1, "Error from superspinsim limit",
         error_centres_log, -1, "Error from qt.jl limit",
-        ha="left", va="top", color=cm.hawaii(1/2)
+        ha="left", va="top", color=colour_1
     )
     for index, (protocol, protocol_data) in enumerate(protocols.items()):
         x = protocol_data["double_x"]
@@ -435,135 +437,220 @@ def plot_double_coordinates(protocols: dict, error_centres_log: float):
     plt.draw()
 
 
-def main():
-    # protocols = {
-    #     "qutip": {
-    #         "timestamp": "2025-07-11T19-01-16",
-    #         "plot_marker": "+",
-    #         "data_label": "qutip"
-    #     },
+def select_test(test: str):
+    if test == "contrast-internal":
+        # "qt_pc": {
+        #     # "timestamp": "2025-07-08T16-10-49",
+        #     "timestamp": "2025-07-08T19-01-21",
+        #     "plot_marker": "+",
+        #     "data_label": "qutip"
+        # },
 
-    #     "qt.jl": {
-    #         "timestamp": "2025-07-24T11-11-45",
-    #         "plot_marker": "x",
-    #         "data_label": "quantum_toolbox_jl"
-    #     },
+        # "s3_cf65_pc": {
+        #     "timestamp": "2025-07-11T16-14-55",
+        #     "plot_marker": "p",
+        #     "data_label": "superspinsim"
+        # },
 
-    #     # "qt_pc": {
-    #     #     # "timestamp": "2025-07-08T16-10-49",
-    #     #     "timestamp": "2025-07-08T19-01-21",
-    #     #     "plot_marker": "+",
-    #     #     "data_label": "qutip"
-    #     # },
+        protocols = {
+            "CF2:1": {
+                "timestamp": "2025-07-15T16-14-38",
+                "plot_marker": ".-",
+                "data_label": "superspinsim"
+            },
 
-    #     # "s3_cf65_pc": {
-    #     #     "timestamp": "2025-07-11T16-14-55",
-    #     #     "plot_marker": "p",
-    #     #     "data_label": "superspinsim"
-    #     # },
+            "CF2:1, R": {
+                "timestamp": "2025-07-16T19-29-43",
+                "plot_marker": ".",
+                "data_label": "superspinsim"
+            },
 
-    #     "CF2:1": {
-    #         "timestamp": "2025-07-15T16-14-38",
-    #         "plot_marker": ".",
-    #         "data_label": "superspinsim"
-    #     },
+            "CF4:2": {
+                "timestamp": "2025-07-14T14-14-01",
+                "plot_marker": "o-",
+                "data_label": "superspinsim"
+            },
 
-    #     "CF2:1, R": {
-    #         "timestamp": "2025-07-16T19-29-43",
-    #         "plot_marker": ".",
-    #         "data_label": "superspinsim"
-    #     },
+            "CF4:2, R": {
+                "timestamp": "2025-07-17T13-32-31",
+                "plot_marker": "o",
+                "data_label": "superspinsim"
+            },
 
-    #     "CF4:2": {
-    #         "timestamp": "2025-07-14T14-14-01",
-    #         "plot_marker": "o",
-    #         "data_label": "superspinsim"
-    #     },
+            "CF6:5": {
+                "timestamp": "2025-07-11T18-31-56",
+                "plot_marker": "p-",
+                "data_label": "superspinsim"
+            },
 
-    #     "CF4:2, R": {
-    #         "timestamp": "2025-07-17T13-32-31",
-    #         "plot_marker": "o",
-    #         "data_label": "superspinsim"
-    #     },
-
-    #     "CF6:5": {
-    #         "timestamp": "2025-07-11T18-31-56",
-    #         "plot_marker": "p",
-    #         "data_label": "superspinsim"
-    #     },
-
-    #     "CF6:5, R": {
-    #         "timestamp": "2025-07-16T19-20-20",
-    #         "plot_marker": "p",
-    #         "data_label": "superspinsim"
-    #     }
-    # }
-    # protocol_ground_truth = "qutip"
-    # protocol_converge = "CF6:5, R"
-    # # protocol_converge = "qt.jl"
-
-    # # === Y protocols ===
-
-    # protocols = {
-    #     "CF6:5, Y": {
-    #         "timestamp": "2025-07-17T15-35-19",
-    #         "plot_marker": "p",
-    #         "data_label": "superspinsim"
-    #     },
-
-    #     "CF6:5, YR": {
-    #         "timestamp": "2025-07-17T15-47-10",
-    #         "plot_marker": "p",
-    #         "data_label": "superspinsim"
-    #     }
-    # }
-
-    # protocol_ground_truth = "CF6:5, Y"
-    # protocol_converge = "CF6:5, YR"
-
-    # === ODMR ===
-
-    protocols = {
-        "qutip": {
-            "timestamp": "2025-08-05T17-17-18",
-            "plot_marker": "+",
-            "data_label": "qutip"
-        },
-
-        "CF2:1, R": {
-            "timestamp": "2025-08-08T12-15-25",
-            "plot_marker": ".",
-            "data_label": "superspinsim"
-        },
-
-        "CF4:2": {
-            "timestamp": "2025-08-12T17-46-08",
-            "plot_marker": "o",
-            "data_label": "superspinsim"
-        },
-
-        "CF4:2, R": {
-            "timestamp": "2025-08-07T16-57-27",
-            "plot_marker": "o",
-            "data_label": "superspinsim"
-        },
-
-        "CF6:5": {
-            "timestamp": "2025-08-12T12-27-02",
-            "plot_marker": "p",
-            "data_label": "superspinsim"
-        },
-
-        "CF6:5, R": {
-            "timestamp": "2025-08-07T11-25-11",
-            "plot_marker": "p",
-            "data_label": "superspinsim"
+            "CF6:5, R": {
+                "timestamp": "2025-07-16T19-20-20",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            }
         }
-    }
-    protocol_ground_truth = "qutip"
-    # protocol_ground_truth = "CF4:2, R"
-    protocol_converge = "CF6:5, R"
+        protocol_ground_truth = "CF4:2"
+        protocol_converge = "CF6:5, R"
 
+    elif test == "contrast-external":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-07-16T19-20-20",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-07-11T19-01-16",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-07-24T11-11-45",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "qt.jl"
+
+    elif test == "contrast-both":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-07-16T19-20-20",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-07-11T19-01-16",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-07-24T11-11-45",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "superspinsim"
+
+    elif test == "odmr-internal":
+        protocols = {
+            "CF2:1": {
+                "timestamp": "2025-08-15T05-24-36",
+                "plot_marker": ".-",
+                "data_label": "superspinsim"
+            },
+
+            "CF2:1, R": {
+                "timestamp": "2025-08-08T12-15-25",
+                "plot_marker": ".",
+                "data_label": "superspinsim"
+            },
+
+            "CF4:2": {
+                "timestamp": "2025-08-14T16-23-20",
+                "plot_marker": "o-",
+                "data_label": "superspinsim"
+            },
+
+            "CF4:2, R": {
+                "timestamp": "2025-08-07T16-57-27",
+                "plot_marker": "o",
+                "data_label": "superspinsim"
+            },
+
+            "CF6:5": {
+                "timestamp": "2025-08-14T11-10-16",
+                "plot_marker": "p-",
+                "data_label": "superspinsim"
+            },
+
+            "CF6:5, R": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            }
+        }
+        protocol_ground_truth = "CF4:2, R"
+        protocol_converge = "CF6:5, R"
+
+    elif test == "odmr-both":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-08-05T17-17-18",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-08-20T17-37-41",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "superspinsim"
+
+    elif test == "odmr-external":
+        protocols = {
+            "superspinsim": {
+                "timestamp": "2025-08-07T11-25-11",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "qutip": {
+                "timestamp": "2025-08-05T17-17-18",
+                "plot_marker": "+",
+                "data_label": "qutip"
+            },
+
+            "qt.jl": {
+                "timestamp": "2025-08-20T17-37-41",
+                "plot_marker": "x",
+                "data_label": "quantum_toolbox_jl"
+            }
+        }
+        protocol_ground_truth = "qutip"
+        protocol_converge = "qt.jl"
+
+    elif test == "y":
+        protocols = {
+            "CF6:5, Y": {
+                "timestamp": "2025-07-17T15-35-19",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            },
+
+            "CF6:5, YR": {
+                "timestamp": "2025-07-17T15-47-10",
+                "plot_marker": "p",
+                "data_label": "superspinsim"
+            }
+        }
+
+        protocol_ground_truth = "CF6:5, Y"
+        protocol_converge = "CF6:5, YR"
+
+    else:
+        raise KeyError(f"Test {test} not defined.")
+
+    return protocols, protocol_ground_truth, protocol_converge
+
+
+def main_unwrapped(test: str):
+    protocols, protocol_ground_truth, protocol_converge = select_test(test)
     read_archives(protocols)
     find_centre(protocols[protocol_ground_truth])
     find_centre(protocols[protocol_converge])
@@ -574,8 +661,25 @@ def main():
     error_centres_log = calculate_double_coordinates(
         protocols, [centre_0, centre_1], ["0", "1"])
     plot_double_coordinates(protocols, error_centres_log)
-    pca_data = 0
-    # pca_data = pca(protocols, centre)
-    # plot_circular_log(protocols)
 
-    return (protocols, pca_data)
+    return (protocols, )
+
+
+def main():
+    from pogger import Pogger as Logger
+
+    with Logger("superspinsim-comparisons") as logger:
+        main_wrapped = logger.record(("protocols",), (None,))(main_unwrapped)
+
+        tests = [
+            "contrast-internal",
+            "contrast-external",
+            "contrast-both",
+            "odmr-internal",
+            "odmr-external",
+            "odmr-both",
+        ]
+
+        for test in tests:
+            logger.set_context(test)
+            main_wrapped(test)

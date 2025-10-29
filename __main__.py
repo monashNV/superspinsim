@@ -12,25 +12,21 @@ if __name__ == "__main__":
     # main()
 
     # from comparisons.comp_quantum_toolbox import main
-    # main()
+    # main(
+    #     lindbladian="odmr"
+    # )
 
-    # from comparisons.comp_superspinsim import main
-    # for number in [5, 2, 1]:
-    #     print("Number of exponentials:", number)
-    #     main(
-    #         lindbladian="odmr",
-    #         use_rotating=False,
-    #         number_of_exponentials=number
-    #     )
+    from comparisons.comp_superspinsim import main
+    for number in [5, 2, 1]:
+        print("Number of exponentials:", number)
+        main(
+            lindbladian="odmr",
+            use_rotating=False,
+            number_of_exponentials=number
+        )
 
-    # from matplotlib import pyplot as plt
-    # from pogger import Pogger
     # from comparisons.compilation import main
-    # with Pogger("superspinsim-comparisons") as logger:
-    #     logger.set_context("compilation")
-    #     main = logger.record(["protocols", "pca_data"])(main)
-    #     main()
-    # plt.show()
+    # main()
 
     # from superspinsim.params import write_values
     # write_values()

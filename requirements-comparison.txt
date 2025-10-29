@@ -1,0 +1,8 @@
+numba<0.60.0
+numpy
+sympy
+qutip
+
+pogger
+matplotlib
+cmcrameri

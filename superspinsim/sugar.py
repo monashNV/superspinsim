@@ -10,7 +10,7 @@ import qutip as qt
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
     _generate_valid_indices, _generate_superoperators, real_eig, \
-    generate_atoms, _generate_lindbladian
+    generate_atoms, _generate_lindbladian, find_kernel
 
 
 def mesolve(
@@ -363,7 +363,7 @@ def simspins(
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
-        use_residual: bool = True):
+        use_residual: bool = True, use_kernel: bool = True):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -411,6 +411,8 @@ def simspins(
         Whether or not to use the generalised rotating frame technique.
     use_residual: bool (default is True)
         Whether or not to use the residual arithmetic technique.
+    use_kernel: bool (default is True)
+        Whether or not to use the equivalence class technique.
 
     Returns
     -------
@@ -423,6 +425,20 @@ def simspins(
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions)
     generators = list(generators["generators"].values())
+
+    kernel_dict = {}
+    if use_kernel:
+        full_projection, image_projection, generators_projection = \
+            find_kernel(generators)
+        if generators_projection[0].shape == generators[0].shape:
+            print("No equivalence classes found, not using kernel.")
+            use_kernel = False
+        else:
+            generators = generators_projection
+            kernel_dict = {
+                "full_projection": full_projection,
+                "image_projection": image_projection
+            }
 
     if use_rotating:
         generators, vectors_real, inv_vectors_real, doubles, singles = \
@@ -443,8 +459,8 @@ def simspins(
         number_of_exponentials=number_of_exponentials,
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
-        use_rotating=use_rotating,
-        **rotating_dict
+        use_rotating=use_rotating, **rotating_dict,
+        use_kernel=use_kernel, **kernel_dict
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value
