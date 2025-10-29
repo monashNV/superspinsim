@@ -26,7 +26,11 @@ def generate_simulator(
         vectors_real: np.ndarray = None,
         inv_vectors_real: np.ndarray = None,
         doubles: np.ndarray = None,
-        singles: np.ndarray = None
+        singles: np.ndarray = None,
+
+        use_kernel: bool = False,
+        full_projection: np.ndarray = None,
+        image_projection: np.ndarray = None
         ):
 
     if use_cayley:
@@ -899,6 +903,41 @@ def generate_simulator(
         # Time
         number_of_samples = int((time_end - time_start)/time_step)
 
+        # Convert density operator into real matrix
+        density_operator_initial_real = np.empty(
+            (
+                density_operator_initial.shape[0],
+                density_operator_initial.shape[1], 2
+            ),
+            dtype=datatype
+        )
+        density_operator_initial_real[:, :, 0] = \
+            np.real(density_operator_initial)
+        density_operator_initial_real[:, :, 1] = \
+            np.imag(density_operator_initial)
+        density_operator_initial = density_operator_initial_real
+
+        # Flatten density operator
+        density_operator_initial_flat = \
+            np.empty(vectorisation_map.shape[0], dtype=datatype)
+        for operator_index in range(vectorisation_map.shape[0]):
+            y_index = vectorisation_map[operator_index, 0]
+            x_index = vectorisation_map[operator_index, 1]
+            c_index = vectorisation_map[operator_index, 2]
+
+            density_operator_initial_flat[operator_index] = \
+                density_operator_initial[y_index, x_index, c_index]
+
+        # Project into equivalence classes
+        if use_kernel:
+            density_operator_initial_flat_projection = \
+                image_projection.T@density_operator_initial_flat
+            density_operator_initial_flat_kernel = \
+                density_operator_initial_flat \
+                - image_projection@density_operator_initial_flat_projection
+            density_operator_initial_flat = \
+                density_operator_initial_flat_projection
+
         # Rotating frame
         if use_rotating:
             time_sample_zero = np.empty(
@@ -998,31 +1037,6 @@ def generate_simulator(
                         sample_index, :, :, 2*doubles.shape[0] + eigen_index
                     ] *= singles_forward[sample_index, eigen_index]
 
-        # Convert density operator into real matrix
-        density_operator_initial_real = np.empty(
-            (
-                density_operator_initial.shape[0],
-                density_operator_initial.shape[1], 2
-            ),
-            dtype=datatype
-        )
-        density_operator_initial_real[:, :, 0] = \
-            np.real(density_operator_initial)
-        density_operator_initial_real[:, :, 1] = \
-            np.imag(density_operator_initial)
-        density_operator_initial = density_operator_initial_real
-
-        # Flatten density operator
-        density_operator_initial_flat = \
-            np.empty(vectorisation_map.shape[0], dtype=datatype)
-        for operator_index in range(vectorisation_map.shape[0]):
-            y_index = vectorisation_map[operator_index, 0]
-            x_index = vectorisation_map[operator_index, 1]
-            c_index = vectorisation_map[operator_index, 2]
-
-            density_operator_initial_flat[operator_index] = \
-                density_operator_initial[y_index, x_index, c_index]
-        if use_rotating:
             density_operator_initial_flat = \
                 inv_vectors_real@density_operator_initial_flat
 
@@ -1194,6 +1208,10 @@ def generate_simulator(
                     density_operators_flat.shape[1],
                     1
                 ))).reshape(density_operators_flat.shape)
+
+        if use_kernel:
+            density_operator_initial_flat += \
+                density_operator_initial_flat_kernel
 
         # Unflatten density operators
         density_operators = np.zeros(

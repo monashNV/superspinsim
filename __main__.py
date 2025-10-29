@@ -16,17 +16,17 @@ if __name__ == "__main__":
     #     lindbladian="odmr"
     # )
 
-    # from comparisons.comp_superspinsim import main
-    # for number in [5, 2, 1]:
-    #     print("Number of exponentials:", number)
-    #     main(
-    #         lindbladian="odmr",
-    #         use_rotating=False,
-    #         number_of_exponentials=number
-    #     )
+    from comparisons.comp_superspinsim import main
+    for number in [5, 2, 1]:
+        print("Number of exponentials:", number)
+        main(
+            lindbladian="odmr",
+            use_rotating=False,
+            number_of_exponentials=number
+        )
 
-    from comparisons.compilation import main
-    main()
+    # from comparisons.compilation import main
+    # main()
 
     # from superspinsim.params import write_values
     # write_values()
