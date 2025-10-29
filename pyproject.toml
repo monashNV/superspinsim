@@ -1,18 +1,28 @@
-[tool.poetry]
+[project]
 name = "superspinsim"
 version = "0.1.1"
 description = "Fast integrator for the Lindblad master equation"
-authors = ["Alex Tritt"]
+authors = [
+    {name = "Alex Tritt", email = "alex.tritt@monash.edu"}
+]
 license = "BSD-3"
 readme = "README.md"
 
-[tool.poetry.dependencies]
-python = "^3.11"
-numba = ">0"
-numpy = ">0"
-qutip = ">0"
+requires-python = ">=3.11,<3.14"
+requires = [
+    "numba",
+    "numpy",
+    "qutip"
+]
 
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+numba=">0"
+numpy=">0"
+qutip=">0"
 
 [build-system]
-requires = ["poetry-core"]
+requires = [
+    "poetry-core",
+]
 build-backend = "poetry.core.masonry.api"

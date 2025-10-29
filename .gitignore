@@ -2,7 +2,10 @@
 
 dist/*
 docs/build/*
-poetry.lock
+*.lock
+profile/*
 
 julia_env/Manifest.toml
 nohup.out
+
+*.gif
