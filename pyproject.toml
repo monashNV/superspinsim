@@ -1,15 +1,10 @@
 [project]
 name = "superspinsim"
 version = "0.2.0"
-description = "Fast integrator for the Lindblad master equation"
-authors = [
-    {name = "Alex Tritt", email = "alex.tritt@monash.edu"}
-]
-license = "BSD-3"
+description = "Add your description here"
 readme = "README.md"
-
 requires-python = ">=3.11,<3.14"
-requires = [
+dependencies = [
 	"numba",
 	"cuda-core",
 	"cuda-bindings",
@@ -19,18 +14,9 @@ requires = [
 	"qutip"
 ]
 
-[tool.poetry.dependencies]
-python = ">=3.11,<3.14"
-numba=">0"
-cuda-core=">0"
-cuda-bindings=">0"
-numba-cuda=">0"
-numpy=">0"
-sympy=">0"
-qutip=">0"
-
-[build-system]
-requires = [
-    "poetry-core",
+[tool.setuptools.packages.find]
+exclude = [
+	"julia_env*",
+	"docs*",
+	"comparison*"
 ]
-build-backend = "poetry.core.masonry.api"

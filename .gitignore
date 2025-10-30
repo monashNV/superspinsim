@@ -6,6 +6,9 @@ docs/build/*
 profile/*
 
 julia_env/Manifest.toml
+.python-version
+*.egg-info*
+
 nohup.out
 
 *.gif

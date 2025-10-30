@@ -432,15 +432,15 @@ def simspins(
             find_kernel(generators)
         print(generators[0].shape)
         print(generators_projection[0].shape)
-        if generators_projection[0].shape == generators[0].shape:
-            print("No equivalence classes found, not using kernel.")
-            use_kernel = False
-        else:
-            generators = generators_projection
-            kernel_dict = {
-                "full_projection": full_projection,
-                "image_projection": image_projection
-            }
+        # if generators_projection[0].shape == generators[0].shape:
+        #     print("No equivalence classes found, not using kernel.")
+        #     use_kernel = False
+        # else:
+        generators = generators_projection
+        kernel_dict = {
+            "full_projection": full_projection,
+            "image_projection": image_projection
+        }
 
     if use_rotating:
         generators, vectors_real, inv_vectors_real, doubles, singles = \

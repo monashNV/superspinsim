@@ -2227,38 +2227,60 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
     current_intersection = kernels[0]
     for kernel_index in range(1, len(kernels)):
         kernel = kernels[kernel_index]
+        # Shapes
+        if len(current_intersection.shape) > 0:
+            current_intersection_s0 = current_intersection.shape[0]
+        else:
+            current_intersection_s0 = 0
+        if len(current_intersection.shape) > 1:
+            current_intersection_s1 = current_intersection.shape[1]
+        else:
+            current_intersection_s1 = 1
+        if len(kernel.shape) > 0:
+            kernel_s0 = kernel.shape[0]
+        else:
+            kernel_s0 = 0
+        if len(kernel.shape) > 1:
+            kernel_s1 = kernel.shape[1]
+        else:
+            kernel_s1 = 1
+
+        if not current_intersection_s0:
+            current_intersection = None
+            break
+
         zassenhaus_matrix = np.zeros(
             (
-                current_intersection.shape[0] + kernel.shape[0],
-                current_intersection.shape[1] + kernel.shape[1]
+                current_intersection_s0 + kernel_s0,
+                current_intersection_s1 + kernel_s1
             ), dtype=np.float64
         )
         zassenhaus_matrix[
-            0:current_intersection.shape[0], 0:current_intersection.shape[1]
+            0:current_intersection_s0, 0:current_intersection_s1
         ] = current_intersection
         zassenhaus_matrix[
-            0:current_intersection.shape[0], current_intersection.shape[1]:
+            0:current_intersection_s0, current_intersection_s1:
         ] = current_intersection
         zassenhaus_matrix[
-            current_intersection.shape[0]:, 0:kernel.shape[1]
+            current_intersection_s0:, 0:kernel_s1
         ] = kernel
 
         rref, _ = _rref(zassenhaus_matrix)
 
         intersection_bound = \
-            min(current_intersection.shape[0], kernel.shape[0])
+            min(current_intersection_s0, kernel_s0)
         intersection_end = None
         for row_index in range(intersection_bound):
             row_index_negative = rref.shape[0] - 1 - row_index
 
             if intersection_end is None:
                 row_right = \
-                    rref[row_index_negative, current_intersection.shape[1]:]
+                    rref[row_index_negative, current_intersection_s1:]
                 if np.sum(row_right**2) >= 1e-9:
                     intersection_end = row_index_negative + 1
 
             row_left = \
-                rref[row_index_negative, :current_intersection.shape[1]]
+                rref[row_index_negative, :current_intersection_s1]
             if np.sum(row_left**2) >= 1e-9:
                 intersection_start = row_index_negative + 1
                 break
@@ -2267,7 +2289,7 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
         if intersection_end != intersection_start:
             current_intersection = rref[
                 intersection_start:intersection_end,
-                current_intersection.shape[1]:
+                current_intersection_s1:
             ].T
         else:
             current_intersection = None
