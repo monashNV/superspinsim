@@ -30,7 +30,9 @@ def generate_simulator(
 
         use_kernel: bool = False,
         full_projection: np.ndarray = None,
-        image_projection: np.ndarray = None
+        image_projection: np.ndarray = None,
+
+        verbose=True
         ):
 
     if use_cayley:
@@ -928,6 +930,8 @@ def generate_simulator(
             density_operator_initial_flat[operator_index] = \
                 density_operator_initial[y_index, x_index, c_index]
 
+        if verbose:
+            print("Get equivalence class")
         # Project into equivalence classes
         if use_kernel:
             density_operator_initial_flat_projection = \
@@ -1042,21 +1046,35 @@ def generate_simulator(
 
         # Declare VRAM
         if use_cuda:
+            if verbose:
+                print("Declare VRAM")
+
             # Time
+            if verbose:
+                print("  Declare time VRAM")
             time_device = nc.device_array(
                 number_of_samples, dtype=datatype)
 
             # Gauss-Legendre quadrature definition
+            if verbose:
+                print("  Declare Magnus VRAM")
+                print("    Quadrature times")
             sample_quadrature_device = nc.to_device(sample_quadrature)
 
             # Storage for Gauss-Legendre quadrature points
+            if verbose:
+                print("    Quadrature times expanded")
             time_sample_device = nc.device_array(
                 number_of_samples*sample_quadrature_device.size,
                 dtype=datatype)
 
             # Weights for commutator-free integrator
+            if verbose:
+                print("    Quadrature weights")
             weights_device = nc.to_device(weights)
 
+            if verbose:
+                print("  Declare superoperator VRAM")
             # Storage for coefficients of superoperators of Lindbladian
             coefficients_device = nc.device_array(
                 (time_sample_device.size, generators.shape[0]),
@@ -1070,6 +1088,8 @@ def generate_simulator(
 
             # Basis for the Lindbladian
             # print(generators.shape)
+            if verbose:
+                print("  Declare basis VRAM")
             if use_rotating:
                 # print(doubles)
                 # print(singles)
@@ -1112,6 +1132,8 @@ def generate_simulator(
                 (time_evolution_device.shape[0], operator_size),
                 dtype=datatype)
 
+        if verbose:
+            print("Finished declaring vram")
         # Calculate time
         _calculate_time_basic_run(time_device, time_start, time_step)
 

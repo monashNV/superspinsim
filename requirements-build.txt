@@ -1,4 +1,7 @@
-numba<0.61.0
+numba
+cuda-core
+cuda-bindings
+numba-cuda
 numpy
 sympy
 qutip

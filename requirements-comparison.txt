@@ -1,4 +1,7 @@
-numba<0.60.0
+numba
+cuda-core
+cuda-bindings
+numba-cuda
 numpy
 sympy
 qutip
@@ -6,3 +9,4 @@ qutip
 pogger
 matplotlib
 cmcrameri
+scipy
