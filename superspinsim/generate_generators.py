@@ -66,7 +66,7 @@ def generate_atoms(
         description, atom_interactions, field_labels)
 
     allowed = _combine_blocks(description, coherent_atoms, label_sets)
-    allowed = np.ones_like(allowed)
+    # allowed = np.ones_like(allowed)
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
@@ -2268,9 +2268,12 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
             current_intersection = rref[
                 intersection_start:intersection_end,
                 current_intersection.shape[1]:
-            ]
+            ].T
+        else:
+            current_intersection = None
+            break
 
-    return current_intersection.T
+    return current_intersection
 
 
 def _gram_schmidt(initial: list, avoid: list = None):
@@ -2314,14 +2317,20 @@ def find_kernel(generators: np.ndarray):
     kernels = _make_real(kernels)
 
     intersection = _apply_zassenhaus(kernels)
-    image, kernel, full = _find_orthogonal(intersection)
+    if intersection is not None:
+        image, kernel, full = _find_orthogonal(intersection)
 
-    generators_image = []
-    for generator in generators:
-        generator_image = image.T@generator@image
-        generators_image.append(generator_image)
+        generators_image = []
+        for generator in generators:
+            generator_image = image.T@generator@image
+            generators_image.append(generator_image)
+    else:
+        full = np.eye(generators[0].shape[0])
+        image = np.eye(generators[0].shape[0])
+        generators_image = generators
 
     return full, image, generators_image
+
 
 # Main ========================================================================
 

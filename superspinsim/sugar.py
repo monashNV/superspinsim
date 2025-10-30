@@ -419,7 +419,7 @@ def simspins(
     time: np.ndarray
         Time samples in seconds.
     density: np.ndarray
-        Evaluated density matrices at the times given by :obj"`time` .
+        Evaluated density matrices at the times given by :obj:`time` .
     """
 
     generators, vectorisation_map = generate_atoms(
@@ -430,6 +430,8 @@ def simspins(
     if use_kernel:
         full_projection, image_projection, generators_projection = \
             find_kernel(generators)
+        print(generators[0].shape)
+        print(generators_projection[0].shape)
         if generators_projection[0].shape == generators[0].shape:
             print("No equivalence classes found, not using kernel.")
             use_kernel = False

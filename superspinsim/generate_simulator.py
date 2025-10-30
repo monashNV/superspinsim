@@ -32,7 +32,7 @@ def generate_simulator(
         full_projection: np.ndarray = None,
         image_projection: np.ndarray = None,
 
-        verbose=True
+        verbose: bool = False
         ):
 
     if use_cayley:
@@ -1232,7 +1232,9 @@ def generate_simulator(
                 ))).reshape(density_operators_flat.shape)
 
         if use_kernel:
-            density_operator_initial_flat += \
+            density_operators_flat = np.matvec(
+                image_projection, density_operators_flat)
+            density_operators_flat += \
                 density_operator_initial_flat_kernel
 
         # Unflatten density operators

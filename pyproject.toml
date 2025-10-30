@@ -10,15 +10,23 @@ readme = "README.md"
 
 requires-python = ">=3.11,<3.14"
 requires = [
-    "numba",
-    "numpy",
-    "qutip"
+	"numba",
+	"cuda-core",
+	"cuda-bindings",
+	"numba-cuda",
+	"numpy",
+	"sympy",
+	"qutip"
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.13"
-numba="<0.61.0"
+python = ">=3.11,<3.14"
+numba=">0"
+cuda-core=">0"
+cuda-bindings=">0"
+numba-cuda=">0"
 numpy=">0"
+sympy=">0"
 qutip=">0"
 
 [build-system]
