@@ -2,6 +2,7 @@
 
 dist/*
 docs/build/*
+*.lock
 
 julia_env/Manifest.toml
 nohup.out
