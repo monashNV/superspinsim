@@ -2,7 +2,6 @@
 
 dist/*
 docs/build/*
-poetry.lock
 
 julia_env/Manifest.toml
 nohup.out
