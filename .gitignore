@@ -6,3 +6,5 @@ docs/build/*
 
 julia_env/Manifest.toml
 nohup.out
+
+*.egg-info
