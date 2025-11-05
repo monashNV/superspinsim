@@ -2180,22 +2180,11 @@ def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
 
 # Kernel ======================================================================
 
-def _find_row(generators: np.ndarray):
-    rows = []
-
-    for generator in generators:
-        vals, vecs = np.linalg.eig(generator)
-        # print(vals.imag)
-        for val, vec in zip(vals, vecs):
-            if val != 0:
-                rows.append(vec)
-    rows = np.array(rows)
-    rank = np.linalg.matrix_rank(rows)
-
+tolerance = 1e-14
 
 def _rref(matrix: np.ndarray):
     matrix_sy = sy.Matrix(matrix)
-    rref_sy, pivot_sy = matrix_sy.rref()
+    rref_sy, pivot_sy = matrix_sy.rref(iszerofunc=lambda x: abs(x) < tolerance)
     rref = np.array(rref_sy, np.float64)
     pivot = np.array(pivot_sy, np.float64)
     return rref, pivot
@@ -2215,9 +2204,9 @@ def _make_real(kernels: list[np.ndarray]):
 
         kernel_rref = []
         for row in kernel_real:
-            if np.sum(row**2) < 1e-9:
+            if np.sum(row**2) < tolerance**2:
                 continue
-            kernel_rref.append(row)
+            kernel_rref.append(row/np.sqrt(np.sum(row**2)))
         kernel_real = np.array(kernel_rref, np.float64)
         kernels_real.append(kernel_real)
     return kernels_real
@@ -2256,45 +2245,49 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
             ), dtype=np.float64
         )
         zassenhaus_matrix[
-            0:current_intersection_s0, 0:current_intersection_s1
+            :current_intersection_s0, :current_intersection_s1
         ] = current_intersection
         zassenhaus_matrix[
-            0:current_intersection_s0, current_intersection_s1:
+            :current_intersection_s0, current_intersection_s1:
         ] = current_intersection
         zassenhaus_matrix[
-            current_intersection_s0:, 0:kernel_s1
+            current_intersection_s0:, :kernel_s1
         ] = kernel
 
         rref, _ = _rref(zassenhaus_matrix)
 
         intersection_bound = \
             min(current_intersection_s0, kernel_s0)
+        intersection_start = None
         intersection_end = None
-        for row_index in range(intersection_bound):
+        for row_index in range(current_intersection_s0 + kernel_s0):
             row_index_negative = rref.shape[0] - 1 - row_index
 
             if intersection_end is None:
                 row_right = \
                     rref[row_index_negative, current_intersection_s1:]
-                if np.sum(row_right**2) >= 1e-9:
+                if np.sum(row_right**2) >= tolerance**2:
                     intersection_end = row_index_negative + 1
 
             row_left = \
                 rref[row_index_negative, :current_intersection_s1]
-            if np.sum(row_left**2) >= 1e-9:
+            if np.sum(row_left**2) >= tolerance**2:
                 intersection_start = row_index_negative + 1
                 break
-        if intersection_end is None:
-            intersection_end = intersection_start
+        if intersection_start is None:
+            intersection_start = intersection_end
         if intersection_end != intersection_start:
             current_intersection = rref[
                 intersection_start:intersection_end,
                 current_intersection_s1:
-            ].T
+            ]
+            current_intersection /= np.sqrt(np.sum(current_intersection**2))
         else:
             current_intersection = None
             break
 
+    if current_intersection is not None:
+        current_intersection = current_intersection.T
     return current_intersection
 
 
@@ -2307,7 +2300,7 @@ def _gram_schmidt(initial: list, avoid: list = None):
         for direction in final:
             column -= np.dot(direction, column)*direction
         norm = np.linalg.norm(column)
-        if norm < 1e-9:
+        if norm < tolerance:
             continue
         column /= norm
         final.append(column)
@@ -2333,7 +2326,7 @@ def find_kernel(generators: np.ndarray):
     kernels = []
     for generator in generators:
         vals, vecs = np.linalg.eig(generator)
-        kernel = vecs[:, np.abs(vals) < np.max(np.abs(vals))/1e9].copy()
+        kernel = vecs[:, np.abs(vals) <= np.max(np.abs(vals))/1e9].copy()
         kernels.append(kernel.T)
 
     kernels = _make_real(kernels)
