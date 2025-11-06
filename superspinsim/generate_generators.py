@@ -2347,6 +2347,27 @@ def find_kernel(generators: np.ndarray):
     return full, image, generators_image
 
 
+# Unitary =====================================================================
+
+def _complex_to_real(generator: np.ndarray):
+    generator_real = np.empty(
+        (2*generator.shape[0], 2*generator.shape[1]),
+        dtype=meta_datatype
+    )
+    generator_real[::2, ::2] = generator[:, :, 0]
+    generator_real[1::2, 1::2] = generator[:, :, 0]
+    generator_real[::2, 1::2] = -generator[:, :, 1]
+    generator_real[1::2, ::2] = generator[:, :, 1]
+    return generator_real
+
+
+def _complex_to_real_all(generators: dict[np.ndarray]):
+    return {
+        label: _complex_to_real(generator)
+        for label, generator in generators.items()
+    }
+
+
 # Main ========================================================================
 
 def _rotation():
