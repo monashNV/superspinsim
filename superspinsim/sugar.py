@@ -424,7 +424,12 @@ def simspins(
 
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions)
-    generators = list(generators["generators"].values())
+    if "generators" in generators:
+        generators = list(generators["generators"].values())
+        is_unitary = False
+    else:
+        generators = list(generators["unitary"].values())
+        is_unitary = True
 
     kernel_dict = {}
     if use_kernel:
@@ -462,7 +467,8 @@ def simspins(
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
-        use_kernel=use_kernel, **kernel_dict
+        use_kernel=use_kernel, **kernel_dict,
+        is_unitary=is_unitary
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value

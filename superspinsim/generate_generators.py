@@ -83,22 +83,26 @@ def generate_atoms(
     operator_dicts["coherent_atoms"] = coherent_atoms
     operator_dicts["coherent"] = coherent_blocks
 
-    # Generate superoperators
-    operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
-    valid_indices = _generate_valid_indices(allowed)
-    superoperators = _generate_superoperators(
-        operators_to_super, valid_indices)
-    dissipator_dict = _combine_superoperators(superoperators)
+    if not operator_dicts["jump"]:
+        operator_dicts["unitary"] = _complex_to_real_all(coherent_blocks)
 
-    operator_dicts["super_all"] = superoperators
-    operator_dicts["dissipators"] = dissipator_dict
+    else:
+        # Generate superoperators
+        operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
+        valid_indices = _generate_valid_indices(allowed)
+        superoperators = _generate_superoperators(
+            operators_to_super, valid_indices)
+        dissipator_dict = _combine_superoperators(superoperators)
 
-    generators_dict = {}
-    for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
-        if label in superoperators.keys():
-            generators_dict[label] = superoperators[label]
+        operator_dicts["super_all"] = superoperators
+        operator_dicts["dissipators"] = dissipator_dict
 
-    operator_dicts["generators"] = generators_dict
+        generators_dict = {}
+        for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
+            if label in superoperators.keys():
+                generators_dict[label] = superoperators[label]
+
+        operator_dicts["generators"] = generators_dict
 
     return operator_dicts, valid_indices
 

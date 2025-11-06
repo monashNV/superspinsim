@@ -32,6 +32,8 @@ def generate_simulator(
         full_projection: np.ndarray = None,
         image_projection: np.ndarray = None,
 
+        is_unitary: bool = False,
+
         verbose: bool = False
         ):
 
@@ -885,13 +887,24 @@ def generate_simulator(
 
         _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
 
-    def _apply_time_evolution_run(time_evolutions,
-                                  density_operator_initial, density_operators):
+    def _apply_time_evolution_run(
+            time_evolutions, density_operator_initial, density_operators):
         if use_cuda:
             grid_size = (time_evolutions.shape[0], 1)
             block_size = (operator_size, 1)
             _apply_time_evolution_kernel[grid_size, block_size] \
                 (time_evolutions, density_operator_initial, density_operators)
+
+    def _kronecker_product(
+            time_evolutions_unitary, time_evolutions, y_index, x_index):
+        time_evolutions[y_index, x_index] = \
+            time_evolutions_unitary[
+                y_index//time_evolutions_unitary.shape[0],
+                x_index//time_evolutions_unitary.shape[1]
+            ] * time_evolutions_unitary[
+                y_index % time_evolutions_unitary.shape[0],
+                x_index % time_evolutions_unitary.shape[1]
+            ]
 
     # Simulation --------------------------------------------------------------
 
