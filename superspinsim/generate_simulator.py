@@ -895,16 +895,31 @@ def generate_simulator(
             _apply_time_evolution_kernel[grid_size, block_size] \
                 (time_evolutions, density_operator_initial, density_operators)
 
+    # Unitary -----------------------------------------------------------------
+
     def _kronecker_product(
             time_evolutions_unitary, time_evolutions, y_index, x_index):
-        time_evolutions[y_index, x_index] = \
-            time_evolutions_unitary[
-                y_index//time_evolutions_unitary.shape[0],
-                x_index//time_evolutions_unitary.shape[1]
-            ] * time_evolutions_unitary[
-                y_index % time_evolutions_unitary.shape[0],
-                x_index % time_evolutions_unitary.shape[1]
-            ]
+        y_index_out = y_index//(time_evolutions.shape[0]//2)
+        x_index_out = x_index//(time_evolutions.shape[1]//2)
+        y_index_in = y_index % (time_evolutions.shape[0]//2)
+        x_index_in = x_index % (time_evolutions.shape[1]//2)
+
+        out_r: datatype = time_evolutions[2*y_index_out, 2*x_index_out]
+        out_i: datatype = time_evolutions[2*y_index_out + 1, 2*x_index_out]
+        in_r: datatype = time_evolutions[2*y_index_in, 2*x_index_in]
+        in_i: datatype = time_evolutions[2*y_index_in + 1, 2*x_index_in]
+
+        scratch_r: datatype = out_r*in_r + out_i*in_i
+        scratch_i: datatype = out_r*in_i - out_i*in_r
+
+        if use_residual:
+            scratch_r += (y_index_out == x_index_out)*out_r
+            scratch_r += (y_index_in == x_index_in)*out_r
+            scratch_i += (y_index_out == x_index_out)*out_i
+            scratch_i -= (y_index_in == x_index_in)*out_i
+
+        time_evolutions_unitary[y_index, x_index, 0] = scratch_r
+        time_evolutions_unitary[y_index, x_index, 1] = scratch_i
 
     # Simulation --------------------------------------------------------------
 
