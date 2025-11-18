@@ -9,56 +9,65 @@ To install from PyPI from within a python environment,
 
 .. code:: bash
 
-   pip install superspinsim
+   uv add superspinsim       # If using uv as a python package manager
+   pip install superspinsim  # If using pip as a python package manager
 
 
-One must also install the Nvidia cuda toolkit.
-
-*Eg.* with conda,
-
-.. code:: bash
-
-   conda install cudatoolkit
+One must also install the
+`Nvidia cuda toolkit <https://developer.nvidia.com/cuda-downloads>`__.
+One can install it from the linked website, or with a package manager
+(eg, conda or pacman).
 
 
-Or on an Arch linux derivative,
-
-.. code:: bash
-
-   sudo pacman -Sy cuda
-
-
-Building
-========
+Building and installing from source
+===================================
 
 These are instructions for building the package from source.
 
 Module
 ~~~~~~
 
-The package is built using the poetry tool.
-To build the package, first clone it.
+The package is built using the
+`uv <https://docs.astral.sh/uv/getting-started/installation/>`__ tool for python
+package management.
+See the link for installation instructions.
+
+To build the package with uv, first clone it,
+
+.. code:: bash
+
+   git clone https://github.com/monashNV/superspinsim.git
+
+
 Then, from the package directory,
 
 .. code:: bash
 
-   pip install -r requirements-build.txt
-   poetry build
+   uv build
+   
+
+This will build python wheels under the `builds` directory.
+These wheels can be installed using using `pip install` or `uv add`.
+
+Alternatively, if one is using uv for package management of other projects,
+one can simply use,
+
+.. code:: bash
+
+   uv add <SuperSpinsim directory>
+
+
+to use the package without building it.
 
 
 Documentation
 ~~~~~~~~~~~~~
 
-This documentation is built using sphinx.
-To build the documentation, first install the build requirements,
+This documentation is built using the sphinx tool.
+The easiest way to build the documentation requires the tools cmake and uv.
+From the superspinsim source directory,
 
 .. code:: bash
 
-   pip install -r requirements-build.txt
-
-
-Then from the `docs/` directory, use,
-
-.. code:: bash
-
-   make html
+   cd docs
+   uv run make html

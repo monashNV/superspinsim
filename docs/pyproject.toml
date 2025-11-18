@@ -1,0 +1,17 @@
+[project]
+name = "docs"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "cuda-bindings>=13.0.3",
+    "cuda-core>=0.4.1",
+    "numba>=0.62.1",
+    "numba-cuda>=0.20.1",
+    "numpy>=2.3.5",
+    "qutip>=5.2.2",
+    "sphinx>=8.2.3",
+    "sphinx-rtd-theme>=3.0.2",
+    "sympy>=1.14.0",
+]
