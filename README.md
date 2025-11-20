@@ -1,6 +1,6 @@
 # SuperSpinsim
 
-![Logo](docs/source/_static/logo.png)
+![Logo](docs/source/_static/logo.png =x250)
 
 [Documentation](https://github.com/monashNV/superspinsim) -
 [PyPI](https://github.com/monashNV/superspinsim) -
