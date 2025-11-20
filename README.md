@@ -9,13 +9,13 @@ simulated as well.
 
 A simulated NV contrast experiment (fully-rendered microwave pulse):
 
-![Contrast image](docs/build/html/_images/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png)
+![Contrast image](docs/source/_static/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png)
 
 A simulated NV optically-detected magnetic resonance (ODMR) sweep
 (fully-rendered microwave frequency sweep, and fully simulated optical
 dynamics):
 
-![ODMR image](docs/build/html/_images/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png)
+![ODMR image](docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png)
 
 ## Version log
 
