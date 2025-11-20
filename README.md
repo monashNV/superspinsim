@@ -65,6 +65,28 @@ uv add superspinsim       # If using the uv package manager
 pip install superspinsim  # If using the pip package manager
 ```
 
+### From source
+
+SuperSpinsim can be built from source using the
+[uv](https://docs.astral.sh/uv/) package manager.
+
+```
+git clone https://github.com/monashNV/superspinsim.git
+cd superspinsim
+uv build
+```
+
+SuperSpinsim can also be installed into another project without being built
+using the [uv](https://docs.astral.sh/uv/) package manager.
+
+```
+mkdir other-project
+git clone https://github.com/monashNV/superspinsim.git
+cd other-project
+uv init
+uv add ../superspinsim
+```
+
 ## Version log
 
 ### 0.2.0
