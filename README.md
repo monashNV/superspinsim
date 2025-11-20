@@ -1,3 +1,5 @@
+![Logo](docs/source/_static/logo.png)
+
 # SuperSpinsim
 
 A general, GPU-based simulator, optimised for time-dependent spin systems.
