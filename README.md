@@ -1,6 +1,6 @@
-# SuperSpinsim
+<img src="docs/source/_static/logo.png" height="200">
 
-![Logo](docs/source/_static/logo.png =x250)
+# SuperSpinsim
 
 [Documentation](https://github.com/monashNV/superspinsim) -
 [PyPI](https://github.com/monashNV/superspinsim) -
@@ -15,13 +15,13 @@ simulated as well.
 
 A simulated NV contrast experiment (fully-rendered microwave pulse):
 
-![Contrast image](docs/source/_static/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png)
+<img src="docs/source/_static/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png" height="512">
 
 A simulated NV optically-detected magnetic resonance (ODMR) sweep
 (fully-rendered microwave frequency sweep, and fully simulated optical
 dynamics):
 
-![ODMR image](docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png)
+<img src="docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png" height="512">
 
 ## Project status
 
