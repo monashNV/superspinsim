@@ -17,6 +17,31 @@ dynamics):
 
 ![ODMR image](docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png)
 
+## Project status
+
+SuperSpinsim is a **work-in-progress**.
+
+The simulator is currently functional.
+There may still be some edge cases that cause errors; please let us know here
+if any are found.
+
+There are a few features related to efficient representation of
+states/processes that we want to add which are not fully-implemented yet:
+
+- Compressed, equivalence class representations of systems which have subspaces
+  of states unaffected by the equations of motion.
+  - Experimental feature; implemented but not fully tested.
+- Efficient calculation of purely unitary dynamics.
+
+We will submit a manuscript for review when the above are implemented.
+
+There are some further features which are thinking about adding, possibly after
+the manuscript is submitted:
+
+- Support to split the problem over multiple GPUs, rather than just one.
+- Support for running the algorithm on (SIMD operations on) a CPU.
+  
+
 ## Installation
 
 SuperSpinsim is built on top of
@@ -24,7 +49,7 @@ SuperSpinsim is built on top of
 system requirements:
 
 - An Nvidia GPU capable of cuda.
-  - Meaning MacOS is not currently supported.
+  - Meaning AMD, Apple, and Intel GPUs are not currently supported.
 - Official Nvidia graphics drivers.
 - The Nvidia [cuda toolkit](https://developer.nvidia.com/cuda-downloads)
   - An installer can be downloaded directly, or it can be installed from a
