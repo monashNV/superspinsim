@@ -363,7 +363,7 @@ def simspins(
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
-        use_residual: bool = True, use_kernel: bool = True):
+        use_residual: bool = True, use_kernel: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
