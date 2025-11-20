@@ -426,21 +426,21 @@ def simspins(
         spins, spin_interactions, group_interactions)
     generators = list(generators["generators"].values())
 
-    kernel_dict = {}
-    if use_kernel:
-        full_projection, image_projection, generators_projection = \
-            find_kernel(generators)
-        print(generators[0].shape)
-        print(generators_projection[0].shape)
-        # if generators_projection[0].shape == generators[0].shape:
-        #     print("No equivalence classes found, not using kernel.")
-        #     use_kernel = False
-        # else:
-        generators = generators_projection
-        kernel_dict = {
-            "full_projection": full_projection,
-            "image_projection": image_projection
-        }
+    # kernel_dict = {}
+    # if use_kernel:
+    #     full_projection, image_projection, generators_projection = \
+    #         find_kernel(generators)
+    #     print(generators[0].shape)
+    #     print(generators_projection[0].shape)
+    #     # if generators_projection[0].shape == generators[0].shape:
+    #     #     print("No equivalence classes found, not using kernel.")
+    #     #     use_kernel = False
+    #     # else:
+    #     generators = generators_projection
+    #     kernel_dict = {
+    #         "full_projection": full_projection,
+    #         "image_projection": image_projection
+    #     }
 
     if use_rotating:
         generators, vectors_real, inv_vectors_real, doubles, singles = \
@@ -462,7 +462,7 @@ def simspins(
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
-        use_kernel=use_kernel, **kernel_dict
+        # use_kernel=use_kernel, **kernel_dict
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value
