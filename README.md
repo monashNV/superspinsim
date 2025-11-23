@@ -1,11 +1,11 @@
-<img src="https://raw.github.com/monashNV/superspinsim/docs/source/_static/logo.png" height="200">
+<img src="https://raw.githubusercontent.com/monashNV/superspinsim/docs/source/_static/logo.png" height="200">
 
 # SuperSpinsim
 
 [Documentation](https://superspinsim.readthedocs.io/en/latest/) -
 [GitHub](https://github.com/monashNV/superspinsim) -
 [PyPI](https://pypi.org/project/superspinsim/) -
-[Poster](https://raw.github.com/monashNV/superspinsim/docs/source/_static/poster.pdf)
+[Poster](https://raw.githubusercontent.com/monashNV/superspinsim/docs/source/_static/poster.pdf)
 
 A general, GPU-based simulator, optimised for time-dependent spin systems.
 We were motivated by the ability to quickly simulate highly time-dependent
@@ -16,13 +16,13 @@ simulated as well.
 
 A simulated NV contrast experiment (fully-rendered microwave pulse):
 
-<img src="https://raw.github.com/monashNV/superspinsim/docs/source/_static/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png" height="512">
+<img src="https://raw.githubusercontent.com/monashNV/superspinsim/docs/source/_static/2025-07-25T14-40-26_superspinsim-comparisons_superspinsim_trials_23_fluorescence.png" height="512">
 
 A simulated NV optically-detected magnetic resonance (ODMR) sweep
 (fully-rendered microwave frequency sweep, and fully simulated optical
 dynamics):
 
-<img src="https://raw.github.com/monashNV/superspinsim/docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png" height="512">
+<img src="https://raw.githubusercontent.com/monashNV/superspinsim/docs/source/_static/2025-08-08T16-28-46_superspinsim-comparisons_superspinsim_trials_10_fluorescence.png" height="512">
 
 ## Project status
 
