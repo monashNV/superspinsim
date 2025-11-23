@@ -4,7 +4,7 @@
 
 [Documentation](https://github.com/monashNV/superspinsim) -
 [PyPI](https://github.com/monashNV/superspinsim) -
-[Poster](https://github.com/monashNV/superspinsim)
+[Poster](docs/source/_static/poster.pdf)
 
 A general, GPU-based simulator, optimised for time-dependent spin systems.
 We were motivated by the ability to quickly simulate highly time-dependent

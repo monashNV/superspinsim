@@ -442,17 +442,19 @@ def simspins(
     #         "image_projection": image_projection
     #     }
 
+    rotating_dict = {}
     if use_rotating:
-        generators, vectors_real, inv_vectors_real, doubles, singles = \
-            _make_rotating(generators[0], generators[1:])
-        rotating_dict = {
-            "vectors_real": vectors_real,
-            "inv_vectors_real": inv_vectors_real,
-            "doubles": doubles,
-            "singles": singles
-        }
-    else:
-        rotating_dict = {}
+        if np.sum(np.abs(generators[0])) == 0:
+            use_rotating = False
+        else:
+            generators, vectors_real, inv_vectors_real, doubles, singles = \
+                _make_rotating(generators[0], generators[1:])
+            rotating_dict = {
+                "vectors_real": vectors_real,
+                "inv_vectors_real": inv_vectors_real,
+                "doubles": doubles,
+                "singles": singles
+            }
 
     lindbladian = _generate_lindbladian(coefficients, use_rotating)
     simulator = generate_simulator(
