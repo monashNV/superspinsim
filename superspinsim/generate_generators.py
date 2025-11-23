@@ -97,6 +97,9 @@ def generate_atoms(
     for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
         if label in superoperators.keys():
             generators_dict[label] = superoperators[label]
+        else:
+            generators_dict[label] = np.zeros_like(
+                list(superoperators.values())[0], dtype=meta_datatype)
 
     operator_dicts["generators"] = generators_dict
 
