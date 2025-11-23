@@ -96,6 +96,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 0.3.2
+
+Qudratures datatype changed from float128 to float64 for windows compatibility.
+
 ### 0.3.1
 
 README links fixed.

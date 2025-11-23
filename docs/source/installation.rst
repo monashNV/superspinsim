@@ -20,8 +20,8 @@ be used only with python versions 3.11 to 3.13.
 Python version 3.14 is not supported yet, due to the requirements of the numba
 package.
 
-We have tested SuperSpinsim on various versions of GNU/Linux.
-We expect that it will work on Windows.
+We have tested SuperSpinsim on various versions of GNU/Linux
+(Arch, Manjaro and Ubuntu), as well as on Windows 11.
 It will not work on Mac OS, as modern Mac computers are not compatible with
 Nvidia GPUs.
 

@@ -1,7 +1,7 @@
 import numpy as np
 import math
 
-meta_datatype = np.float128
+meta_datatype = np.float64
 
 # Gauss Legendre sampling -----------------------------------------------------
 
@@ -232,7 +232,7 @@ def _write_script(samples, weights):
             file.write(f"samples[\"{label}\"] = np.array([")
             for time in sample:
                 file.write(f"{time}, ")
-            file.write("], dtype=np.float128)\n\n")
+            file.write("], dtype=np.float64)\n\n")
 
         file.write("weights = {}\n\n")
 
@@ -243,54 +243,53 @@ def _write_script(samples, weights):
                 for x_index in range(weight.shape[1]):
                     file.write(f"{weight[y_index, x_index]}, ")
                 file.write("],\n")
-            file.write("], dtype=np.float128)\n\n")
+            file.write("], dtype=np.float64)\n\n")
 
 
 if __name__ == "__main__":
-    from matplotlib import pyplot as plt
+    _write_script(_sample, _rho)
 
-    from pogger import Pogger as Logger
+    # from pogger import Pogger as Logger
 
-    with Logger("superspinsim-generate") as logger:
-        @logger.record(("samples", "weights"))
-        def _visualise(samples, weights):
-            from util import colour_complex_matrix as _colour_complex_matrix
+    # with Logger("superspinsim-generate") as logger:
+    #     @logger.record(("samples", "weights"))
+    #     def _visualise(samples, weights):
+    #         from util import colour_complex_matrix as _colour_complex_matrix
 
-            plt.figure("nodes", figsize=(6, 4))
-            for plot_index, (label, sample) in enumerate(samples.items()):
-                plt.subplot(4, 1, plot_index + 1)
-                plt.plot(sample, [0]*sample.size, "k.")
-                plt.xlim(0, 1)
-                plt.text(0 - 0.05, 0, f"{plot_index + 1}-point")
-                plt.axis("off")
-            plt.subplot(4, 1, 4)
-            plt.plot([0, 1], [0, 0], "k-")
-            plt.xlim(0, 1)
-            plt.text(0 - 0.05, 0, "0")
-            plt.text(1 + 0.05, 0, "1")
-            plt.axis("off")
-            plt.draw()
+    #         plt.figure("nodes", figsize=(6, 4))
+    #         for plot_index, (label, sample) in enumerate(samples.items()):
+    #             plt.subplot(4, 1, plot_index + 1)
+    #             plt.plot(sample, [0]*sample.size, "k.")
+    #             plt.xlim(0, 1)
+    #             plt.text(0 - 0.05, 0, f"{plot_index + 1}-point")
+    #             plt.axis("off")
+    #         plt.subplot(4, 1, 4)
+    #         plt.plot([0, 1], [0, 0], "k-")
+    #         plt.xlim(0, 1)
+    #         plt.text(0 - 0.05, 0, "0")
+    #         plt.text(1 + 0.05, 0, "1")
+    #         plt.axis("off")
+    #         plt.draw()
 
-            plt.figure("weights", figsize=(6, 8))
-            plt.suptitle("Commutator-free weights")
+    #         plt.figure("weights", figsize=(6, 8))
+    #         plt.suptitle("Commutator-free weights")
 
-            for plot_index, (label, weight) in enumerate(weights.items()):
-                if plot_index == 0:
-                    continue
-                plt.subplot(2, 2, plot_index)
-                coloured = np.array(
-                    _colour_complex_matrix(weight), dtype=np.float64)
-                plt.imshow(coloured)
-                plt.title(label)
-                plt.xticks(range(weight.shape[1]))
-                plt.yticks(range(weight.shape[0]))
-                if plot_index == 3:
-                    plt.xlabel("GL sample")
-                    plt.ylabel("Exponential\n\n")
-            plt.draw()
+    #         for plot_index, (label, weight) in enumerate(weights.items()):
+    #             if plot_index == 0:
+    #                 continue
+    #             plt.subplot(2, 2, plot_index)
+    #             coloured = np.array(
+    #                 _colour_complex_matrix(weight), dtype=np.float64)
+    #             plt.imshow(coloured)
+    #             plt.title(label)
+    #             plt.xticks(range(weight.shape[1]))
+    #             plt.yticks(range(weight.shape[0]))
+    #             if plot_index == 3:
+    #                 plt.xlabel("GL sample")
+    #                 plt.ylabel("Exponential\n\n")
+    #         plt.draw()
 
-            return samples, weights
+    #         return samples, weights
 
-        _write_script(_sample, _rho)
-        _visualise(_sample, _rho)
-        plt.show()
+    #     _visualise(_sample, _rho)
+    #     plt.show()
