@@ -31,10 +31,41 @@ def set_python_version(version: int, sub: int):
     return version_full
 
 
-def list_tests():
+def list_tests_nt():
+    out = subprocess.check_output(["dir"], shell=True)
+    out = out.decode("utf-8")
+    print(out)
+    out = out.split("\n")
+    files = []
+    for line in out:
+        print(line)
+        name = line.split()[-1].strip()
+        if ".py" in name:
+            if name == "util.py":
+                continue
+            print(name)
+            files.append(name)
+    print("\n")
+    return files
+
+
+def list_tests_posix():
     out = subprocess.check_output(["ls"])
     out = out.decode("utf-8")
     out = out.split()
+    files = []
+    for name in out:
+        if ".py" in name:
+            if name == "util.py":
+                continue
+            print(name)
+            files.append(name)
+    print("\n")
+    return files
+
+
+def list_tests():
+    out = os.listdir()
     files = []
     for name in out:
         if ".py" in name:
@@ -51,7 +82,7 @@ def loop_files(files: list[str], result: dict[str, str]):
     for name in files:
         print("Running", name)
         try:
-            out = subprocess.check_output(["uv", "run", name])
+            out = subprocess.check_output(["uv", "run", name], shell=True)
             out = out.decode("utf-8")
             print(out)
             result[name] = "Pass"
@@ -67,14 +98,14 @@ def loop_versions(files: list[str]):
     versions = []
     results = {}
 
-    # for version in range(10, 15):
-    #     for sub in range(0, 20):
+    for version in range(10, 15):
+        for sub in range(0, 20):
 
-    for version in [13]:
-        for sub in [7]:
+    # for version in [13]:
+    #     for sub in [7]:
             version_full = set_python_version(version, sub)
             try:
-                subprocess.check_output(["uv", "sync", "--reinstall"])
+                subprocess.check_output(["uv", "sync", "--reinstall"], shell=True)
                 versions.append(version_full)
             except subprocess.CalledProcessError as exception:
                 print("Exception:", exception)

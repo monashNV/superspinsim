@@ -4,5 +4,8 @@ version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 dependencies = [
-    "superspinsim>=0.3.2",
+    "superspinsim",
 ]
+
+[tool.uv.sources]
+superspinsim = { path = "../../" }
