@@ -3,6 +3,7 @@ name = "superspinsim"
 version = "0.3.3"
 description = "Add your description here"
 readme = "README.md"
+requires-python = ">=3.11,<3.14"
 dependencies = [
 	"numba",
 	"cuda-core",
@@ -15,10 +16,17 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 exclude = [
+	"build*",
 	"docs*",
-	"test*"
+	"test*",
 	"examples*"
 ]
+
+
+
+
+
+
 
 
 

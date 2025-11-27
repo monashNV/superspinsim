@@ -41,7 +41,7 @@ def list_tests_nt():
         print(line)
         name = line.split()[-1].strip()
         if ".py" in name:
-            if name == "util.py":
+            if name in ["util.py", ".python-version"]:
                 continue
             print(name)
             files.append(name)

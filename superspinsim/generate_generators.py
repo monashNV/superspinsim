@@ -83,9 +83,9 @@ def generate_atoms(
     operator_dicts["coherent_atoms"] = coherent_atoms
     operator_dicts["coherent"] = coherent_blocks
 
-    if not operator_dicts["jump"]:
+    if False:  # not operator_dicts["jump"]:
         operator_dicts["unitary"] = _complex_to_real_all(coherent_blocks)
-
+        valid_indices = None
     else:
         # Generate superoperators
         operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
@@ -97,15 +97,15 @@ def generate_atoms(
         operator_dicts["super_all"] = superoperators
         operator_dicts["dissipators"] = dissipator_dict
 
-    generators_dict = {}
-    for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
-        if label in superoperators.keys():
-            generators_dict[label] = superoperators[label]
-        else:
-            generators_dict[label] = np.zeros_like(
-                list(superoperators.values())[0], dtype=meta_datatype)
+        generators_dict = {}
+        for label in ["L0", "Gx", "Gy", "Gz", "Gr"]:
+            if label in superoperators.keys():
+                generators_dict[label] = superoperators[label]
+            else:
+                generators_dict[label] = np.zeros_like(
+                    list(superoperators.values())[0], dtype=meta_datatype)
 
-        operator_dicts["generators"] = generators_dict
+            operator_dicts["generators"] = generators_dict
 
     return operator_dicts, valid_indices
 
