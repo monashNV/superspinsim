@@ -60,7 +60,7 @@ def loop_files(files: list[str], result: dict[str, str]):
             print("Exception:", exception)
             print("Return code:", exception.returncode)
             print("Done\n")
-            result[name] = "Crash"
+            result[name] = "Fail"
 
 
 def loop_versions(files: list[str]):
