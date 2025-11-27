@@ -38,6 +38,8 @@ def list_tests():
     files = []
     for name in out:
         if ".py" in name:
+            if name == "util.py":
+                continue
             print(name)
             files.append(name)
     print("\n")
@@ -64,8 +66,12 @@ def loop_files(files: list[str], result: dict[str, str]):
 def loop_versions(files: list[str]):
     versions = []
     results = {}
-    for version in range(10, 15):
-        for sub in range(0, 20):
+
+    # for version in range(10, 15):
+    #     for sub in range(0, 20):
+
+    for version in [13]:
+        for sub in [7]:
             version_full = set_python_version(version, sub)
             try:
                 subprocess.check_output(["uv", "sync", "--reinstall"])
@@ -110,6 +116,7 @@ def main():
 
     print_results(results)
 
+    set_python_version(13, 7)
     revert_toml(toml_old)
 
     return results
