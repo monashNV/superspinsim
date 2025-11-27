@@ -363,7 +363,7 @@ def simspins(
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
-        use_residual: bool = True, use_kernel: bool = True):
+        use_residual: bool = True, use_kernel: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -431,33 +431,35 @@ def simspins(
         generators = list(generators["unitary"].values())
         is_unitary = True
 
-    kernel_dict = {}
-    if use_kernel:
-        full_projection, image_projection, generators_projection = \
-            find_kernel(generators)
-        print(generators[0].shape)
-        print(generators_projection[0].shape)
-        # if generators_projection[0].shape == generators[0].shape:
-        #     print("No equivalence classes found, not using kernel.")
-        #     use_kernel = False
-        # else:
-        generators = generators_projection
-        kernel_dict = {
-            "full_projection": full_projection,
-            "image_projection": image_projection
-        }
+    # kernel_dict = {}
+    # if use_kernel:
+    #     full_projection, image_projection, generators_projection = \
+    #         find_kernel(generators)
+    #     print(generators[0].shape)
+    #     print(generators_projection[0].shape)
+    #     # if generators_projection[0].shape == generators[0].shape:
+    #     #     print("No equivalence classes found, not using kernel.")
+    #     #     use_kernel = False
+    #     # else:
+    #     generators = generators_projection
+    #     kernel_dict = {
+    #         "full_projection": full_projection,
+    #         "image_projection": image_projection
+    #     }
 
+    rotating_dict = {}
     if use_rotating:
-        generators, vectors_real, inv_vectors_real, doubles, singles = \
-            _make_rotating(generators[0], generators[1:])
-        rotating_dict = {
-            "vectors_real": vectors_real,
-            "inv_vectors_real": inv_vectors_real,
-            "doubles": doubles,
-            "singles": singles
-        }
-    else:
-        rotating_dict = {}
+        if np.sum(np.abs(generators[0])) == 0:
+            use_rotating = False
+        else:
+            generators, vectors_real, inv_vectors_real, doubles, singles = \
+                _make_rotating(generators[0], generators[1:])
+            rotating_dict = {
+                "vectors_real": vectors_real,
+                "inv_vectors_real": inv_vectors_real,
+                "doubles": doubles,
+                "singles": singles
+            }
 
     lindbladian = _generate_lindbladian(coefficients, use_rotating)
     simulator = generate_simulator(
@@ -467,7 +469,7 @@ def simspins(
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
-        use_kernel=use_kernel, **kernel_dict,
+        # use_kernel=use_kernel, **kernel_dict,
         is_unitary=is_unitary
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)

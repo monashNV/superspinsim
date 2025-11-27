@@ -25,5 +25,6 @@ Documentation contents
 .. toctree::
    
     installation
+    examples
     api
 

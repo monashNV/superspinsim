@@ -6,7 +6,5 @@ numpy
 sympy
 qutip
 
-poetry
-
 sphinx
-sphinx_rtd_theme
+sphinx-rtd-theme

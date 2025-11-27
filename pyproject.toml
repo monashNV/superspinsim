@@ -15,10 +15,9 @@ dependencies = [
 
 [tool.setuptools.packages.find]
 exclude = [
-	"julia_env*",
 	"docs*",
-	"comparison*",
 	"test*"
+	"examples*"
 ]
 
 
