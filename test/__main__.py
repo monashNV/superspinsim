@@ -98,14 +98,15 @@ def loop_versions(files: list[str]):
     versions = []
     results = {}
 
-    for version in range(10, 15):
-        for sub in range(0, 20):
+    # for version in range(10, 15):
+    #     for sub in range(0, 20):
 
-    # for version in [13]:
-    #     for sub in [7]:
+    for version in [13]:
+        for sub in [9]:
             version_full = set_python_version(version, sub)
             try:
-                subprocess.check_output(["uv", "sync", "--reinstall"], shell=True)
+                subprocess.check_output(
+                    ["uv", "sync", "--reinstall"], shell=True)
                 versions.append(version_full)
             except subprocess.CalledProcessError as exception:
                 print("Exception:", exception)

@@ -1,0 +1,5 @@
+build-job:
+  stage: test
+  script:
+    - cd test
+    - uv run .
