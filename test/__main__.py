@@ -117,7 +117,7 @@ def assert_results(results: dict):
 
 def print_results_xml(results: dict):
     with open("test-results.xml", "w") as file:
-        file.write("<testsuits>\n")
+        file.write("<testsuites>\n")
         for version, result in results.items():
             tests = 0
             failures = 0
@@ -127,7 +127,7 @@ def print_results_xml(results: dict):
                     failures += 1
 
             file.write(
-                f"<testsuit name=\"Python {version}\" "
+                f"<testsuite name=\"Python {version}\" "
                 f"tests=\"{tests}\" failures=\"{failures}\">\n"
             )
 
@@ -137,8 +137,8 @@ def print_results_xml(results: dict):
                     file.write("</testcase>")
                 print(f"  {name}: {outcome}")
 
-            file.write("</testsuit>\n")
-        file.write("</testsuits>")
+            file.write("</testsuite>\n")
+        file.write("</testsuites>")
 
 
 def main():
