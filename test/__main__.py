@@ -158,6 +158,7 @@ def main():
     revert_toml(toml_old)
 
     # assert_results(results)
+    print_results_xml(results)
 
     return results
 
