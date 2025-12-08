@@ -21,7 +21,7 @@ def relax_toml():
 
 def revert_toml(toml_old: str):
     with open(TOML_PATH, "w") as toml:
-        toml.write(toml_old)
+        toml.write(toml_old.strip())
 
 
 def set_python_version(version: int, sub: int):
@@ -31,45 +31,12 @@ def set_python_version(version: int, sub: int):
     return version_full
 
 
-def list_tests_nt():
-    out = subprocess.check_output(["dir"], shell=True)
-    out = out.decode("utf-8")
-    print(out)
-    out = out.split("\n")
-    files = []
-    for line in out:
-        print(line)
-        name = line.split()[-1].strip()
-        if ".py" in name:
-            if name in ["util.py", ".python-version"]:
-                continue
-            print(name)
-            files.append(name)
-    print("\n")
-    return files
-
-
-def list_tests_posix():
-    out = subprocess.check_output(["ls"])
-    out = out.decode("utf-8")
-    out = out.split()
-    files = []
-    for name in out:
-        if ".py" in name:
-            if name == "util.py":
-                continue
-            print(name)
-            files.append(name)
-    print("\n")
-    return files
-
-
 def list_tests():
     out = os.listdir()
     files = []
     for name in out:
         if ".py" in name:
-            if name == "util.py":
+            if name in ["util.py", ".python-version"]:
                 continue
             print(name)
             files.append(name)
@@ -82,7 +49,10 @@ def loop_files(files: list[str], result: dict[str, str]):
     for name in files:
         print("Running", name)
         try:
-            out = subprocess.check_output(["uv", "run", name], shell=True)
+            if os.name == "posix":
+                out = subprocess.check_output(["uv", "run", name])
+            elif os.name == "nt":
+                out = subprocess.check_output(["uv", "run", name], shell=True)
             out = out.decode("utf-8")
             print(out)
             result[name] = "Pass"
@@ -105,8 +75,11 @@ def loop_versions(files: list[str]):
         for sub in [7]:
             version_full = set_python_version(version, sub)
             try:
-                subprocess.check_output(
-                    ["uv", "sync", "--reinstall"], shell=True)
+                if os.name == "posix":
+                    subprocess.check_output(["uv", "sync", "--reinstall"])
+                elif os.name == "nt":
+                    subprocess.check_output(
+                        ["uv", "sync", "--reinstall"], shell=True)
                 versions.append(version_full)
             except subprocess.CalledProcessError as exception:
                 print("Exception:", exception)
@@ -135,6 +108,13 @@ def print_results(results: dict):
             print(f"  {name}: {outcome}")
 
 
+def assert_results(results: dict):
+    for version, result in results.items():
+        for name, outcome in result.items():
+            if outcome == "Fail":
+                raise AssertionError(f"(Python {version}) {name} failed.")
+
+
 def main():
     toml_old = relax_toml()
 
@@ -150,6 +130,8 @@ def main():
 
     set_python_version(13, 7)
     revert_toml(toml_old)
+
+    assert_results(results)
 
     return results
 
