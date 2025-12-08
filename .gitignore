@@ -13,3 +13,4 @@ julia_env/Manifest.toml
 nohup.out
 
 *.gif
+*.xml

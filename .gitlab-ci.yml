@@ -3,3 +3,8 @@ build-job:
   script:
     - cd test
     - uv run .
+  artifacts:
+    paths:
+      - ./test/test-results.xml
+    reports:
+      junit: ./test/test-results.xml
