@@ -50,6 +50,7 @@ def loop_files(files: list[str], result: dict[str, str]):
     for name in files:
         print("Running", name)
         wall_time = tm.time()
+        out = ""
         try:
             if os.name == "posix":
                 out = subprocess.check_output(["uv", "run", name])
@@ -59,7 +60,8 @@ def loop_files(files: list[str], result: dict[str, str]):
             print(out)
             result[name] = {
                 "outcome": "Pass",
-                "time": tm.time() - wall_time
+                "time": tm.time() - wall_time,
+                "out": out
             }
             print("Done\n")
         except subprocess.CalledProcessError as exception:
@@ -68,7 +70,9 @@ def loop_files(files: list[str], result: dict[str, str]):
             print("Done\n")
             result[name] = {
                 "outcome": "Fail",
-                "time": tm.time() - wall_time
+                "time": tm.time() - wall_time,
+                "out": out,
+                "error": str(exception)
             }
 
 
@@ -83,6 +87,7 @@ def loop_versions(files: list[str]):
         for sub in [7]:
             wall_start = tm.time()
             version_full = set_python_version(version, sub)
+            out = ""
             try:
                 if os.name == "posix":
                     subprocess.check_output(["uv", "sync", "--reinstall"])
@@ -100,7 +105,9 @@ def loop_versions(files: list[str]):
                     results[version_full] = result
                     result["install"] = {
                         "outcome": "Fail",
-                        "time": tm.time() - wall_start
+                        "time": tm.time() - wall_start,
+                        "out": out,
+                        "error": str(exception)
                     }
 
                 continue
@@ -109,7 +116,8 @@ def loop_versions(files: list[str]):
             results[version_full] = result
             result["install"] = {
                 "outcome": "Pass",
-                "time": tm.time() - wall_start
+                "time": tm.time() - wall_start,
+                "out": out
             }
 
             loop_files(files, result)
@@ -149,20 +157,35 @@ def print_results_xml(results: dict):
             for name, result_dict in result.items():
                 outcome = result_dict["outcome"]
                 wall_time = result_dict["time"]
-                if outcome == "Pass":
+                if name[-3:] == ".py":
+                    file_name = name
+                    name = name[:-3]
+                else:
+                    file_name = None
+
+                if file_name is not None:
                     file.write(
                         f"<testcase classname=\"Python {version}\" "
-                        f"name=\"{name}\" time=\"{wall_time:.3f}\"/>\n"
+                        f"name=\"{name}\" time=\"{wall_time:.3f}\" "
+                        f"file=\"{file_name}\">\n"
                     )
                 else:
                     file.write(
                         f"<testcase classname=\"Python {version}\" "
                         f"name=\"{name}\" time=\"{wall_time:.3f}\">\n"
                     )
+
+                if outcome == "Pass":
+                    out = result_dict["out"]
+                    file.write("<system-out>\n")
+                    file.write(f"{out}\n")
+                    file.write("</system-out>\n")
+                else:
+                    error = result_dict["error"]
                     file.write("<failure>\n")
-                    file.write("Returned error")
+                    file.write(f"{error}\n")
                     file.write("</failure>\n")
-                    file.write("</testcase>\n")
+                file.write("</testcase>\n")
 
             file.write("</testsuite>\n")
         file.write("</testsuites>")
