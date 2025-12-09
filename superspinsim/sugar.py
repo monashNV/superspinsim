@@ -363,7 +363,8 @@ def simspins(
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
-        use_residual: bool = True, use_kernel: bool = False):
+        use_residual: bool = True, use_kernel: bool = False,
+        verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -411,8 +412,10 @@ def simspins(
         Whether or not to use the generalised rotating frame technique.
     use_residual: bool (default is True)
         Whether or not to use the residual arithmetic technique.
-    use_kernel: bool (default is True)
+    use_kernel: bool (default is False)
         Whether or not to use the equivalence class technique.
+    verbose: book (default is False)
+        Prints debug information.
 
     Returns
     -------
@@ -425,30 +428,45 @@ def simspins(
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions)
     if "generators" in generators:
+        if verbose:
+            print("Using superoperator representation.")
         generators = list(generators["generators"].values())
         is_unitary = False
     else:
+        if verbose:
+            print("Using operator representation.")
         generators = list(generators["unitary"].values())
         is_unitary = True
 
-    # kernel_dict = {}
-    # if use_kernel:
-    #     full_projection, image_projection, generators_projection = \
-    #         find_kernel(generators)
-    #     print(generators[0].shape)
-    #     print(generators_projection[0].shape)
-    #     # if generators_projection[0].shape == generators[0].shape:
-    #     #     print("No equivalence classes found, not using kernel.")
-    #     #     use_kernel = False
-    #     # else:
-    #     generators = generators_projection
-    #     kernel_dict = {
-    #         "full_projection": full_projection,
-    #         "image_projection": image_projection
-    #     }
+    kernel_dict = {}
+    if use_kernel:
+        if verbose:
+            print(
+                "Attempting to compress representation using equivalence "
+                "classes."
+            )
+        full_projection, image_projection, generators_projection = \
+            find_kernel(generators)
+        if verbose:
+            print(f"Old superoperator shape: {generators[0].shape}")
+            print(f"New superoperator shape: {generators_projection[0].shape}")
+            if generators_projection[0].shape == generators[0].shape:
+                print("Shapes are the same; no equivalence classes found.")
+        #     use_kernel = False
+        # else:
+        generators = generators_projection
+        kernel_dict = {
+            "full_projection": full_projection,
+            "image_projection": image_projection
+        }
 
     rotating_dict = {}
     if use_rotating:
+        if verbose:
+            print(
+                "Using generalised rotating frame. "
+                "Calculating SuperOperators in the generalised rotating frame."
+            )
         if np.sum(np.abs(generators[0])) == 0:
             use_rotating = False
         else:
@@ -469,8 +487,9 @@ def simspins(
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
-        # use_kernel=use_kernel, **kernel_dict,
-        is_unitary=is_unitary
+        use_kernel=use_kernel, **kernel_dict,
+        is_unitary=is_unitary,
+        verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value
