@@ -34,6 +34,7 @@ def set_python_version(version: int, sub: int):
 
 def list_tests():
     out = os.listdir()
+    out = sorted(out, key=lambda x: x[:-3])
     files = []
     for name in out:
         if ".py" in name:
@@ -180,12 +181,12 @@ def print_results_xml(results: dict):
                 if outcome == "Pass":
                     out = result_dict["out"]
                     file.write("<system-out>\n")
-                    file.write(f"\"{out}\"\n")
+                    file.write(f"{out}\n")
                     file.write("</system-out>\n")
                 else:
                     error = result_dict["error"]
                     file.write("<failure>\n")
-                    file.write(f"\"{error}\"\n")
+                    file.write(f"{error}\n")
                     file.write("</failure>\n")
                 file.write("</testcase>\n")
 

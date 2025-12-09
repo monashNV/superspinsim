@@ -36,7 +36,7 @@ def main():
     # Simulate
     time, density = simspins(
         [mag_x, mag_y, mag_z, excitation],  # Fields
-        0, 100e-6, 1e-9,                    # Time start/stop/step
+        0, 10e-6, 1e-9,                     # Time start/stop/step
         spins, [{}], {},                    # Spin description
         density_initial,                    # Initial state
         use_rotating=False,
