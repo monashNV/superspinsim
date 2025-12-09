@@ -83,7 +83,7 @@ def loop_versions(files: list[str]):
     # for version in range(10, 15):
     #     for sub in range(0, 20):
 
-    for version in [10, 13]:
+    for version in [13]:
         for sub in [7]:
             wall_start = tm.time()
             version_full = set_python_version(version, sub)
