@@ -130,7 +130,8 @@ def loop_versions(files: list[str]):
 def print_results(results: dict):
     for version, result in results.items():
         print(version)
-        for name, outcome in result.items():
+        for name, result_dict in result.items():
+            outcome = result_dict["outcome"]
             print(f"  {name}: {outcome}")
 
 
