@@ -42,7 +42,8 @@ def main():
         use_rotating=False,
         use_residual=False,
         number_of_exponentials=1,
-        number_of_fine_divisions=100
+        number_of_fine_divisions=100,
+        verbose=True
     )
 
     save_density("qubit-couple", density)

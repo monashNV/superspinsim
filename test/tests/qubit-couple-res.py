@@ -42,7 +42,8 @@ def main():
         use_rotating=False,
         use_residual=True,
         number_of_exponentials=1,
-        number_of_fine_divisions=100
+        number_of_fine_divisions=100,
+        verbose=True
     )
 
     compare_density("qubit-couple", density)
