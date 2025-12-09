@@ -1,5 +1,6 @@
 import os
 import subprocess
+import time as tm
 
 
 TOML_PATH = "../pyproject.toml"
@@ -48,6 +49,7 @@ def loop_files(files: list[str], result: dict[str, str]):
     print("Running tests")
     for name in files:
         print("Running", name)
+        wall_time = tm.time()
         try:
             if os.name == "posix":
                 out = subprocess.check_output(["uv", "run", name])
@@ -55,13 +57,19 @@ def loop_files(files: list[str], result: dict[str, str]):
                 out = subprocess.check_output(["uv", "run", name], shell=True)
             out = out.decode("utf-8")
             print(out)
-            result[name] = "Pass"
+            result[name] = {
+                "outcome": "Pass",
+                "time": tm.time() - wall_time
+            }
             print("Done\n")
         except subprocess.CalledProcessError as exception:
             print("Exception:", exception)
             print("Return code:", exception.returncode)
             print("Done\n")
-            result[name] = "Fail"
+            result[name] = {
+                "outcome": "Fail",
+                "time": tm.time() - wall_time
+            }
 
 
 def loop_versions(files: list[str]):
@@ -73,6 +81,7 @@ def loop_versions(files: list[str]):
 
     for version in [13]:
         for sub in [7]:
+            wall_start = tm.time()
             version_full = set_python_version(version, sub)
             try:
                 if os.name == "posix":
@@ -89,13 +98,19 @@ def loop_versions(files: list[str]):
                 if exception.returncode == 1:
                     result = {}
                     results[version_full] = result
-                    result["install"] = "Fail"
+                    result["install"] = {
+                        "outcome": "Fail",
+                        "time": tm.time() - wall_start
+                    }
 
                 continue
 
             result = {}
             results[version_full] = result
-            result["install"] = "Pass"
+            result["install"] = {
+                "outcome": "Pass",
+                "time": tm.time() - wall_start
+            }
 
             loop_files(files, result)
     return results
@@ -110,8 +125,8 @@ def print_results(results: dict):
 
 def assert_results(results: dict):
     for version, result in results.items():
-        for name, outcome in result.items():
-            if outcome == "Fail":
+        for name, result_dict in result.items():
+            if result_dict["outcome"] == "Fail":
                 raise AssertionError(f"(Python {version}) {name} failed.")
 
 
@@ -121,9 +136,9 @@ def print_results_xml(results: dict):
         for version, result in results.items():
             tests = 0
             failures = 0
-            for outcome in result.values():
+            for result_dict in result.values():
                 tests += 1
-                if outcome == "Fail":
+                if result_dict["outcome"] == "Fail":
                     failures += 1
 
             file.write(
@@ -131,16 +146,18 @@ def print_results_xml(results: dict):
                 f"tests=\"{tests}\" failures=\"{failures}\">\n"
             )
 
-            for name, outcome in result.items():
+            for name, result_dict in result.items():
+                outcome = result_dict["outcome"]
+                wall_time = result_dict["time"]
                 if outcome == "Pass":
                     file.write(
                         f"<testcase classname=\"Python {version}\" "
-                        f"name=\"{name}\"/>\n"
+                        f"name=\"{name}\" time=\"{wall_time:.3f}\"/>\n"
                     )
                 else:
                     file.write(
                         f"<testcase classname=\"Python {version}\" "
-                        f"name=\"{name}\">\n"
+                        f"name=\"{name}\" time=\"{wall_time:.3f}\">\n"
                     )
                     file.write("<failure>\n")
                     file.write("Returned error")
