@@ -43,6 +43,7 @@ def main():
         use_residual=True,
         number_of_exponentials=6,
         number_of_fine_divisions=100,
+        use_kernel=False,
         verbose=True
     )
 
