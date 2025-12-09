@@ -132,10 +132,20 @@ def print_results_xml(results: dict):
             )
 
             for name, outcome in result.items():
-                if outcome == "Fail":
-                    file.write(f"<testcase file=\"{name}\">")
-                    file.write("</testcase>")
-                print(f"  {name}: {outcome}")
+                if outcome == "Pass":
+                    file.write(
+                        f"<testcase classname=\"Python {version}\" "
+                        f"name=\"{name}\"/>\n"
+                    )
+                else:
+                    file.write(
+                        f"<testcase classname=\"Python {version}\" "
+                        f"name=\"{name}\">\n"
+                    )
+                    file.write("<failure>\n")
+                    file.write("Returned error")
+                    file.write("</failure>\n")
+                    file.write("</testcase>\n")
 
             file.write("</testsuite>\n")
         file.write("</testsuites>")
