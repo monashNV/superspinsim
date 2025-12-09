@@ -83,16 +83,16 @@ def loop_versions(files: list[str]):
     # for version in range(10, 15):
     #     for sub in range(0, 20):
 
-    for version in [13]:
+    for version in [9, 13]:
         for sub in [7]:
             wall_start = tm.time()
             version_full = set_python_version(version, sub)
             out = ""
             try:
                 if os.name == "posix":
-                    subprocess.check_output(["uv", "sync", "--reinstall"])
+                    out = subprocess.check_output(["uv", "sync", "--reinstall"])
                 elif os.name == "nt":
-                    subprocess.check_output(
+                    out = subprocess.check_output(
                         ["uv", "sync", "--reinstall"], shell=True)
                 versions.append(version_full)
             except subprocess.CalledProcessError as exception:
@@ -158,7 +158,7 @@ def print_results_xml(results: dict):
                 outcome = result_dict["outcome"]
                 wall_time = result_dict["time"]
                 if name[-3:] == ".py":
-                    file_name = name
+                    file_name = f"test/tests/{name}"
                     name = name[:-3]
                 else:
                     file_name = None
@@ -178,12 +178,12 @@ def print_results_xml(results: dict):
                 if outcome == "Pass":
                     out = result_dict["out"]
                     file.write("<system-out>\n")
-                    file.write(f"{out}\n")
+                    file.write(f"\"{out}\"\n")
                     file.write("</system-out>\n")
                 else:
                     error = result_dict["error"]
                     file.write("<failure>\n")
-                    file.write(f"{error}\n")
+                    file.write(f"\"{error}\"\n")
                     file.write("</failure>\n")
                 file.write("</testcase>\n")
 

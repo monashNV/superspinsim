@@ -1,4 +1,4 @@
-build-job:
+test-job:
   stage: test
   script:
     - cd test
