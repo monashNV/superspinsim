@@ -192,6 +192,8 @@ def print_results_xml(results: dict):
 
             file.write("</testsuite>\n")
         file.write("</testsuites>")
+    if failures:
+        raise Exception("Test failed")
 
 
 def main():
