@@ -96,6 +96,11 @@ uv add ../superspinsim
 
 ## Version log
 
+### 0.3.3
+
+Added a test system for a continuous integration (CI) like workflow to try and
+catch bugs early.
+
 ### 0.3.2
 
 Qudratures datatype changed from float128 to float64 for windows compatibility.
