@@ -26,7 +26,15 @@ def generate_simulator(
         vectors_real: np.ndarray = None,
         inv_vectors_real: np.ndarray = None,
         doubles: np.ndarray = None,
-        singles: np.ndarray = None
+        singles: np.ndarray = None,
+
+        use_kernel: bool = False,
+        full_projection: np.ndarray = None,
+        image_projection: np.ndarray = None,
+
+        is_unitary: bool = False,
+
+        verbose: bool = False
         ):
 
     if use_cayley:
@@ -50,18 +58,28 @@ def generate_simulator(
     number_of_submatrices = int(math.ceil(operator_size/submatrix_size))
 
     if number_of_exponentials == 1:
+        if verbose:
+            print("Using the CF2:1 method with 1 node.")
         sample_quadrature = np.array(samples_dict["1_gl"], dtype=datatype)
         weights = np.array(weights_dict["2_1_gl"], dtype=datatype)
     elif number_of_exponentials == 2:
+        if verbose:
+            print("Using the CF4:2 method with 2 nodes.")
         sample_quadrature = np.array(samples_dict["2_gl"], dtype=datatype)
         weights = np.array(weights_dict["4_2_gl"], dtype=datatype)
     elif number_of_exponentials == 3:
+        if verbose:
+            print("Using the CF4:3 method with 2 nodes.")
         sample_quadrature = np.array(samples_dict["2_gl"], dtype=datatype)
         weights = np.array(weights_dict["4_3_gl"], dtype=datatype)
     elif number_of_exponentials == 5:
+        if verbose:
+            print("Using the CF6:5 method with 3 nodes.")
         sample_quadrature = np.array(samples_dict["3_gl"], dtype=datatype)
         weights = np.array(weights_dict["6_5_gl"], dtype=datatype)
     elif number_of_exponentials == 6:
+        if verbose:
+            print("Using the CF6:6 method with 3 nodes.")
         sample_quadrature = np.array(samples_dict["3_gl"], dtype=datatype)
         weights = np.array(weights_dict["6_6_gl"], dtype=datatype)
 
@@ -73,6 +91,9 @@ def generate_simulator(
         singles = singles.copy()
         doubles_size = doubles.shape[0]
         singles_size = singles.size
+
+    if verbose:
+        print("Declaring methods")
 
     # Time grid ---------------------------------------------------------------
 
@@ -879,13 +900,39 @@ def generate_simulator(
 
         _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
 
-    def _apply_time_evolution_run(time_evolutions,
-                                  density_operator_initial, density_operators):
+    def _apply_time_evolution_run(
+            time_evolutions, density_operator_initial, density_operators):
         if use_cuda:
             grid_size = (time_evolutions.shape[0], 1)
             block_size = (operator_size, 1)
             _apply_time_evolution_kernel[grid_size, block_size] \
                 (time_evolutions, density_operator_initial, density_operators)
+
+    # Unitary -----------------------------------------------------------------
+
+    def _kronecker_product(
+            time_evolutions_unitary, time_evolutions, y_index, x_index):
+        y_index_out = y_index//(time_evolutions.shape[0]//2)
+        x_index_out = x_index//(time_evolutions.shape[1]//2)
+        y_index_in = y_index % (time_evolutions.shape[0]//2)
+        x_index_in = x_index % (time_evolutions.shape[1]//2)
+
+        out_r: datatype = time_evolutions[2*y_index_out, 2*x_index_out]
+        out_i: datatype = time_evolutions[2*y_index_out + 1, 2*x_index_out]
+        in_r: datatype = time_evolutions[2*y_index_in, 2*x_index_in]
+        in_i: datatype = time_evolutions[2*y_index_in + 1, 2*x_index_in]
+
+        scratch_r: datatype = out_r*in_r + out_i*in_i
+        scratch_i: datatype = out_r*in_i - out_i*in_r
+
+        if use_residual:
+            scratch_r += (y_index_out == x_index_out)*out_r
+            scratch_r += (y_index_in == x_index_in)*out_r
+            scratch_i += (y_index_out == x_index_out)*out_i
+            scratch_i -= (y_index_in == x_index_in)*out_i
+
+        time_evolutions_unitary[y_index, x_index, 0] = scratch_r
+        time_evolutions_unitary[y_index, x_index, 1] = scratch_i
 
     # Simulation --------------------------------------------------------------
 
@@ -893,14 +940,64 @@ def generate_simulator(
             density_operator_initial,
             time_start, time_end, time_step):
 
+        if verbose:
+            print("Starting simulator")
+
         # Remove numba warnings
         warnings.simplefilter("ignore", nb.core.errors.NumbaPerformanceWarning)
 
         # Time
         number_of_samples = int((time_end - time_start)/time_step)
 
+        # Convert density operator into real matrix
+        if verbose:
+            print("Get flat density")
+        density_operator_initial_real = np.empty(
+            (
+                density_operator_initial.shape[0],
+                density_operator_initial.shape[1], 2
+            ),
+            dtype=datatype
+        )
+        density_operator_initial_real[:, :, 0] = \
+            np.real(density_operator_initial)
+        density_operator_initial_real[:, :, 1] = \
+            np.imag(density_operator_initial)
+        density_operator_initial = density_operator_initial_real
+
+        # Flatten density operator
+        density_operator_initial_flat = \
+            np.empty(vectorisation_map.shape[0], dtype=datatype)
+        for operator_index in range(vectorisation_map.shape[0]):
+            y_index = vectorisation_map[operator_index, 0]
+            x_index = vectorisation_map[operator_index, 1]
+            c_index = vectorisation_map[operator_index, 2]
+
+            density_operator_initial_flat[operator_index] = \
+                density_operator_initial[y_index, x_index, c_index]
+
+        # Project into equivalence classes
+        if use_kernel:
+            if verbose:
+                print("Get density in equivalence class")
+            density_operator_initial_flat_projection = \
+                image_projection.T@density_operator_initial_flat
+            density_operator_initial_flat_kernel = \
+                density_operator_initial_flat \
+                - image_projection@density_operator_initial_flat_projection
+            density_operator_initial_flat = \
+                density_operator_initial_flat_projection
+
         # Rotating frame
         if use_rotating:
+            if verbose:
+                print(
+                    "Calculate block diagonal matrix exponential for "
+                    "generalised rotating frame."
+                )
+
+            if verbose:
+                print("  Declare memory")
             time_sample_zero = np.empty(
                 (sample_quadrature.size + 1), dtype=datatype)
             time_sample_zero[:-1] = \
@@ -914,6 +1011,8 @@ def generate_simulator(
                 ), dtype=datatype
             )
 
+            if verbose:
+                print("  Calculate 1x1 exponentials")
             singles_forward = \
                 np.empty((time_sample_zero.size, singles.size), dtype=datatype)
             singles_backward = np.empty_like(singles_forward)
@@ -923,6 +1022,8 @@ def generate_simulator(
                 singles_backward[index, :] = \
                     np.exp(-singles*time_sample_zero[index])
 
+            if verbose:
+                print("  Calculate 2x2 exponentials")
             doubles_forward = np.empty(
                 (time_sample_zero.size, doubles.shape[0], doubles.shape[1]),
                 dtype=datatype
@@ -947,6 +1048,8 @@ def generate_simulator(
                 doubles_forward[-1, :, 0] = (1 + expmr)*sin2 + expmr
                 doubles_forward[-1, :, 1] = -(1 + expmr)*sin1
 
+            if verbose:
+                print("  Bring generators into generalised rotating frame")
             for sample_index in range(time_sample_zero.size - 1):
                 generators_rotating[sample_index, :, :, :] = generators
 
@@ -998,51 +1101,40 @@ def generate_simulator(
                         sample_index, :, :, 2*doubles.shape[0] + eigen_index
                     ] *= singles_forward[sample_index, eigen_index]
 
-        # Convert density operator into real matrix
-        density_operator_initial_real = np.empty(
-            (
-                density_operator_initial.shape[0],
-                density_operator_initial.shape[1], 2
-            ),
-            dtype=datatype
-        )
-        density_operator_initial_real[:, :, 0] = \
-            np.real(density_operator_initial)
-        density_operator_initial_real[:, :, 1] = \
-            np.imag(density_operator_initial)
-        density_operator_initial = density_operator_initial_real
-
-        # Flatten density operator
-        density_operator_initial_flat = \
-            np.empty(vectorisation_map.shape[0], dtype=datatype)
-        for operator_index in range(vectorisation_map.shape[0]):
-            y_index = vectorisation_map[operator_index, 0]
-            x_index = vectorisation_map[operator_index, 1]
-            c_index = vectorisation_map[operator_index, 2]
-
-            density_operator_initial_flat[operator_index] = \
-                density_operator_initial[y_index, x_index, c_index]
-        if use_rotating:
             density_operator_initial_flat = \
                 inv_vectors_real@density_operator_initial_flat
 
         # Declare VRAM
         if use_cuda:
+            if verbose:
+                print("Declare VRAM")
+
             # Time
+            if verbose:
+                print("  Declare time VRAM")
             time_device = nc.device_array(
                 number_of_samples, dtype=datatype)
 
             # Gauss-Legendre quadrature definition
+            if verbose:
+                print("  Declare Magnus VRAM")
+                print("    Quadrature times")
             sample_quadrature_device = nc.to_device(sample_quadrature)
 
             # Storage for Gauss-Legendre quadrature points
+            if verbose:
+                print("    Quadrature times expanded")
             time_sample_device = nc.device_array(
                 number_of_samples*sample_quadrature_device.size,
                 dtype=datatype)
 
             # Weights for commutator-free integrator
+            if verbose:
+                print("    Quadrature weights")
             weights_device = nc.to_device(weights)
 
+            if verbose:
+                print("  Declare superoperator VRAM")
             # Storage for coefficients of superoperators of Lindbladian
             coefficients_device = nc.device_array(
                 (time_sample_device.size, generators.shape[0]),
@@ -1056,6 +1148,8 @@ def generate_simulator(
 
             # Basis for the Lindbladian
             # print(generators.shape)
+            if verbose:
+                print("  Declare basis VRAM")
             if use_rotating:
                 # print(doubles)
                 # print(singles)
@@ -1073,6 +1167,8 @@ def generate_simulator(
 
             # Storage for individual exponentials of the commutator-free
             # integrator
+            if verbose:
+                print("  Declare superoperator VRAM")
             superoperators_device = nc.device_array(
                 (weighted_coefficients_device.shape[0],
                  operator_size, operator_size),
@@ -1084,21 +1180,32 @@ def generate_simulator(
                 dtype=datatype)
 
             # Storage for time evolution superoperators
+            if verbose:
+                print("  Declare time evolution VRAM")
             time_evolution_device = nc.device_array(
                 (time_device.shape[0], operator_size, operator_size),
                 dtype=datatype
             )
 
             # Initial density operator
+            if verbose:
+                print("  Move initial state to GPU")
             density_operator_initial_device = nc.to_device(
                                   density_operator_initial_flat)
 
             # Storage for evaluated density operators
+            if verbose:
+                print("  Move generators to GPU")
             density_operators_device = nc.device_array(
                 (time_evolution_device.shape[0], operator_size),
                 dtype=datatype)
 
+        if verbose:
+            print("Finished declaring VRAM")
+
         # Calculate time
+        if verbose:
+            print("Starting simulation loop")
         _calculate_time_basic_run(time_device, time_start, time_step)
 
         # Initialise time evolution operators to identities
@@ -1169,10 +1276,17 @@ def generate_simulator(
                     singles_forward_device
                 )
 
+        if verbose:
+            print("Finished simulation loop")
+
         # Accumulate time evolution across all time steps
+        if verbose:
+            print("Combining time evolution steps")
         _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
 
         # Apply time evolution superoperators to initial condition
+        if verbose:
+            print("Applying time evolution to initial state")
         _apply_time_evolution_run(
             time_evolution_device,
             density_operator_initial_device,
@@ -1181,6 +1295,8 @@ def generate_simulator(
 
         # Retrieve results from GPU
         if use_cuda:
+            if verbose:
+                print("Retrieving solution from GPU")
             time = time_device.copy_to_host()
             # time_evolution = time_evolution_device.copy_to_host()
             # print(time_evolution)
@@ -1188,6 +1304,10 @@ def generate_simulator(
             # print(density_operators_flat)
 
         if use_rotating:
+            if verbose:
+                print(
+                    "Moving out of generalised rotating frame diagonal basis"
+                )
             density_operators_flat = \
                 (vectors_real@density_operators_flat.reshape((
                     density_operators_flat.shape[0],
@@ -1195,7 +1315,17 @@ def generate_simulator(
                     1
                 ))).reshape(density_operators_flat.shape)
 
+        if use_kernel:
+            if verbose:
+                print("Moving out of equivalence class")
+            density_operators_flat = np.matvec(
+                image_projection, density_operators_flat)
+            density_operators_flat += \
+                density_operator_initial_flat_kernel
+
         # Unflatten density operators
+        if verbose:
+            print("Unflatten density operators")
         density_operators = np.zeros(
             (density_operators_flat.shape[0],
              wavefunction_size, wavefunction_size, 2),
@@ -1228,6 +1358,9 @@ def generate_simulator(
         # Remove numba warnings
         warnings.simplefilter(
             "default", nb.core.errors.NumbaPerformanceWarning)
+
+        if verbose:
+            print("Finished simulation")
 
         return time, density_operators
 

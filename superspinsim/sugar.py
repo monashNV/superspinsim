@@ -10,7 +10,7 @@ import qutip as qt
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
     _generate_valid_indices, _generate_superoperators, real_eig, \
-    generate_atoms, _generate_lindbladian
+    generate_atoms, _generate_lindbladian, find_kernel
 
 
 def mesolve(
@@ -363,7 +363,8 @@ def simspins(
         density_initial: np.ndarray, number_of_exponentials: int = 5,
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
-        use_residual: bool = True):
+        use_residual: bool = True, use_kernel: bool = False,
+        verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -411,30 +412,72 @@ def simspins(
         Whether or not to use the generalised rotating frame technique.
     use_residual: bool (default is True)
         Whether or not to use the residual arithmetic technique.
+    use_kernel: bool (default is False)
+        Whether or not to use the equivalence class technique.
+    verbose: book (default is False)
+        Prints debug information.
 
     Returns
     -------
     time: np.ndarray
         Time samples in seconds.
     density: np.ndarray
-        Evaluated density matrices at the times given by :obj"`time` .
+        Evaluated density matrices at the times given by :obj:`time` .
     """
 
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions)
-    generators = list(generators["generators"].values())
-
-    if use_rotating:
-        generators, vectors_real, inv_vectors_real, doubles, singles = \
-            _make_rotating(generators[0], generators[1:])
-        rotating_dict = {
-            "vectors_real": vectors_real,
-            "inv_vectors_real": inv_vectors_real,
-            "doubles": doubles,
-            "singles": singles
-        }
+    if "generators" in generators:
+        if verbose:
+            print("Using superoperator representation.")
+        generators = list(generators["generators"].values())
+        is_unitary = False
     else:
-        rotating_dict = {}
+        if verbose:
+            print("Using operator representation.")
+        generators = list(generators["unitary"].values())
+        is_unitary = True
+
+    kernel_dict = {}
+    if use_kernel:
+        if verbose:
+            print(
+                "Attempting to compress representation using equivalence "
+                "classes."
+            )
+        full_projection, image_projection, generators_projection = \
+            find_kernel(generators)
+        if verbose:
+            print(f"Old superoperator shape: {generators[0].shape}")
+            print(f"New superoperator shape: {generators_projection[0].shape}")
+            if generators_projection[0].shape == generators[0].shape:
+                print("Shapes are the same; no equivalence classes found.")
+        #     use_kernel = False
+        # else:
+        generators = generators_projection
+        kernel_dict = {
+            "full_projection": full_projection,
+            "image_projection": image_projection
+        }
+
+    rotating_dict = {}
+    if use_rotating:
+        if verbose:
+            print(
+                "Using generalised rotating frame. "
+                "Calculating SuperOperators in the generalised rotating frame."
+            )
+        if np.sum(np.abs(generators[0])) == 0:
+            use_rotating = False
+        else:
+            generators, vectors_real, inv_vectors_real, doubles, singles = \
+                _make_rotating(generators[0], generators[1:])
+            rotating_dict = {
+                "vectors_real": vectors_real,
+                "inv_vectors_real": inv_vectors_real,
+                "doubles": doubles,
+                "singles": singles
+            }
 
     lindbladian = _generate_lindbladian(coefficients, use_rotating)
     simulator = generate_simulator(
@@ -443,8 +486,10 @@ def simspins(
         number_of_exponentials=number_of_exponentials,
         number_of_fine_divisions=number_of_fine_divisions,
         number_of_quartic_repeats=number_of_quadratic_repeats,
-        use_rotating=use_rotating,
-        **rotating_dict
+        use_rotating=use_rotating, **rotating_dict,
+        use_kernel=use_kernel, **kernel_dict,
+        is_unitary=is_unitary,
+        verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
     return return_value

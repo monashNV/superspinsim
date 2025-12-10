@@ -5,3 +5,6 @@ numba-cuda
 numpy
 sympy
 qutip
+
+sphinx
+sphinx-rtd-theme

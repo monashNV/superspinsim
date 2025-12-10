@@ -4,7 +4,7 @@ import sys
 project = 'superspinsim'
 copyright = '2025, Alex Tritt'
 author = 'Alex Tritt'
-release = '0.1.1'
+release = '0.4.0'
 
 extensions = [
     "sphinx_rtd_theme",
@@ -22,5 +22,5 @@ html_static_path = ["_static"]
 html_logo = "_static/logo.png"
 
 html_theme_options = {
-    "style_nav_header_background": "gray",
+    "style_nav_header_background": "grey",
 }

@@ -2,7 +2,15 @@
 
 dist/*
 docs/build/*
-poetry.lock
+*.lock
+profile/*
+*build
 
 julia_env/Manifest.toml
+.python-version
+*.egg-info*
+
 nohup.out
+
+*.gif
+test/*.xml
