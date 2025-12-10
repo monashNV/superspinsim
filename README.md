@@ -96,6 +96,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 0.4.0
+
+Tested equivalence classes.
+
 ### 0.3.3
 
 Added a test system for a continuous integration (CI) like workflow to try and

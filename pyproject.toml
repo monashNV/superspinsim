@@ -1,6 +1,6 @@
 [project]
 name = "superspinsim"
-version = "0.3.3"
+version = "0.4.0"
 description = "A GPU-based simulator for time-dependent quantum systems."
 readme = "README.md"
 requires-python = ">=3.11,<3.14"
