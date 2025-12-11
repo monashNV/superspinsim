@@ -364,7 +364,7 @@ def simspins(
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True, use_kernel: bool = False,
-        verbose: bool = False):
+        use_unitary: bool = False, verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -414,6 +414,9 @@ def simspins(
         Whether or not to use the residual arithmetic technique.
     use_kernel: bool (default is False)
         Whether or not to use the equivalence class technique.
+    use_unitary: bool (default is False)
+        Whether or not to simplify representations when there are only unitary
+        dynamics.
     verbose: book (default is False)
         Prints debug information.
 
@@ -426,17 +429,22 @@ def simspins(
     """
 
     generators, vectorisation_map = generate_atoms(
-        spins, spin_interactions, group_interactions)
-    if "generators" in generators:
+        spins, spin_interactions, group_interactions, use_unitary,
+        verbose=verbose
+    )
+    if use_unitary:
+        if "unitary" not in generators:
+            use_unitary = False
+
+    if not use_unitary:
         if verbose:
             print("Using superoperator representation.")
         generators = list(generators["generators"].values())
-        is_unitary = False
     else:
         if verbose:
             print("Using operator representation.")
         generators = list(generators["unitary"].values())
-        is_unitary = True
+        unitary_dict = generators["elimination"]
 
     kernel_dict = {}
     if use_kernel:
@@ -488,7 +496,7 @@ def simspins(
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
         use_kernel=use_kernel, **kernel_dict,
-        is_unitary=is_unitary,
+        use_unitary=use_unitary, **unitary_dict,
         verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)

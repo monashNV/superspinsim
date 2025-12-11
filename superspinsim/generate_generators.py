@@ -13,9 +13,9 @@ meta_datatype = np.float64
 
 
 def generate_atoms(
-    description: list[list[dict]], atom_interactions: list[dict],
-    block_interactions: dict
-) -> [dict, dict, list[dict], dict]:
+        description: list[list[dict]], atom_interactions: list[dict],
+        block_interactions: dict, use_unitary: bool = False,
+        verbose: bool = False) -> [dict, dict, list[dict], dict]:
     """
         Define a system of multiple spins.
     """
@@ -83,13 +83,28 @@ def generate_atoms(
     operator_dicts["coherent_atoms"] = coherent_atoms
     operator_dicts["coherent"] = coherent_blocks
 
-    if False:  # not operator_dicts["jump"]:
+    valid_indices = _generate_valid_indices(allowed)
+
+    if use_unitary:
+        if operator_dicts["jump"]:
+            use_unitary = False
+            if verbose:
+                print("Jump operators found. Cannot use unitary protocol.")
+
+    if use_unitary:
         operator_dicts["unitary"] = _complex_to_real_all(coherent_blocks)
-        valid_indices = None
+        basis_hermitian = _get_hermitian_basis_from_valid_indices(
+            valid_indices, np.prod(hilbert_space_shape))
+        basis_full = _get_full_basis(np.prod(hilbert_space_shape))
+        elimination_matrix, duplication_matrix = \
+            _calculate_elimination_matrices(basis_hermitian, basis_full)
+        operator_dicts["elimination"] = {
+            "elimination": elimination_matrix,
+            "duplication": duplication_matrix
+        }
     else:
         # Generate superoperators
         operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
-        valid_indices = _generate_valid_indices(allowed)
         superoperators = _generate_superoperators(
             operators_to_super, valid_indices)
         dissipator_dict = _combine_superoperators(superoperators)
@@ -2378,6 +2393,53 @@ def _complex_to_real_all(generators: dict[np.ndarray]):
         label: _complex_to_real(generator)
         for label, generator in generators.items()
     }
+
+
+def _get_hermitian_basis_from_valid_indices(
+        valid_indices: np.ndarray, hilbert_size: int):
+    matrix_basis = []
+    for y_in_index, x_in_index, c_in_index in valid_indices:
+        density_matrix = np.zeros(
+            (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+        density_matrix[y_in_index, x_in_index, c_in_index] = 1
+        if y_in_index != x_in_index:
+            if c_in_index:
+                density_matrix[x_in_index, y_in_index, c_in_index] = -1
+            else:
+                density_matrix[x_in_index, y_in_index, c_in_index] = 1
+        matrix_basis.append(density_matrix)
+    return matrix_basis
+
+
+def _get_full_basis(hilbert_size: int):
+    matrix_basis = []
+    for x_index in range(hilbert_size):
+        for y_index in range(hilbert_size):
+            for c_index in range(2):
+                density_matrix = np.zeros(
+                    (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+                density_matrix[y_index, x_index, c_index] = 1
+                matrix_basis.append(density_matrix)
+    return matrix_basis
+
+
+def _calculate_elimination_matrix(basis_hermitian: list, basis_full: list):
+    elimination_matrix = np.empty(
+        (len(basis_hermitian), len(basis_full)), dtype=meta_datatype)
+    for hermitian_index, element_hermitian in enumerate(basis_hermitian):
+        for full_index, element_full in enumerate(basis_full):
+            elimination_matrix[hermitian_index, full_index] = \
+                np.sum(element_hermitian*element_full) \
+                / np.sum(element_hermitian**2)
+    return elimination_matrix
+
+
+def _calculate_elimination_matrices(basis_hermitian: list, basis_full: list):
+    elimination_matrix = _calculate_elimination_matrix(
+        basis_hermitian, basis_full)
+    duplication_matrix = _calculate_elimination_matrix(
+        basis_full, basis_hermitian)
+    return elimination_matrix, duplication_matrix
 
 
 # Main ========================================================================

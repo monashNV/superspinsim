@@ -32,7 +32,9 @@ def generate_simulator(
         full_projection: np.ndarray = None,
         image_projection: np.ndarray = None,
 
-        is_unitary: bool = False,
+        use_unitary: bool = False,
+        elimination: np.ndarray = None,
+        duplication: np.ndarray = None,
 
         verbose: bool = False
         ):
