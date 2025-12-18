@@ -679,19 +679,69 @@ def generate_simulator(
                 )
 
     if use_cuda:
+        def _multiply_superoperator_right(right, inp, out, y_index, x_index):
+            if use_residual:
+                out_scratch: datatype = \
+                    right[y_index, x_index]
+                if y_index == x_index:
+                    out_scratch -= 1
+            else:
+                out_scratch: datatype = 0.0
+
+            for trace_index in range(operator_size):
+                out_scratch = nc.fma(
+                        inp[y_index, trace_index],
+                        right[trace_index, x_index],
+                        out_scratch
+                )
+            out[y_index, x_index] = out_scratch
+
+        def _multiply_superoperator_left(left, inp, out, y_index, x_index):
+            if use_residual:
+                out_scratch: datatype = \
+                    left[y_index, x_index]
+                if y_index == x_index:
+                    out_scratch -= 1
+            else:
+                out_scratch: datatype = 0.0
+
+            for trace_index in range(operator_size):
+                out_scratch = nc.fma(
+                        left[y_index, trace_index],
+                        inp[trace_index, x_index],
+                        out_scratch
+                )
+            out[y_index, x_index] = out_scratch
+
+        _multiply_superoperator_right = nc.jit(
+            _multiply_superoperator_right, device=True)
+        _multiply_superoperator_left = nc.jit(
+            _multiply_superoperator_left, device=True)
+
         def _apply_global_sandwich_right_kernel(right, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             if x_index < operator_size and y_index < operator_size:
-                _multiply_superoperator(
-                    inp[nc.blockIdx.x, :, :], right, out, y_index, x_index)
+                _multiply_superoperator_right(
+                    right, inp[nc.blockIdx.x, :, :],
+                    out[nc.blockIdx.x, :, :], y_index, x_index
+                )
 
         def _apply_global_sandwich_left_kernel(left, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             if x_index < operator_size and y_index < operator_size:
-                _multiply_superoperator(
-                    left, inp[nc.blockIdx.x, :, :], out, y_index, x_index)
+                _multiply_superoperator_left(
+                    left, inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                    y_index, x_index
+                )
+
+        _apply_global_sandwich_right_kernel = nc.jit(
+            _apply_global_sandwich_right_kernel
+        )
+        _apply_global_sandwich_left_kernel = nc.jit(
+            _apply_global_sandwich_left_kernel
+        )
 
     def _apply_global_sandwich_run(left, right, time_evolution, scratch):
         if use_cuda:
@@ -1131,8 +1181,8 @@ def generate_simulator(
                         sample_index, :, :, 2*doubles.shape[0] + eigen_index
                     ] *= singles_forward[sample_index, eigen_index]
 
-            density_operator_initial_flat = \
-                inv_vectors_real@density_operator_initial_flat
+            # density_operator_initial_flat = \
+            #     inv_vectors_real@density_operator_initial_flat
 
         # Declare VRAM
         if use_cuda:
@@ -1326,7 +1376,8 @@ def generate_simulator(
                 print("Moving out of the rotating frame")
             _apply_global_sandwich_run(
                 vectors_real_device, inv_vectors_real_device,
-                time_evolution_device, scratch_device
+                time_evolution_device,
+                scratch_device[:superoperators_device.shape[0], :, :]
             )
 
         # Apply time evolution superoperators to initial condition
