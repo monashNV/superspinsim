@@ -678,6 +678,34 @@ def generate_simulator(
                     scratch, superoperators
                 )
 
+    if use_cuda:
+        def _apply_global_sandwich_right_kernel(right, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _multiply_superoperator(
+                    inp[nc.blockIdx.x, :, :], right, out, y_index, x_index)
+
+        def _apply_global_sandwich_left_kernel(left, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < operator_size and y_index < operator_size:
+                _multiply_superoperator(
+                    left, inp[nc.blockIdx.x, :, :], out, y_index, x_index)
+
+    def _apply_global_sandwich_run(left, right, time_evolution, scratch):
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
+
+            _apply_global_sandwich_right_kernel[grid_size, block_size](
+                right, time_evolution, scratch)
+            _apply_global_sandwich_left_kernel[grid_size, block_size](
+                left, scratch, time_evolution)
+
     # Combine samples at different quadrature nodes ---------------------------
 
     if use_cuda:
@@ -1193,7 +1221,14 @@ def generate_simulator(
             if verbose:
                 print("  Move initial state to GPU")
             density_operator_initial_device = nc.to_device(
-                                  density_operator_initial_flat)
+                  density_operator_initial_flat)
+
+            if use_rotating:
+                # Diagonalisation
+                if verbose:
+                    print("  Move diagonalisation to GPU")
+                vectors_real_device = nc.to_device(vectors_real)
+                inv_vectors_real_device = nc.to_device(inv_vectors_real)
 
             # Storage for evaluated density operators
             if verbose:
@@ -1286,6 +1321,14 @@ def generate_simulator(
             print("Combining time evolution steps")
         _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
 
+        if use_rotating:
+            if verbose:
+                print("Moving out of the rotating frame")
+            _apply_global_sandwich_run(
+                vectors_real_device, inv_vectors_real_device,
+                time_evolution_device, scratch_device
+            )
+
         # Apply time evolution superoperators to initial condition
         if verbose:
             print("Applying time evolution to initial state")
@@ -1305,17 +1348,17 @@ def generate_simulator(
             density_operators_flat = density_operators_device.copy_to_host()
             # print(density_operators_flat)
 
-        if use_rotating:
-            if verbose:
-                print(
-                    "Moving out of generalised rotating frame diagonal basis"
-                )
-            density_operators_flat = \
-                (vectors_real@density_operators_flat.reshape((
-                    density_operators_flat.shape[0],
-                    density_operators_flat.shape[1],
-                    1
-                ))).reshape(density_operators_flat.shape)
+        # if use_rotating:
+        #     if verbose:
+        #         print(
+        #             "Moving out of generalised rotating frame diagonal basis"
+        #         )
+        #     density_operators_flat = \
+        #         (vectors_real@density_operators_flat.reshape((
+        #             density_operators_flat.shape[0],
+        #             density_operators_flat.shape[1],
+        #             1
+        #         ))).reshape(density_operators_flat.shape)
 
         if use_kernel:
             if verbose:
