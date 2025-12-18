@@ -436,6 +436,7 @@ def simspins(
         if "unitary" not in generators:
             use_unitary = False
 
+    unitary_dict = {}
     if not use_unitary:
         if verbose:
             print("Using superoperator representation.")
