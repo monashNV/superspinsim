@@ -20,7 +20,6 @@ def generate_simulator(
         number_of_quartic_repeats: int = 35,  # 35,
         number_of_exponentials: int = 2,
         number_of_fine_divisions: int = 1,
-        use_cayley: bool = False,
 
         use_rotating: bool = False,
         vectors_real: np.ndarray = None,
@@ -36,7 +35,9 @@ def generate_simulator(
         elimination: np.ndarray = None,
         duplication: np.ndarray = None,
 
-        verbose: bool = False
+        verbose: bool = False,
+
+        use_cayley: bool = False
         ):
 
     if use_cayley:
@@ -714,10 +715,15 @@ def generate_simulator(
                 )
             out[y_index, x_index] = out_scratch
 
+        def _add_superoperator(shift, inp, out, y_index, x_index):
+            out[y_index, x_index] = \
+                shift[y_index, x_index] + inp[y_index, x_index]
+
         _multiply_superoperator_right = nc.jit(
             _multiply_superoperator_right, device=True)
         _multiply_superoperator_left = nc.jit(
             _multiply_superoperator_left, device=True)
+        _add_superoperator = nc.jit(_add_superoperator, device=True)
 
         def _apply_global_sandwich_right_kernel(right, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
@@ -737,12 +743,22 @@ def generate_simulator(
                     y_index, x_index
                 )
 
+        def _apply_global_addition_kernel(shift, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            if x_index < shift.shape[0] and y_index < shift.shape[0]:
+                _add_superoperator(
+                    shift, inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                    y_index, x_index
+                )
+
         _apply_global_sandwich_right_kernel = nc.jit(
             _apply_global_sandwich_right_kernel
         )
         _apply_global_sandwich_left_kernel = nc.jit(
             _apply_global_sandwich_left_kernel
         )
+        _apply_global_addition_kernel = nc.jit(_apply_global_addition_kernel)
 
     def _apply_global_sandwich_run(left, right, time_evolution, scratch):
         if use_cuda:
@@ -756,6 +772,19 @@ def generate_simulator(
                 right, time_evolution, scratch)
             _apply_global_sandwich_left_kernel[grid_size, block_size](
                 left, scratch, time_evolution)
+
+    def _apply_global_addition_run(shift, time_evolution, scratch):
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices_density,
+                number_of_submatrices_density
+            )
+            block_size = (submatrix_size_density, submatrix_size_density)
+
+            _apply_global_addition_kernel[grid_size, block_size](
+                shift, time_evolution, scratch)
+            _apply_global_addition_kernel[grid_size, block_size](
+                shift, scratch, time_evolution)
 
     # Combine samples at different quadrature nodes ---------------------------
 
@@ -1056,16 +1085,19 @@ def generate_simulator(
                 density_operator_initial[y_index, x_index, c_index]
 
         # Project into equivalence classes
-        # if use_kernel:
-        #     if verbose:
-        #         print("Get density in equivalence class")
-        #     density_operator_initial_flat_projection = \
-        #         image_projection.T@density_operator_initial_flat
-        #     density_operator_initial_flat_kernel = \
-        #         density_operator_initial_flat \
-        #         - image_projection@density_operator_initial_flat_projection
-        #     density_operator_initial_flat = \
-        #         density_operator_initial_flat_projection
+        if use_kernel:
+            if verbose:
+                print("Get density in equivalence class")
+            # density_operator_initial_flat_projection = \
+            #     image_projection.T@density_operator_initial_flat
+            # density_operator_initial_flat_kernel = \
+            #     density_operator_initial_flat \
+            #     - image_projection@density_operator_initial_flat_projection
+
+            # density_operator_initial_flat_kernel = \
+            #     density_operator_initial_flat \
+            #     - image_projection@image_projection.T \
+            #     @ density_operator_initial_flat
 
         # Rotating frame
         if use_rotating:
@@ -1288,7 +1320,10 @@ def generate_simulator(
                     print("  Move kernel projection to GPU")
                 image_projection_device = nc.to_device(image_projection)
                 image_projection_transpose_device = nc.to_device(
-                    np.linalg.pinv(image_projection))
+                    image_projection.T)
+                kernel_projection = -image_projection@image_projection.T
+                kernel_projection += np.eye(kernel_projection.shape[0])
+                kernel_projection_device = nc.to_device(kernel_projection/2)
 
             # Storage for evaluated density operators
             if verbose:
@@ -1396,6 +1431,10 @@ def generate_simulator(
             _apply_global_sandwich_run(
                 image_projection_device, image_projection_transpose_device,
                 time_evolution_device,
+                scratch_device[:superoperators_device.shape[0], :, :]
+            )
+            _apply_global_addition_run(
+                kernel_projection_device, time_evolution_device,
                 scratch_device[:superoperators_device.shape[0], :, :]
             )
 
