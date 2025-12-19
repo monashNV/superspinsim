@@ -1325,6 +1325,13 @@ def generate_simulator(
                 kernel_projection += np.eye(kernel_projection.shape[0])
                 kernel_projection_device = nc.to_device(kernel_projection/2)
 
+            if use_unitary:
+                # Diagonalisation
+                if verbose:
+                    print("  Move elimination to GPU")
+                elimination_device = nc.to_device(elimination)
+                duplication_device = nc.to_device(duplication)
+
             # Storage for evaluated density operators
             if verbose:
                 print("  Declare density operator VRAM")
@@ -1435,6 +1442,14 @@ def generate_simulator(
             )
             _apply_global_addition_run(
                 kernel_projection_device, time_evolution_device,
+                scratch_device[:superoperators_device.shape[0], :, :]
+            )
+
+        if use_kernel:
+            if verbose:
+                print("Moving from operator to superoperator form")
+            _apply_global_sandwich_run(
+                elimination_device, duplication_device, time_evolution_device,
                 scratch_device[:superoperators_device.shape[0], :, :]
             )
 

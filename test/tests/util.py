@@ -1,6 +1,8 @@
 import os
 import numpy as np
 
+import warnings
+
 
 REFERENCE_PATH = "../reference/"
 DELIMITER = ","
@@ -43,6 +45,13 @@ def compare_density(name: str, density: np.ndarray):
         raise FileNotFoundError(name)
 
     this = flatten_density(density)
-    difference = np.sqrt(np.sum((this - reference)**2))/this.size
+    with warnings.catch_warnings():
+        warnings.filterwarnings("error", category=RuntimeWarning)
+        try:
+            difference = np.sqrt(np.sum((this - reference)**2))/this.size
+        except RuntimeWarning:
+            difference = 2*PRECISION
+            print("LMAO")
+
     if difference > PRECISION:
         raise Exception("Test failed")

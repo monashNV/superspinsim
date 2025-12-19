@@ -444,8 +444,8 @@ def simspins(
     else:
         if verbose:
             print("Using operator representation.")
-        generators = list(generators["unitary"].values())
         unitary_dict = generators["elimination"]
+        generators = list(generators["unitary"].values())
 
     kernel_dict = {}
     if use_kernel:
