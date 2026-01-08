@@ -1445,7 +1445,7 @@ def generate_simulator(
                 scratch_device[:superoperators_device.shape[0], :, :]
             )
 
-        if use_kernel:
+        if use_unitary:
             if verbose:
                 print("Moving from operator to superoperator form")
             _apply_global_sandwich_run(
