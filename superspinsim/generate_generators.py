@@ -471,9 +471,11 @@ def _add_thermalisation(
             quiescent_states.shape, dtype=meta_datatype)
         for state_index, boltzmann_factor in enumerate(boltzmann_factors):
             markov_matrix[state_index, :] = boltzmann_factors
-            markov_matrix[state_index, state_index] -= \
-                np.sum(boltzmann_factors)
-        norm = np.linalg.norm(markov_matrix, ord=2)
+            # markov_matrix[state_index, state_index] = 0
+            # markov_matrix[state_index, state_index] -= \
+            #     np.sum(boltzmann_factors)
+        # norm = np.linalg.norm(markov_matrix, ord=2)
+        norm = np.sum(boltzmann_factors)
         boltzmann_factors /= norm*thermalisation_time
         boltzmann_factors = np.sqrt(boltzmann_factors)
 
