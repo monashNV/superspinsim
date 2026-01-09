@@ -453,9 +453,11 @@ def _add_thermalisation(
         else:
             temperature = s3p.standards.lab.ntp.temperature
         if temperature > 0:
-            boltzmann_factors = np.exp(-quiescent_energies/(
-                math.tau*s3p.fundamental.boltzmann_gyro
-            ))
+            boltzmann_factors = \
+                -quiescent_energies \
+                / (math.tau*s3p.fundamental.boltzmann_gyro*temperature)
+            boltzmann_factors += np.min(boltzmann_factors)
+            boltzmann_factors = np.exp(boltzmann_factors)
         else:
             boltzmann_factors = np.zeros_like(
                 quiescent_energies, dtype=meta_datatype)
