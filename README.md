@@ -96,6 +96,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.0.0
+
+BREAKING: The spin system generator uses a better model for T1 thermalisation.
+
 ### 0.5.0
 
 Added unitary mode for solving the Shroedinger/von Neumann equation.
