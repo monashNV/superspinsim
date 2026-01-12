@@ -453,9 +453,11 @@ def _add_thermalisation(
         else:
             temperature = s3p.standards.lab.ntp.temperature
         if temperature > 0:
-            boltzmann_factors = np.exp(-quiescent_energies/(
-                math.tau*s3p.fundamental.boltzmann_gyro
-            ))
+            boltzmann_factors = \
+                -quiescent_energies \
+                / (math.tau*s3p.fundamental.boltzmann_gyro*temperature)
+            # boltzmann_factors += np.min(boltzmann_factors)
+            boltzmann_factors = np.exp(boltzmann_factors)
         else:
             boltzmann_factors = np.zeros_like(
                 quiescent_energies, dtype=meta_datatype)
@@ -464,25 +466,40 @@ def _add_thermalisation(
                 if energy == energy_min:
                     boltzmann_factors[state_index] = 1
 
-        # Normalise rate by T1
-        markov_matrix = np.empty(
-            quiescent_states.shape, dtype=meta_datatype)
-        for state_index, boltzmann_factor in enumerate(boltzmann_factors):
-            markov_matrix[state_index, :] = boltzmann_factors
-            markov_matrix[state_index, state_index] -= \
-                np.sum(boltzmann_factors)
-        norm = np.linalg.norm(markov_matrix, ord=2)
-        boltzmann_factors /= norm*thermalisation_time
-        boltzmann_factors = np.sqrt(boltzmann_factors)
+        # # Normalise rate by T1
+        # markov_matrix = np.empty(
+        #     quiescent_states.shape, dtype=meta_datatype)
+        # for state_index, boltzmann_factor in enumerate(boltzmann_factors):
+        #     markov_matrix[state_index, :] = boltzmann_factors
+        #     # markov_matrix[state_index, state_index] = 0
+        #     # markov_matrix[state_index, state_index] -= \
+        #     #     np.sum(boltzmann_factors)
+        # # norm = np.linalg.norm(markov_matrix, ord=2)
+        # norm = np.sum(boltzmann_factors)
+        # boltzmann_factors /= norm*thermalisation_time
+        # boltzmann_factors = np.sqrt(boltzmann_factors)
 
         # Generate the jump operators
-        for state_index_init in range(len(boltzmann_factors)):
-            for state_index_final, boltzmann_factor in \
+        for state_index_init, boltzmann_factor_init in \
+                enumerate(boltzmann_factors):
+            for state_index_final, boltzmann_factor_final in \
                     enumerate(boltzmann_factors):
-                jump_temp = boltzmann_factor*np.outer(
+                # if state_index_final == state_index_init:
+                #     continue
+                denominator = boltzmann_factor_init + boltzmann_factor_final
+                if denominator == 0:
+                    continue
+                boltzmann_factor_ratio = boltzmann_factor_final \
+                    / (denominator*thermalisation_time)
+                boltzmann_factor_ratio = math.sqrt(boltzmann_factor_ratio)
+                # print(boltzmann_factor_ratio)
+
+                jump_temp = np.outer(
                     quiescent_states[:, state_index_final],
                     np.conj(quiescent_states[:, state_index_init]),
                 )
+                jump_temp *= boltzmann_factor_ratio
+
                 jump = np.empty(
                     (jump_temp.shape[0], jump_temp.shape[1], 2),
                     dtype=meta_datatype
