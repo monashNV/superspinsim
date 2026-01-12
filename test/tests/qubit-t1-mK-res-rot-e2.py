@@ -1,17 +1,22 @@
 def main():
     from util import compare_density
 
-    import math
     import numpy as np
-
     from superspinsim import simspins
 
+    import math
+
     # Define magnetic field (Rabi dressing)
-    dressing_frequency = 7e6    # ~ on resonance
-    dressing_amplitude = 10e-6  # 10 uT
+    dressing_frequency = 28e6   # ~ on resonance
+    dressing_amplitude = 10e-3  # 10 mT
+    dressing_rabi = dressing_amplitude*28e9
 
     def mag_x(time):
-        return dressing_amplitude*math.cos(math.tau*dressing_frequency*time)
+        if time < 1/(2*dressing_rabi):
+            return \
+                dressing_amplitude*math.cos(math.tau*dressing_frequency*time)
+        else:
+            return 0
 
     def mag_y(time):
         return 0.0
@@ -25,14 +30,14 @@ def main():
 
     # Define qubit
     spins = [[{
-        "S": 1, "g": -1/2,            # (spin-one, 87Rb g factor)
-        "D": 72,                      # (87Rb quad shift)
-        "B0": np.array([0, 0, 1e-3])  # (Bias magnetic field of 1 mT along z)
+        "S": 1/2, "g": 2.0,            # (spin-half, electron g factor)
+        "B0": np.array([0, 0, 1e-3]),  # Bias magnetic field of 1 mT along z
+        "TS1": 1e-6, "T": 1e-3
     }]]
 
     # Define density matrix
-    density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial = np.zeros((2, 2), dtype=np.float64)
+    density_initial[1, 1] = 1
 
     # Simulate
     time, density = simspins(
@@ -42,14 +47,14 @@ def main():
         density_initial,                    # Initial state
         use_rotating=True,
         use_residual=True,
-        number_of_exponentials=1,
+        number_of_exponentials=2,
         number_of_fine_divisions=100,
-        use_kernel=True,
+        use_kernel=False,
         use_unitary=False,
         verbose=True
     )
 
-    compare_density("qutrit-couple", density)
+    compare_density("qubit-t1-mK", density)
 
 
 if __name__ == "__main__":

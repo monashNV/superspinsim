@@ -492,7 +492,7 @@ def _add_thermalisation(
                 boltzmann_factor_ratio = boltzmann_factor_final \
                     / (denominator*thermalisation_time)
                 boltzmann_factor_ratio = math.sqrt(boltzmann_factor_ratio)
-                print(boltzmann_factor_ratio)
+                # print(boltzmann_factor_ratio)
 
                 jump_temp = np.outer(
                     quiescent_states[:, state_index_final],
