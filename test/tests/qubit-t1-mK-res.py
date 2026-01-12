@@ -1,5 +1,5 @@
 def main():
-    from util import compare_density
+    from util import save_density, compare_density
 
     import numpy as np
     from superspinsim import simspins
@@ -54,6 +54,7 @@ def main():
         verbose=True
     )
 
+    save_density("qubit-t1-mK", density)
     compare_density("qubit-t1-mK", density)
 
 
