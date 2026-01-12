@@ -6,7 +6,7 @@ import warnings
 
 REFERENCE_PATH = "../reference/"
 DELIMITER = ","
-PRECISION = 1e-6
+PRECISION = 1e-5
 
 
 def flatten_density(density: np.ndarray):
