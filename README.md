@@ -96,6 +96,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 0.5.0
+
+Added unitary mode for solving the Shroedinger/von Neumann equation.
+
 ### 0.4.0
 
 Tested equivalence classes.
