@@ -1,5 +1,4 @@
 numba
-numba-cuda
 numpy
 sympy
 qutip
