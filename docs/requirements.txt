@@ -1,6 +1,4 @@
 numba
-cuda-core
-cuda-bindings
 numba-cuda
 numpy
 sympy

@@ -96,6 +96,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.0.1
+
+Fix for documentation.
+
 ### 1.0.0
 
 BREAKING: The spin system generator uses a better model for T1 thermalisation.
