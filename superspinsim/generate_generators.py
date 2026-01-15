@@ -1398,6 +1398,40 @@ def _add_block_interaction(
                     relaxation_rate_1, interaction, label_sets
                 )
 
+        elif spin_a == 0 and spin_b == 1/2:
+            # C? ISC excited
+            psi_gets_e = None
+            phi_gets_e = None
+            if "psi_gets_e" in interaction.keys():
+                psi_gets_e = interaction["psi_gets_e"]
+            if "phi_gets_e" in interaction.keys():
+                phi_gets_e = interaction["phi_gets_e"]
+            if psi_gets_e is not None or phi_gets_e is not None:
+                # if len(description[block_b]) < atom_b + 2:
+                atom_c_dict = description[block_b][atom_b + 1]
+                _couple_bell_excited(
+                    atom_a_dict, atom_b_dict, atom_c_dict,
+                    psi_gets_e, phi_gets_e,
+                    interaction, label_sets
+                )
+
+        elif spin_b == 0 and spin_a == 1/2:
+            # C? ISC excited
+            g_gets_psi = None
+            g_gets_phi = None
+            if "g_gets_psi" in interaction.keys():
+                g_gets_psi = interaction["g_gets_psi"]
+            if "g_gets_phi" in interaction.keys():
+                g_gets_phi = interaction["g_gets_phi"]
+            if g_gets_psi is not None or g_gets_phi is not None:
+                # if len(description[block_b]) < atom_b + 2:
+                atom_c_dict = description[block_a][atom_a + 1]
+                _couple_bell_ground(
+                    atom_a_dict, atom_c_dict, atom_b_dict,
+                    g_gets_psi, g_gets_phi,
+                    interaction, label_sets
+                )
+
 
 def _couple_optical(
         atom_a_dict: dict, atom_b_dict: dict, spin_a: float, spin_b: float,
@@ -1573,6 +1607,152 @@ def _couple_isc_ground(
             )
 
 
+def _couple_bell_excited(
+        atom_a_dict: dict, atom_b_dict: dict, atom_c_dict: dict,
+        psi_gets_e: float, phi_gets_e: float,
+        interaction: dict, label_sets: dict[str, dict[str, np.ndarray]]):
+
+    operator_labels = label_sets["operator_labels"]
+    dissipator_labels = label_sets["dissipator_labels"]
+
+    _, magnetic_label_p, _ = _get_spin_labels(1/2, 1/2)
+    _, magnetic_label_m, _ = _get_spin_labels(1/2, -1/2)
+    _, magnetic_label_singlet, _ = _get_spin_labels(0, 0)
+    projector_b_p = atom_b_dict[magnetic_label_p]
+    projector_b_m = atom_b_dict[magnetic_label_m]
+    projector_c_p = atom_c_dict[magnetic_label_p]
+    projector_c_m = atom_c_dict[magnetic_label_m]
+
+    projector_phi_p = projector_b_p*projector_c_p
+    projector_phi_m = projector_b_m*projector_c_m
+    projector_psi_p = projector_b_p*projector_c_m
+    projector_psi_m = projector_b_m*projector_c_p
+
+    if psi_gets_e is not None:
+        dissipators = _couple_incoherent(
+            atom_a_dict[magnetic_label_singlet],
+            projector_psi_p,
+            np.zeros_like(projector_psi_p)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(psi_gets_e)
+            _record_operator(
+                f"Lbell e psi+ {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+        dissipators = _couple_incoherent(
+            atom_a_dict[magnetic_label_singlet],
+            projector_psi_m,
+            np.zeros_like(projector_psi_m)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(psi_gets_e)
+            _record_operator(
+                f"Lbell e psi- {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+    if phi_gets_e is not None:
+        dissipators = _couple_incoherent(
+            atom_a_dict[magnetic_label_singlet],
+            projector_phi_p,
+            np.zeros_like(projector_phi_p)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(phi_gets_e)
+            _record_operator(
+                f"Lbell e phi+ {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+        dissipators = _couple_incoherent(
+            atom_a_dict[magnetic_label_singlet],
+            projector_phi_m,
+            np.zeros_like(projector_phi_m)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(phi_gets_e)
+            _record_operator(
+                f"Lbell e phi- {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+
+
+def _couple_bell_ground(
+        atom_b_dict: dict, atom_c_dict: dict, atom_a_dict: dict,
+        g_gets_psi: float, g_gets_phi: float,
+        interaction: dict, label_sets: dict[str, dict[str, np.ndarray]]):
+
+    operator_labels = label_sets["operator_labels"]
+    dissipator_labels = label_sets["dissipator_labels"]
+
+    _, magnetic_label_p, _ = _get_spin_labels(1/2, 1/2)
+    _, magnetic_label_m, _ = _get_spin_labels(1/2, -1/2)
+    _, magnetic_label_singlet, _ = _get_spin_labels(0, 0)
+    projector_b_p = atom_b_dict[magnetic_label_p]
+    projector_b_m = atom_b_dict[magnetic_label_m]
+    projector_c_p = atom_c_dict[magnetic_label_p]
+    projector_c_m = atom_c_dict[magnetic_label_m]
+
+    projector_phi_p = projector_b_p*projector_c_p
+    projector_phi_m = projector_b_m*projector_c_m
+    projector_psi_p = projector_b_p*projector_c_m
+    projector_psi_m = projector_b_m*projector_c_p
+
+    if g_gets_psi is not None:
+        dissipators = _couple_incoherent(
+            projector_psi_p,
+            atom_a_dict[magnetic_label_singlet],
+            np.zeros_like(projector_psi_p)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(g_gets_psi)
+            _record_operator(
+                f"Lbell psi+ g {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+        dissipators = _couple_incoherent(
+            projector_psi_m,
+            atom_a_dict[magnetic_label_singlet],
+            np.zeros_like(projector_psi_m)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(g_gets_psi)
+            _record_operator(
+                f"Lbell psi- g {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+    if g_gets_phi is not None:
+        dissipators = _couple_incoherent(
+            projector_phi_p,
+            atom_a_dict[magnetic_label_singlet],
+            np.zeros_like(projector_phi_p)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(g_gets_phi)
+            _record_operator(
+                f"Lbell phi+ g {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+        dissipators = _couple_incoherent(
+            projector_phi_m,
+            atom_a_dict[magnetic_label_singlet],
+            np.zeros_like(projector_phi_m)
+        )
+        for index, dissipator in enumerate(dissipators):
+            dissipator *= np.sqrt(g_gets_phi)
+            _record_operator(
+                f"Lbell phi- g {index}",
+                dissipator, interaction,
+                [operator_labels, dissipator_labels]
+            )
+
+
 def _couple_incoherent(
         initial_projector: np.ndarray, final_projector: np.ndarray,
         template: np.ndarray) -> list[np.ndarray]:
@@ -1625,10 +1805,9 @@ def _generate_superoperators(
 
 
 def _combine_superoperators(superoperator_dict: dict):
-
     dissipator_dict = {}
     superoperator_combine_labels = \
-        {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc"}
+        {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc", "Lbell"}
     superoperator_dict_add = {}
     for label, superoperator in superoperator_dict.items():
         if "]" not in label:
@@ -1649,7 +1828,7 @@ def _combine_superoperators(superoperator_dict: dict):
     dissipator_dict.update(superoperator_dict_add)
 
     superoperator_combine_labels_dict = {
-        "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc"],
+        "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc", "Lbell"],
         "Gr": ["Lrc", "Lrn"]
     }
     superoperator_dict_add = {}
