@@ -29,18 +29,12 @@ dynamics):
 SuperSpinsim is a **work-in-progress**.
 
 The simulator is currently functional.
-There may still be some edge cases that cause errors; please let us know here
-if any are found.
 
-There are a few features related to efficient representation of
-states/processes that we want to add which are not fully-implemented yet:
+We are preparing a manuscript for review.
+There are a few that we want to add before submission which are not
+fully-implemented yet:
 
-- Compressed, equivalence class representations of systems which have subspaces
-  of states unaffected by the equations of motion.
-  - Experimental feature; implemented but not fully tested.
-- Efficient calculation of purely unitary dynamics.
-
-We will submit a manuscript for review when the above are implemented.
+- A simplified way to declare quantum states.
 
 There are some further features which are thinking about adding, possibly after
 the manuscript is submitted:
@@ -95,6 +89,11 @@ uv add ../superspinsim
 ```
 
 ## Version log
+
+### 1.1.0
+
+Added ability for incoherent transitions to entangled states
+(needed for, eg, the model of C? defects in hBN).
 
 ### 1.0.1
 

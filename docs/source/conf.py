@@ -2,9 +2,9 @@ import os
 import sys
 
 project = 'superspinsim'
-copyright = '2025, Alex Tritt'
+copyright = '2025-2026, Alex Tritt'
 author = 'Alex Tritt'
-release = '1.0.1'
+release = '1.1.0'
 
 extensions = [
     "sphinx_rtd_theme",
