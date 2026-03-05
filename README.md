@@ -90,6 +90,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.1.1
+
+Updated documentation
+
 ### 1.1.0
 
 Added ability for incoherent transitions to entangled states

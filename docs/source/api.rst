@@ -68,18 +68,19 @@ Key               Description
 Electron
 ~~~~~~~~
 
-=============  ================================================
+=============  ==================================================
 Key            Description
-=============  ================================================
+=============  ==================================================
 :obj:`S`       Electron spin quantum number.
                Can be absent if a nuclear spin is defined.
 :obj:`g`       Longitudinal electron g factor.
 :obj:`g_perp`  Transverse electron g factor.
                If undefined, it is assumed that g is isotropic.
 :obj:`D`       Zero-field splitting in radians/second.
+:obj:`E`       Transverse zero-field splitting in radians/second.
 :obj:`TS1`     Electron :math:`T_1`  time in seconds.
 :obj:`TS2`     Electron :math:`T_2`  time in seconds.
-=============  ================================================
+=============  ==================================================
 
 Nucleus
 ~~~~~~~
