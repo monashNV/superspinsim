@@ -14,3 +14,5 @@ nohup.out
 
 *.gif
 test/*.xml
+
+.vscode
