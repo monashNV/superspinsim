@@ -1059,7 +1059,7 @@ def kroneker_jump_outer(
         inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
     products = []
 
-    for inner_index in range(outer.shape[0]):
+    for inner_index in range(inner.shape[0]):
         product = np.zeros(
             (
                 outer.shape[0]*inner.shape[0],
