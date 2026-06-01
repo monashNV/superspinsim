@@ -90,6 +90,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.1.2
+
+Fixed bug with spin-spin interactions of different spin numbers.
+
 ### 1.1.1
 
 Updated documentation
