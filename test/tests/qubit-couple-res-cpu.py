@@ -49,6 +49,7 @@ def main():
         use_cuda=False
     )
 
+    # print(density)
     compare_density("qubit-couple", density)
 
 

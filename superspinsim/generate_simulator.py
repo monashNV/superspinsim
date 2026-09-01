@@ -273,13 +273,17 @@ def generate_simulator(
                 coefficients, weighted_coefficients, weights):
             for coef_index in nb.prange(weighted_coefficients.shape[1]):
                 for weight_index in nb.prange(weights.shape[0]):
-                    _combine_coefficients(
-                        coefficients,
-                        weighted_coefficients,
-                        weights,
-                        weight_index,
-                        coef_index
-                    )
+                    for block_index in nb.prange(weighted_coefficients.shape[0]//weights.shape[0]):
+                        _combine_coefficients(
+                            coefficients[block_index*weights.shape[1]:
+                                         (block_index + 1)*weights.shape[1], :],
+                            weighted_coefficients[
+                                block_index*weights.shape[0]:
+                                (block_index + 1)*weights.shape[0], :],
+                            weights,
+                            weight_index,
+                            coef_index
+                        )
 
         _combine_coefficients_loop = nb.jit(
             _combine_coefficients_loop, **cpu_options)
@@ -936,7 +940,6 @@ def generate_simulator(
             if use_cuda:
                 grid_size = (
                     superoperators.shape[0], number_of_submatrices,
-                    number_of_submatrices
                 )
                 block_size = (submatrix_size, submatrix_size)
 
@@ -1802,6 +1805,8 @@ def generate_simulator(
                 _combine_coefficients_run(
                     coefficients_device, weighted_coefficients_device,
                     weights_device)
+                # print(weighted_coefficients_device)
+                # print("")
 
                 # Scale generators by time step and reduction for
                 # exponentiation
@@ -1812,6 +1817,7 @@ def generate_simulator(
 
             # Put Lindbladian superoperator in matrix form
             _scale_differential_basic_run(superoperators_device)
+            # print(superoperators_device)
 
             # # Apply a Cayley transform (Pade 1,1) to the Lindbladian for
             # # smoother exponentiation

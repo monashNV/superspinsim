@@ -8,7 +8,7 @@ dependencies = [
 	"cuda-core",
 	"cuda-bindings",
 	"numba-cuda",
-	"numpy",
+	"numpy<2.5",
 	"sympy",
 	"qutip"
 ]
@@ -20,6 +20,11 @@ exclude = [
 	"test*",
 	"examples*"
 ]
+
+
+
+
+
 
 
 
