@@ -1289,6 +1289,7 @@ def generate_simulator(
                     x_index
                 )
 
+        _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
     else:
         _multiply_superoperator_operator = nb.jit(
             _multiply_superoperator_operator)
