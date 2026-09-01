@@ -302,43 +302,82 @@ def generate_simulator(
         scratch: datatype = 0.0
 
         for generator_index in range(generator.shape[0]):
-            scratch = nc.fma(
-                coefficient[generator_index],
-                generator[generator_index, y_index, x_index],
-                scratch
-            )
+            if use_cuda:
+                scratch = nc.fma(
+                    coefficient[generator_index],
+                    generator[generator_index, y_index, x_index],
+                    scratch
+                )
+            else:
+                scratch += \
+                    coefficient[generator_index] \
+                    * generator[generator_index, y_index, x_index]
 
         differential[y_index, x_index] = time_step*scratch
 
     if use_cuda:
         _calculate_differential = nc.jit(_calculate_differential, device=True)
 
-        if use_rotating:
-            def _calculate_differential_kernel(
-                    time_step, generator, coefficient, differential):
-                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
-                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                if x_index < operator_size and y_index < operator_size:
-                    _calculate_differential(
-                        time_step,
-                        generator[
-                            nc.blockIdx.x % number_of_exponentials, :, :, :
-                        ],
-                        coefficient[nc.blockIdx.x, :],
-                        differential[nc.blockIdx.x, :, :], y_index, x_index
-                    )
-        else:
-            def _calculate_differential_kernel(
-                    time_step, generator, coefficient, differential):
-                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
-                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                if x_index < operator_size and y_index < operator_size:
-                    _calculate_differential(
-                        time_step, generator, coefficient[nc.blockIdx.x, :],
-                        differential[nc.blockIdx.x, :, :], y_index, x_index
-                    )
+        # if use_rotating:
+        #     def _calculate_differential_kernel(
+        #             time_step, generator, coefficient, differential):
+        #         x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+        #         y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+        #         coef_index = nc.blockIdx.x
+        #         if x_index < operator_size and y_index < operator_size:
+        #             _calculate_differential(
+        #                 time_step,
+        #                 generator[
+        #                     coef_index % number_of_exponentials, :, :, :
+        #                 ],
+        #                 coefficient[coef_index, :],
+        #                 differential[coef_index, :, :], y_index, x_index
+        #             )
+        # else:
+        def _calculate_differential_kernel(
+                time_step, generator, coefficient, differential):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            coef_index = nc.blockIdx.x
+            if x_index < operator_size and y_index < operator_size:
+                _calculate_differential(
+                    time_step, generator, coefficient[coef_index, :],
+                    differential[coef_index, :, :], y_index, x_index
+                )
 
         _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
+
+    else:
+        _calculate_differential = nb.jit(_calculate_differential)
+
+        # if use_rotating:
+        #     def _calculate_differential_loop(
+        #             time_step, generator, coefficient, differential):
+        #         x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+        #         y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+        #         coef_index = nc.blockIdx.x
+        #         if x_index < operator_size and y_index < operator_size:
+        #             _calculate_differential(
+        #                 time_step,
+        #                 generator[
+        #                     coef_index % number_of_exponentials, :, :, :
+        #                 ],
+        #                 coefficient[coef_index, :],
+        #                 differential[coef_index, :, :], y_index, x_index
+        #             )
+        # else:
+        def _calculate_differential_loop(
+                time_step, generator, coefficient, differential):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for coef_index in nb.prange(coefficient.shape[0]):
+                        _calculate_differential(
+                            time_step, generator, coefficient[coef_index, :],
+                            differential[coef_index, :, :], y_index, x_index
+                        )
+
+        _calculate_differential_loop = nb.jit(
+            _calculate_differential_loop, **cpu_options)
 
     def _calculate_differential_run(
             time_step, generator, coefficient, differential):
@@ -350,6 +389,9 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _calculate_differential_kernel[grid_size, block_size] \
                 (time_step, generator, coefficient, differential)
+        else:
+            _calculate_differential_loop(
+                time_step, generator, coefficient, differential)
 
     def _calculate_differential_rotating(
             time_step, generator, coefficient, weight, differential, y_index,
@@ -363,7 +405,10 @@ def generate_simulator(
                     generator[node_index, generator_index, y_index, x_index] \
                     * coefficient[node_index, generator_index]
                 scratch_mult_1 = time_step*weight[node_index]
-                scratch = nc.fma(scratch_mult_0, scratch_mult_1, scratch)
+                if use_cuda:
+                    scratch = nc.fma(scratch_mult_0, scratch_mult_1, scratch)
+                else:
+                    scratch += scratch_mult_0*scratch_mult_1
         differential[y_index, x_index] = scratch
 
     if use_cuda:
@@ -391,6 +436,25 @@ def generate_simulator(
 
         _calculate_differential_rotating_kernel = \
             nc.jit(_calculate_differential_rotating_kernel)
+    else:
+        _calculate_differential_rotating = \
+            nb.jit(_calculate_differential_rotating)
+
+        def _calculate_differential_rotating_loop(
+                time_step, generator, coefficient, weight, differential):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for coef_index in nb.prange(differential.shape[0]):
+                        _calculate_differential_rotating(
+                            time_step, generator,
+                            coefficient,
+                            weight,
+                            differential[coef_index, :, :],
+                            y_index, x_index
+                        )
+
+        _calculate_differential_rotating_loop = \
+            nb.jit(_calculate_differential_rotating_loop, **cpu_options)
 
     def _calculate_differential_rotating_run(
             time_step, generator, coefficient, weight, differential):
@@ -402,15 +466,16 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _calculate_differential_rotating_kernel[grid_size, block_size](
                 time_step, generator, coefficient, weight, differential)
+        else:
+            _calculate_differential_rotating_loop(
+                time_step, generator, coefficient, weight, differential)
 
     def _scale_differential_basic(differential, y_index, x_index):
-        if use_cayley:
-            differential[y_index, x_index] /= 2*scaling_for_quartics
-        else:
-            differential[y_index, x_index] /= scaling_for_quartics
-            if not use_residual:
-                if y_index == x_index:
-                    differential[y_index, x_index] += 1.0
+        differential[y_index, x_index] /= scaling_for_quartics
+        if not use_residual:
+            if y_index == x_index:
+                differential[y_index, x_index] += 1.0
+
     if use_cuda:
         _scale_differential_basic = nc.jit(
             _scale_differential_basic, device=True)
@@ -418,12 +483,26 @@ def generate_simulator(
         def _scale_differential_basic_kernel(differential):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            coef_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
                 _scale_differential_basic(
-                    differential[nc.blockIdx.x, :, :], y_index, x_index)
+                    differential[coef_index, :, :], y_index, x_index)
 
         _scale_differential_basic_kernel = nc.jit(
             _scale_differential_basic_kernel)
+    else:
+        _scale_differential_basic = nb.jit(
+            _scale_differential_basic)
+
+        def _scale_differential_basic_loop(differential):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for coef_index in nb.prange(differential.shape[0]):
+                        _scale_differential_basic(
+                            differential[coef_index, :, :], y_index, x_index)
+
+        _scale_differential_basic_loop = nb.jit(
+            _scale_differential_basic_loop, **cpu_options)
 
     def _scale_differential_basic_run(differential):
         if use_cuda:
@@ -434,6 +513,9 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _scale_differential_basic_kernel[grid_size, block_size] \
                 (differential)
+        else:
+            _scale_differential_basic_loop(differential)
+
 
     # Cayley ------------------------------------------------------------------
 
