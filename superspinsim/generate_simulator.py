@@ -50,16 +50,21 @@ def generate_simulator(
     operator_size = generators.shape[1]
     operator_size_density = vectorisation_map.shape[0]
 
-    def _get_dimensions_for_gpu(size, stride):
-        submatrix_size = min(size, stride)
-        number_of_submatrices = int(math.ceil(size/submatrix_size))
-        return submatrix_size, number_of_submatrices
+    if use_cuda:
+        def _get_dimensions_for_gpu(size, stride):
+            submatrix_size = min(size, stride)
+            number_of_submatrices = int(math.ceil(size/submatrix_size))
+            return submatrix_size, number_of_submatrices
 
-    stride = 32
-    submatrix_size, number_of_submatrices = _get_dimensions_for_gpu(
-        operator_size, stride)
-    submatrix_size_density, number_of_submatrices_density = \
-        _get_dimensions_for_gpu(operator_size_density, stride)
+        stride = 32
+        submatrix_size, number_of_submatrices = _get_dimensions_for_gpu(
+            operator_size, stride)
+        submatrix_size_density, number_of_submatrices_density = \
+            _get_dimensions_for_gpu(operator_size_density, stride)
+    else:
+        cpu_options = {
+            "nopython": True, "error_model": "numpy", "fastmath": True
+        }
 
     if number_of_exponentials == 1:
         if verbose:
@@ -143,8 +148,7 @@ def generate_simulator(
                 _calculate_time(time, time_index, time_start, time_step)
 
         _calculate_time_basic_loop = nb.jit(
-            _calculate_time_basic_loop,
-            nopython=True, error_model="numpy", fastmath=True
+            _calculate_time_basic_loop, **cpu_options
         )
 
         def _calculate_time_quadrature_loop(
@@ -154,8 +158,7 @@ def generate_simulator(
                     time_sample, time_index, time_start, time_step, sample)
 
         _calculate_time_quadrature_loop = nb.jit(
-            _calculate_time_quadrature_loop,
-            nopython=True, error_model="numpy", fastmath=True
+            _calculate_time_quadrature_loop, **cpu_options
         )
 
     def _calculate_time_basic_run(time, time_start, time_step):
@@ -195,15 +198,30 @@ def generate_simulator(
 
             sample_kernel = nc.jit(sample_kernel)
 
+        else:
+            sampler_device = nb.jit(sampler)
+
+            def sample_loop(times, coefficients):
+                for time_index in nb.prange(times.size):
+                    for generator_index in range(coefficients.shape[1]):
+                        coefficients[time_index, generator_index] = 0.0
+
+                    sampler_device(
+                        times[time_index], coefficients[time_index, :])
+
+            sample_loop = nb.jit(sample_loop, **cpu_options)
+
         def sample_run(times, coefficients):
             if use_cuda:
                 grid_size = (int(math.ceil(times.size/32)), 1)
                 block_size = (32, 1)
                 sample_kernel[grid_size, block_size](times, coefficients)
+            # else:
+            #     sample_loop(times, coefficients)
 
         return sample_run
 
-    # Make sampler GPU compatible
+    # Make sampler GPU/CPU compatible
     sample_run = _generate_sampler(sampler)
 
     # Quadrature --------------------------------------------------------------
@@ -213,11 +231,16 @@ def generate_simulator(
             exponential_index, coefficient_index):
         scratch = 0
         for trace_index in range(weight.shape[1]):
-            scratch = nc.fma(
-                weight[exponential_index, trace_index],
-                coefficient[trace_index, coefficient_index],
-                scratch
-            )
+            if use_cuda:
+                scratch = nc.fma(
+                    weight[exponential_index, trace_index],
+                    coefficient[trace_index, coefficient_index],
+                    scratch
+                )
+            else:
+                scratch += \
+                    weight[exponential_index, trace_index] \
+                    * coefficient[trace_index, coefficient_index]
         weighted_coefficient[exponential_index, coefficient_index] = scratch
 
     if use_cuda:
@@ -225,20 +248,41 @@ def generate_simulator(
 
         def _combine_coefficients_kernel(
                 coefficients, weighted_coefficients, weights):
-            if nc.threadIdx.x < weighted_coefficients.shape[1] \
-                    and nc.threadIdx.y < weights.shape[0]:
+            coef_index = nc.threadIdx.x
+            weight_index = nc.threadIdx.y
+            block_index = nc.blockIdx.x
+            if coef_index < weighted_coefficients.shape[1] \
+                    and weight_index < weights.shape[0]:
                 _combine_coefficients(
-                    coefficients[nc.blockIdx.x*weights.shape[1]:
-                                 (nc.blockIdx.x + 1)*weights.shape[1], :],
+                    coefficients[block_index*weights.shape[1]:
+                                 (block_index + 1)*weights.shape[1], :],
                     weighted_coefficients[
-                        nc.blockIdx.x*weights.shape[0]:
-                        (nc.blockIdx.x + 1)*weights.shape[0], :],
+                        block_index*weights.shape[0]:
+                        (block_index + 1)*weights.shape[0], :],
                     weights,
-                    nc.threadIdx.y,
-                    nc.threadIdx.x
+                    weight_index,
+                    coef_index
                 )
 
         _combine_coefficients_kernel = nc.jit(_combine_coefficients_kernel)
+
+    else:
+        _combine_coefficients = nb.jit(_combine_coefficients)
+
+        def _combine_coefficients_loop(
+                coefficients, weighted_coefficients, weights):
+            for coef_index in nb.prange(weighted_coefficients.shape[1]):
+                for weight_index in nb.prange(weights.shape[0]):
+                    _combine_coefficients(
+                        coefficients,
+                        weighted_coefficients,
+                        weights,
+                        weight_index,
+                        coef_index
+                    )
+
+        _combine_coefficients_loop = nb.jit(
+            _combine_coefficients_loop, **cpu_options)
 
     def _combine_coefficients_run(
             coefficients, weighted_coefficients, weights):
@@ -247,6 +291,9 @@ def generate_simulator(
             block_size = (weighted_coefficients.shape[1], weights.shape[0])
             _combine_coefficients_kernel[grid_size, block_size] \
                 (coefficients, weighted_coefficients, weights)
+        else:
+            _combine_coefficients_loop(
+                coefficients, weighted_coefficients, weights)
 
     # Matrix form -------------------------------------------------------------
 
@@ -1518,6 +1565,7 @@ def generate_simulator(
             # input("?")
 
             # Sample coefficients from user function
+            # print(coefficients_device)
             sample_run(time_sample_device, coefficients_device)
 
             if use_rotating:
