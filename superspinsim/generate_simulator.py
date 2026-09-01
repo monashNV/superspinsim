@@ -446,15 +446,21 @@ def generate_simulator(
 
         def _calculate_differential_rotating_loop(
                 time_step, generator, coefficient, weight, differential):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for coef_index in nb.prange(differential.shape[0]):
+            for block_index in nb.prange(differential.shape[0]):
+                coefficient_index_start = \
+                    (block_index//weight.shape[0]) \
+                    * weight.shape[1]
+                coefficient_index_end = \
+                    coefficient_index_start + weight.shape[1]
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
                         _calculate_differential_rotating(
-                            time_step, generator,
-                            coefficient,
-                            weight,
-                            differential[coef_index, :, :],
-                            y_index, x_index
+                        time_step, generator,
+                        coefficient[
+                            coefficient_index_start:coefficient_index_end, :],
+                        weight[block_index % weight.shape[0], :],
+                        differential[block_index, :, :],
+                        y_index, x_index
                         )
 
         _calculate_differential_rotating_loop = \
@@ -1063,8 +1069,8 @@ def generate_simulator(
                         )
 
         def _apply_global_sandwich_left_loop(left, inp, out):
-            for x_index in nb.prange(right.shape[1]):
-                for y_index in nb.prange(right.shape[0]):
+            for x_index in nb.prange(left.shape[0]):
+                for y_index in nb.prange(left.shape[1]):
                     for e_index in nb.prange(inp.shape[0]):
                         _multiply_superoperator_left(
                             left, inp[e_index, :, :], out[e_index, :, :],
@@ -1083,10 +1089,10 @@ def generate_simulator(
         _apply_global_sandwich_right_loop = nb.jit(
             _apply_global_sandwich_right_loop, **cpu_options
         )
-        _apply_global_sandwich_left_loop = nc.jit(
+        _apply_global_sandwich_left_loop = nb.jit(
             _apply_global_sandwich_left_loop, **cpu_options
         )
-        _apply_global_addition_loop = nc.jit(
+        _apply_global_addition_loop = nb.jit(
             _apply_global_addition_loop, **cpu_options
         )
 
