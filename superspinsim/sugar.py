@@ -364,7 +364,8 @@ def simspins(
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True, use_kernel: bool = False,
-        use_unitary: bool = False, verbose: bool = False):
+        use_unitary: bool = False, use_cuda:bool = True,
+        verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -498,6 +499,7 @@ def simspins(
         use_rotating=use_rotating, **rotating_dict,
         use_kernel=use_kernel, **kernel_dict,
         use_unitary=use_unitary, **unitary_dict,
+        use_cuda=use_cuda,
         verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)

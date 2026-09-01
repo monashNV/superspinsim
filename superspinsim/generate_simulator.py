@@ -134,12 +134,38 @@ def generate_simulator(
         _calculate_time_quadrature_kernel = nc.jit(
             _calculate_time_quadrature_kernel)
 
+    else:
+        _calculate_time = nb.jit(_calculate_time)
+        _calculate_time_quadrature = nb.jit(_calculate_time_quadrature)
+
+        def _calculate_time_basic_loop(time, time_start, time_step):
+            for time_index in nb.prange(time.size):
+                _calculate_time(time, time_index, time_start, time_step)
+
+        _calculate_time_basic_loop = nb.jit(
+            _calculate_time_basic_loop,
+            nopython=True, error_model="numpy", fastmath=True
+        )
+
+        def _calculate_time_quadrature_loop(
+                time, time_sample, time_start, time_step, sample):
+            for time_index in nb.prange(time.size):
+                _calculate_time_quadrature(
+                    time_sample, time_index, time_start, time_step, sample)
+
+        _calculate_time_quadrature_loop = nb.jit(
+            _calculate_time_quadrature_loop,
+            nopython=True, error_model="numpy", fastmath=True
+        )
+
     def _calculate_time_basic_run(time, time_start, time_step):
         if use_cuda:
             grid_size = (int(math.ceil(time.size/32)), 1)
             block_size = (32, 1)
             _calculate_time_basic_kernel[grid_size, block_size] \
                 (time, time_start, time_step)
+        else:
+            _calculate_time_basic_loop(time, time_start, time_step)
 
     def _calculate_time_quadrature_run(
             time, time_sample, time_start, time_step, sample):
@@ -148,6 +174,9 @@ def generate_simulator(
             block_size = (32, 1)
             _calculate_time_quadrature_kernel[grid_size, block_size] \
                 (time, time_sample, time_start, time_step, sample)
+        else:
+            _calculate_time_quadrature_loop(
+                time, time_sample, time_start, time_step, sample)
 
     # Sampling ----------------------------------------------------------------
 
@@ -929,23 +958,24 @@ def generate_simulator(
         _basic_combine_copy_kernel = nc.jit(_basic_combine_copy_kernel)
 
     def _quadrature_combine_run(exponentials, time_evolution, scratch):
-        grid_size = (
-            time_evolution.shape[0], number_of_submatrices,
-            number_of_submatrices
-        )
-        block_size = (submatrix_size, submatrix_size)
-        for exponential_index in range(0, number_of_exponentials, 2):
-            _multiply_superoperator_quadrature_kernel[grid_size, block_size](
-                exponentials, time_evolution, scratch,
-                    number_of_exponentials - exponential_index - 1)
-            if exponential_index + 1 < number_of_exponentials:
-                _multiply_superoperator_quadrature_kernel[
-                    grid_size, block_size](
-                    exponentials, scratch, time_evolution,
-                    number_of_exponentials - exponential_index - 2)
-            else:
-                _copy_superoperator_quadrature_kernel[
-                    grid_size, block_size](scratch, time_evolution)
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
+            for exponential_index in range(0, number_of_exponentials, 2):
+                _multiply_superoperator_quadrature_kernel[grid_size, block_size](
+                    exponentials, time_evolution, scratch,
+                        number_of_exponentials - exponential_index - 1)
+                if exponential_index + 1 < number_of_exponentials:
+                    _multiply_superoperator_quadrature_kernel[
+                        grid_size, block_size](
+                        exponentials, scratch, time_evolution,
+                        number_of_exponentials - exponential_index - 2)
+                else:
+                    _copy_superoperator_quadrature_kernel[
+                        grid_size, block_size](scratch, time_evolution)
 
 
     # def _quadrature_combine_run(exponentials, time_evolution, scratch):
@@ -1339,8 +1369,132 @@ def generate_simulator(
                 (time_evolution_device.shape[0], operator_size_density),
                 dtype=datatype)
 
-        if verbose:
-            print("Finished declaring VRAM")
+            if verbose:
+                print("Finished declaring VRAM")
+        else:
+            if verbose:
+                print("Declare RAM")
+
+            # Time
+            if verbose:
+                print("  Declare time RAM")
+            time_device = np.empty(
+                number_of_samples, dtype=datatype)
+
+            # Gauss-Legendre quadrature definition
+            if verbose:
+                print("  Declare Magnus RAM")
+                print("    Quadrature times")
+            sample_quadrature_device = sample_quadrature
+
+            # Storage for Gauss-Legendre quadrature points
+            if verbose:
+                print("    Quadrature times expanded")
+            time_sample_device = np.empty(
+                number_of_samples*sample_quadrature_device.size,
+                dtype=datatype)
+
+            # Weights for commutator-free integrator
+            if verbose:
+                print("    Quadrature weights")
+            weights_device = weights
+
+            if verbose:
+                print("  Declare superoperator RAM")
+            # Storage for coefficients of superoperators of Lindbladian
+            coefficients_device = np.empty(
+                (time_sample_device.size, generators.shape[0]),
+                dtype=datatype
+            )
+            weighted_coefficients_device = np.empty(
+                (weights_device.shape[0]*number_of_samples,
+                 generators.shape[0]),
+                dtype=datatype
+            )
+
+            # Basis for the Lindbladian
+            # print(generators.shape)
+            if verbose:
+                print("  Declare basis RAM")
+            if use_rotating:
+                # print(doubles)
+                # print(singles)
+                # print(doubles*time_step/number_of_fine_divisions)
+                # print(singles*time_step/number_of_fine_divisions)
+                doubles_forward_device = (
+                    doubles_forward[-1, :, :])
+                # print(doubles_forward[-1, :, :])
+                singles_forward_device = (
+                    singles_forward[-1, :])
+                # print(singles_forward[-1, :])
+                generators_device = generators_rotating
+            else:
+                generators_device = generators
+
+            # Storage for individual exponentials of the commutator-free
+            # integrator
+            if verbose:
+                print("  Declare superoperator RAM")
+            superoperators_device = np.empty(
+                (weighted_coefficients_device.shape[0],
+                 operator_size, operator_size),
+                dtype=datatype)
+
+            scratch_device = np.empty(
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size_density, operator_size_density
+                ), dtype=datatype
+            )
+
+            # Storage for time evolution superoperators
+            if verbose:
+                print("  Declare time evolution RAM")
+            time_evolution_device = np.empty(
+                (
+                    time_device.shape[0], operator_size_density,
+                    operator_size_density
+                ), dtype=datatype
+            )
+
+            # Initial density operator
+            if verbose:
+                print("  Move initial state to CPU")
+            density_operator_initial_device = (
+                  density_operator_initial_flat)
+
+            if use_rotating:
+                # Diagonalisation
+                if verbose:
+                    print("  Move diagonalisation to CPU")
+                vectors_real_device = vectors_real
+                inv_vectors_real_device = inv_vectors_real
+
+            if use_kernel:
+                if verbose:
+                    print("  Move kernel projection to CPU")
+                image_projection_device = image_projection
+                image_projection_transpose_device = image_projection.T
+                kernel_projection = -image_projection@image_projection.T
+                kernel_projection += np.eye(kernel_projection.shape[0])
+                kernel_projection_device = kernel_projection/2
+
+            if use_unitary:
+                # Diagonalisation
+                if verbose:
+                    print("  Move elimination to CPU")
+                elimination_device = elimination
+                duplication_device = duplication
+
+            # Storage for evaluated density operators
+            if verbose:
+                print("  Declare density operator RAM")
+            density_operators_device = np.empty(
+                (time_evolution_device.shape[0], operator_size_density),
+                dtype=datatype)
+
+            if verbose:
+                print("Finished declaring RAM")
 
         # Calculate time
         if verbose:
@@ -1359,6 +1513,9 @@ def generate_simulator(
             _calculate_time_quadrature_run(
                 time_device, time_sample_device, time_start + time_offset,
                 time_step, sample_quadrature_device)
+
+            # print(_calculate_time_quadrature_loop.inspect_asm(_calculate_time_quadrature_loop.signatures[0]))
+            # input("?")
 
             # Sample coefficients from user function
             sample_run(time_sample_device, coefficients_device)
@@ -1471,6 +1628,11 @@ def generate_simulator(
             # print(time_evolution)
             density_operators_flat = density_operators_device.copy_to_host()
             # print(density_operators_flat)
+        else:
+            if verbose:
+                print("Retrieving solution from CPU")
+            time = time_device
+            density_operators_flat = density_operators_device
 
         # if use_rotating:
         #     if verbose:
