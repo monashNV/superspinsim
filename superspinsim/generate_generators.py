@@ -4,6 +4,7 @@ import sympy as sy
 
 import copy
 
+import numba as nb
 import numba.cuda as nc
 
 import superspinsim.params as s3p
@@ -1882,11 +1883,18 @@ def _combine_superoperators(superoperator_dict: dict):
 
 
 def _generate_lindbladian(
-        coefficient_functions: list[callable], use_rotating: bool = False):
-    coefficient_x = nc.jit(device=True)(coefficient_functions[0])
-    coefficient_y = nc.jit(device=True)(coefficient_functions[1])
-    coefficient_z = nc.jit(device=True)(coefficient_functions[2])
-    coefficient_r = nc.jit(device=True)(coefficient_functions[3])
+        coefficient_functions: list[callable], use_rotating: bool = False,
+        use_cuda=True):
+    if use_cuda:
+        coefficient_x = nc.jit(device=True)(coefficient_functions[0])
+        coefficient_y = nc.jit(device=True)(coefficient_functions[1])
+        coefficient_z = nc.jit(device=True)(coefficient_functions[2])
+        coefficient_r = nc.jit(device=True)(coefficient_functions[3])
+    else:
+        coefficient_x = nb.jit(coefficient_functions[0])
+        coefficient_y = nb.jit(coefficient_functions[1])
+        coefficient_z = nb.jit(coefficient_functions[2])
+        coefficient_r = nb.jit(coefficient_functions[3])
 
     if use_rotating:
         def lindbladian(time, coefficient):

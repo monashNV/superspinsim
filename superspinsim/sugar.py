@@ -489,7 +489,9 @@ def simspins(
                 "singles": singles
             }
 
-    lindbladian = _generate_lindbladian(coefficients, use_rotating)
+    lindbladian = _generate_lindbladian(
+        coefficients, use_rotating, use_cuda=use_cuda)
+
     simulator = generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
         use_residual=use_residual,
