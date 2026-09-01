@@ -651,11 +651,15 @@ def generate_simulator(
 
         for trace_index in range(operator_size):
             # TODO: unroll?
-            out_scratch = nc.fma(
-                    inp[y_index, trace_index],
-                    inp[trace_index, x_index],
-                    out_scratch
-            )
+            if use_cuda:
+                out_scratch = nc.fma(
+                        inp[y_index, trace_index],
+                        inp[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    inp[y_index, trace_index]*inp[trace_index, x_index]
 
         out[y_index, x_index] = out_scratch
 
@@ -667,11 +671,15 @@ def generate_simulator(
             out_scratch: datatype = 0.0
 
         for trace_index in range(operator_size):
-            out_scratch = nc.fma(
-                    left[y_index, trace_index],
-                    right[trace_index, x_index],
-                    out_scratch
-            )
+            if use_cuda:
+                out_scratch = nc.fma(
+                        left[y_index, trace_index],
+                        right[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    left[y_index, trace_index]*right[trace_index, x_index]
         out[y_index, x_index] = out_scratch
 
     def _copy_superoperator(original, clone, y_index, x_index):
@@ -687,9 +695,10 @@ def generate_simulator(
         def _square_superoperator_kernel(inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                inp_sample = inp[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                inp_sample = inp[e_index, :, :]
+                out_sample = out[e_index, :, :]
                 _square_superoperator(inp_sample, out_sample, y_index, x_index)
 
         _square_superoperator_kernel = nc.jit(
@@ -699,10 +708,11 @@ def generate_simulator(
         def _multiply_superoperator_kernel(left, right, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                left_sample = left[nc.blockIdx.x, :, :]
-                right_sample = right[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                left_sample = left[e_index, :, :]
+                right_sample = right[e_index, :, :]
+                out_sample = out[e_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -714,11 +724,12 @@ def generate_simulator(
                 left, right, out, offset):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
                 left_sample = left[
-                    offset + number_of_exponentials*nc.blockIdx.x, :, :]
-                right_sample = right[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                    offset + number_of_exponentials*e_index, :, :]
+                right_sample = right[e_index, :, :]
+                out_sample = out[e_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -729,14 +740,81 @@ def generate_simulator(
         def _copy_superoperator_quadrature_kernel(original, clone):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                original_sample = original[nc.blockIdx.x, :, :]
-                clone_sample = clone[nc.blockIdx.x, :, :]
+                original_sample = original[e_index, :, :]
+                clone_sample = clone[e_index, :, :]
                 _copy_superoperator(
                     original_sample, clone_sample, y_index, x_index)
 
         _copy_superoperator_quadrature_kernel = nc.jit(
             _copy_superoperator_quadrature_kernel
+        )
+    else:
+        # Compile squaring
+        _square_superoperator = nb.jit(_square_superoperator)
+        _multiply_superoperator = nb.jit(_multiply_superoperator)
+        _copy_superoperator = nb.jit(_copy_superoperator)
+
+        # Wrap in kernel
+        def _square_superoperator_loop(inp, out):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for e_index in nb.prange(inp.shape[0]):
+                        inp_sample = inp[e_index, :, :]
+                        out_sample = out[e_index, :, :]
+                        _square_superoperator(
+                            inp_sample, out_sample, y_index, x_index)
+
+        _square_superoperator_loop = nb.jit(
+            _square_superoperator_loop, **cpu_options
+        )
+
+        def _multiply_superoperator_loop(left, right, out):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for e_index in nb.prange(left.shape[0]):
+                        left_sample = left[e_index, :, :]
+                        right_sample = right[e_index, :, :]
+                        out_sample = out[e_index, :, :]
+                        _multiply_superoperator(
+                            left_sample, right_sample, out_sample,
+                            y_index, x_index
+                        )
+
+        _multiply_superoperator_loop = nb.jit(
+            _multiply_superoperator_loop, **cpu_options
+        )
+
+        def _multiply_superoperator_quadrature_loop(
+                left, right, out, offset):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for e_index in nb.prange(left.shape[0]):
+                        left_sample = left[
+                            offset + number_of_exponentials*e_index, :, :]
+                        right_sample = right[e_index, :, :]
+                        out_sample = out[e_index, :, :]
+                        _multiply_superoperator(
+                            left_sample, right_sample, out_sample,
+                            y_index, x_index
+                        )
+
+        _multiply_superoperator_quadrature_loop = nb.jit(
+            _multiply_superoperator_quadrature_loop, **cpu_options
+        )
+
+        def _copy_superoperator_quadrature_loop(original, clone):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    for e_index in nb.prange(left.shape[0]):
+                        original_sample = original[e_index, :, :]
+                        clone_sample = clone[e_index, :, :]
+                        _copy_superoperator(
+                            original_sample, clone_sample, y_index, x_index)
+
+        _copy_superoperator_quadrature_loop = nb.jit(
+            _copy_superoperator_quadrature_loop, **cpu_options
         )
 
     def _repeated_quartic_superoperator_run(superoperators, scratch):
@@ -751,6 +829,10 @@ def generate_simulator(
                         superoperators, scratch)
                 _square_superoperator_kernel[grid_size, block_size](
                         scratch, superoperators)
+        else:
+            for _ in range(number_of_quartic_repeats):
+                _square_superoperator_loop(superoperators, scratch)
+                _square_superoperator_loop(scratch, superoperators)
 
     # Rotating frame ----------------------------------------------------------
 
@@ -801,24 +883,54 @@ def generate_simulator(
             def _apply_eig_double_kernel(inp, out, doubles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                e_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < doubles_size:
                     _apply_eig_double(
-                        inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                        inp[e_index, :, :], out[e_index, :, :],
                         doubles, y_index, x_index
                     )
 
             def _apply_eig_single_kernel(inp, out, singles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                e_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < singles_size:
                     _apply_eig_single(
-                        inp[nc.blockIdx.x, 2*doubles_size:, :],
-                        out[nc.blockIdx.x, 2*doubles_size:, :],
+                        inp[e_index, 2*doubles_size:, :],
+                        out[e_index, 2*doubles_size:, :],
                         singles, y_index, x_index
                     )
 
             _apply_eig_double_kernel = nc.jit(_apply_eig_double_kernel)
             _apply_eig_single_kernel = nc.jit(_apply_eig_single_kernel)
+
+        else:
+            _apply_eig_double = nb.jit(_apply_eig_double)
+            _apply_eig_single = nb.jit(_apply_eig_single)
+
+            def _apply_eig_double_loop(inp, out, doubles):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(doubles_size):
+                        for e_index in nb.prange(inp.shape[0]):
+                            _apply_eig_double(
+                                inp[e_index, :, :], out[e_index, :, :],
+                                doubles, y_index, x_index
+                            )
+
+            def _apply_eig_single_loop(inp, out, singles):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(doubles_size):
+                        for e_index in nb.prange(inp.shape[0]):
+                            _apply_eig_single(
+                                inp[e_index, 2*doubles_size:, :],
+                                out[e_index, 2*doubles_size:, :],
+                                singles, y_index, x_index
+                            )
+
+            _apply_eig_double_loop = nb.jit(
+                _apply_eig_double_loop, **cpu_options)
+            _apply_eig_single_loop = nb.jit(
+                _apply_eig_single_loop, **cpu_options)
 
         def _apply_eig_run(superoperators, scratch, doubles, singles):
             if use_cuda:
@@ -837,46 +949,58 @@ def generate_simulator(
                 _copy_superoperator_quadrature_kernel[grid_size, block_size](
                     scratch, superoperators
                 )
-
-    if use_cuda:
-        def _multiply_superoperator_right(right, inp, out, y_index, x_index):
-            if use_residual:
-                out_scratch: datatype = \
-                    right[y_index, x_index]
-                if y_index == x_index:
-                    out_scratch -= 1
             else:
-                out_scratch: datatype = 0.0
+                _apply_eig_double_loop(superoperators, scratch, doubles)
+                _apply_eig_single_loop(superoperators, scratch, singles)
+                _copy_superoperator_quadrature_loop(scratch, superoperators)
 
-            for trace_index in range(right.shape[0]):
+    def _multiply_superoperator_right(right, inp, out, y_index, x_index):
+        if use_residual:
+            out_scratch: datatype = \
+                right[y_index, x_index]
+            if y_index == x_index:
+                out_scratch -= 1
+        else:
+            out_scratch: datatype = 0.0
+
+        for trace_index in range(right.shape[0]):
+            if use_cuda:
                 out_scratch = nc.fma(
                         inp[y_index, trace_index],
                         right[trace_index, x_index],
                         out_scratch
                 )
-            out[y_index, x_index] = out_scratch
-
-        def _multiply_superoperator_left(left, inp, out, y_index, x_index):
-            if use_residual:
-                out_scratch: datatype = \
-                    left[y_index, x_index]
-                if y_index == x_index:
-                    out_scratch -= 1
             else:
-                out_scratch: datatype = 0.0
+                out_scratch += \
+                    inp[y_index, trace_index]*right[trace_index, x_index]
+        out[y_index, x_index] = out_scratch
 
-            for trace_index in range(left.shape[1]):
+    def _multiply_superoperator_left(left, inp, out, y_index, x_index):
+        if use_residual:
+            out_scratch: datatype = \
+                left[y_index, x_index]
+            if y_index == x_index:
+                out_scratch -= 1
+        else:
+            out_scratch: datatype = 0.0
+
+        for trace_index in range(left.shape[1]):
+            if use_cuda:
                 out_scratch = nc.fma(
                         left[y_index, trace_index],
                         inp[trace_index, x_index],
                         out_scratch
                 )
-            out[y_index, x_index] = out_scratch
+            else:
+                out_scratch += \
+                    left[y_index, trace_index]*inp[trace_index, x_index]
+        out[y_index, x_index] = out_scratch
 
-        def _add_superoperator(shift, inp, out, y_index, x_index):
-            out[y_index, x_index] = \
-                shift[y_index, x_index] + inp[y_index, x_index]
+    def _add_superoperator(shift, inp, out, y_index, x_index):
+        out[y_index, x_index] = \
+            shift[y_index, x_index] + inp[y_index, x_index]
 
+    if use_cuda:
         _multiply_superoperator_right = nc.jit(
             _multiply_superoperator_right, device=True)
         _multiply_superoperator_left = nc.jit(
@@ -886,27 +1010,30 @@ def generate_simulator(
         def _apply_global_sandwich_right_kernel(right, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < right.shape[1] and y_index < right.shape[0]:
                 _multiply_superoperator_right(
-                    right, inp[nc.blockIdx.x, :, :],
-                    out[nc.blockIdx.x, :, :], y_index, x_index
+                    right, inp[e_index, :, :],
+                    out[e_index, :, :], y_index, x_index
                 )
 
         def _apply_global_sandwich_left_kernel(left, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < left.shape[0] and y_index < left.shape[0]:
                 _multiply_superoperator_left(
-                    left, inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                    left, inp[e_index, :, :], out[e_index, :, :],
                     y_index, x_index
                 )
 
         def _apply_global_addition_kernel(shift, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            e_index = nc.blockIdx.x
             if x_index < shift.shape[0] and y_index < shift.shape[0]:
                 _add_superoperator(
-                    shift, inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                    shift, inp[e_index, :, :], out[e_index, :, :],
                     y_index, x_index
                 )
 
@@ -917,6 +1044,48 @@ def generate_simulator(
             _apply_global_sandwich_left_kernel
         )
         _apply_global_addition_kernel = nc.jit(_apply_global_addition_kernel)
+
+    else:
+        _multiply_superoperator_right = nb.jit(_multiply_superoperator_right)
+        _multiply_superoperator_left = nb.jit(_multiply_superoperator_left)
+        _add_superoperator = nb.jit(_add_superoperator)
+
+        def _apply_global_sandwich_right_loop(right, inp, out):
+            for x_index in nb.prange(right.shape[1]):
+                for y_index in nb.prange(right.shape[0]):
+                    for e_index in nb.prange(inp.shape[0]):
+                        _multiply_superoperator_right(
+                            right, inp[e_index, :, :],
+                            out[e_index, :, :], y_index, x_index
+                        )
+
+        def _apply_global_sandwich_left_loop(left, inp, out):
+            for x_index in nb.prange(right.shape[1]):
+                for y_index in nb.prange(right.shape[0]):
+                    for e_index in nb.prange(inp.shape[0]):
+                        _multiply_superoperator_left(
+                            left, inp[e_index, :, :], out[e_index, :, :],
+                            y_index, x_index
+                        )
+
+        def _apply_global_addition_loop(shift, inp, out):
+            for x_index in nb.prange(right.shape[1]):
+                for y_index in nb.prange(right.shape[0]):
+                    for e_index in nb.prange(inp.shape[0]):
+                        _add_superoperator(
+                            shift, inp[e_index, :, :], out[e_index, :, :],
+                            y_index, x_index
+                        )
+
+        _apply_global_sandwich_right_loop = nb.jit(
+            _apply_global_sandwich_right_loop, **cpu_options
+        )
+        _apply_global_sandwich_left_loop = nc.jit(
+            _apply_global_sandwich_left_loop, **cpu_options
+        )
+        _apply_global_addition_loop = nc.jit(
+            _apply_global_addition_loop, **cpu_options
+        )
 
     def _apply_global_sandwich_run(left, right, time_evolution, scratch):
         if use_cuda:
@@ -930,6 +1099,9 @@ def generate_simulator(
                 right, time_evolution, scratch)
             _apply_global_sandwich_left_kernel[grid_size, block_size](
                 left, scratch, time_evolution)
+        else:
+            _apply_global_sandwich_right_loop(right, time_evolution, scratch)
+            _apply_global_sandwich_left_loop(left, scratch, time_evolution)
 
     def _apply_global_addition_run(shift, time_evolution, scratch):
         if use_cuda:
@@ -943,6 +1115,9 @@ def generate_simulator(
                 shift, time_evolution, scratch)
             _apply_global_addition_kernel[grid_size, block_size](
                 shift, scratch, time_evolution)
+        else:
+            _apply_global_addition_loop(shift, time_evolution, scratch)
+            _apply_global_addition_loop(shift, scratch, time_evolution)
 
     # Combine samples at different quadrature nodes ---------------------------
 
