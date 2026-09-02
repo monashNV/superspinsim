@@ -104,6 +104,8 @@ def generate_simulator(
         inv_vectors_real = inv_vectors_real.copy()
         doubles = doubles.copy()
         singles = singles.copy()
+        if doubles.shape[0] == 0:
+            doubles = doubles.reshape((0, 2))
         doubles_size = doubles.shape[0]
         singles_size = singles.size
 
@@ -957,18 +959,22 @@ def generate_simulator(
                 )
                 block_size = (submatrix_size, submatrix_size)
 
-                _apply_eig_double_kernel[grid_size, block_size](
-                    superoperators, scratch, doubles
-                )
-                _apply_eig_single_kernel[grid_size, block_size](
-                    superoperators, scratch, singles
-                )
+                if doubles_size > 0:
+                    _apply_eig_double_kernel[grid_size, block_size](
+                        superoperators, scratch, doubles
+                    )
+                if singles_size > 0:
+                    _apply_eig_single_kernel[grid_size, block_size](
+                        superoperators, scratch, singles
+                    )
                 _copy_superoperator_quadrature_kernel[grid_size, block_size](
                     scratch, superoperators
                 )
             else:
-                _apply_eig_double_loop(superoperators, scratch, doubles)
-                _apply_eig_single_loop(superoperators, scratch, singles)
+                if doubles_size > 0:
+                    _apply_eig_double_loop(superoperators, scratch, doubles)
+                if singles_size > 0:
+                    _apply_eig_single_loop(superoperators, scratch, singles)
                 _copy_superoperator_quadrature_loop(scratch, superoperators)
 
     def _multiply_superoperator_right(right, inp, out, y_index, x_index):
@@ -1079,7 +1085,7 @@ def generate_simulator(
         def _apply_global_sandwich_left_loop(left, inp, out):
             for t_index in nb.prange(inp.shape[0]):
                 for x_index in nb.prange(left.shape[0]):
-                    for y_index in nb.prange(left.shape[1]):
+                    for y_index in nb.prange(left.shape[0]):
                         _multiply_superoperator_left(
                             left, inp[t_index, :, :], out[t_index, :, :],
                             y_index, x_index
@@ -1585,11 +1591,17 @@ def generate_simulator(
                 # print(singles)
                 # print(doubles*time_step/number_of_fine_divisions)
                 # print(singles*time_step/number_of_fine_divisions)
-                doubles_forward_device = nc.to_device(
-                    doubles_forward[-1, :, :])
+                if doubles_size > 0:
+                    doubles_forward_device = nc.to_device(
+                        doubles_forward[-1, :, :])
+                else:
+                    doubles_forward_device = 0
                 # print(doubles_forward[-1, :, :])
-                singles_forward_device = nc.to_device(
-                    singles_forward[-1, :])
+                if singles_size > 0:
+                    singles_forward_device = nc.to_device(
+                        singles_forward[-1, :])
+                else:
+                    singles_forward_device = 0
                 # print(singles_forward[-1, :])
                 generators_device = nc.to_device(generators_rotating)
             else:
@@ -1856,7 +1868,7 @@ def generate_simulator(
             if use_rotating:
                 _apply_eig_run(
                     time_evolution_device,
-                    scratch_device[:superoperators_device.shape[0], :, :],
+                    scratch_device[:time_evolution_device.shape[0], :, :],
                     doubles_forward_device,
                     singles_forward_device
                 )

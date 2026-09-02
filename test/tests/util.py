@@ -52,6 +52,8 @@ def compare_density(name: str, density: np.ndarray):
         except RuntimeWarning:
             difference = 2*PRECISION
             print("LMAO")
+    if np.sum(np.isnan(this)) > 0:
+        difference = 2*PRECISION
 
     if difference > PRECISION:
         raise Exception("Test failed")
