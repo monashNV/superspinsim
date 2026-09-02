@@ -250,15 +250,15 @@ def generate_simulator(
                 coefficients, weighted_coefficients, weights):
             coef_index = nc.threadIdx.x
             weight_index = nc.threadIdx.y
-            block_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if coef_index < weighted_coefficients.shape[1] \
                     and weight_index < weights.shape[0]:
                 _combine_coefficients(
-                    coefficients[block_index*weights.shape[1]:
-                                 (block_index + 1)*weights.shape[1], :],
+                    coefficients[t_index*weights.shape[1]:
+                                 (t_index + 1)*weights.shape[1], :],
                     weighted_coefficients[
-                        block_index*weights.shape[0]:
-                        (block_index + 1)*weights.shape[0], :],
+                        t_index*weights.shape[0]:
+                        (t_index + 1)*weights.shape[0], :],
                     weights,
                     weight_index,
                     coef_index
@@ -271,15 +271,15 @@ def generate_simulator(
 
         def _combine_coefficients_loop(
                 coefficients, weighted_coefficients, weights):
-            for coef_index in nb.prange(weighted_coefficients.shape[1]):
-                for weight_index in nb.prange(weights.shape[0]):
-                    for block_index in nb.prange(weighted_coefficients.shape[0]//weights.shape[0]):
+            for t_index in nb.prange(weighted_coefficients.shape[0]//weights.shape[0]):
+                for coef_index in nb.prange(weighted_coefficients.shape[1]):
+                    for weight_index in nb.prange(weights.shape[0]):
                         _combine_coefficients(
-                            coefficients[block_index*weights.shape[1]:
-                                         (block_index + 1)*weights.shape[1], :],
+                            coefficients[t_index*weights.shape[1]:
+                                         (t_index + 1)*weights.shape[1], :],
                             weighted_coefficients[
-                                block_index*weights.shape[0]:
-                                (block_index + 1)*weights.shape[0], :],
+                                t_index*weights.shape[0]:
+                                (t_index + 1)*weights.shape[0], :],
                             weights,
                             weight_index,
                             coef_index
@@ -372,12 +372,12 @@ def generate_simulator(
         # else:
         def _calculate_differential_loop(
                 time_step, generator, coefficient, differential):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for coef_index in nb.prange(coefficient.shape[0]):
+            for t_index in nb.prange(coefficient.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
                         _calculate_differential(
-                            time_step, generator, coefficient[coef_index, :],
-                            differential[coef_index, :, :], y_index, x_index
+                            time_step, generator, coefficient[t_index, :],
+                            differential[t_index, :, :], y_index, x_index
                         )
 
         _calculate_differential_loop = nb.jit(
@@ -446,9 +446,9 @@ def generate_simulator(
 
         def _calculate_differential_rotating_loop(
                 time_step, generator, coefficient, weight, differential):
-            for block_index in nb.prange(differential.shape[0]):
+            for t_index in nb.prange(differential.shape[0]):
                 coefficient_index_start = \
-                    (block_index//weight.shape[0]) \
+                    (t_index//weight.shape[0]) \
                     * weight.shape[1]
                 coefficient_index_end = \
                     coefficient_index_start + weight.shape[1]
@@ -458,8 +458,8 @@ def generate_simulator(
                         time_step, generator,
                         coefficient[
                             coefficient_index_start:coefficient_index_end, :],
-                        weight[block_index % weight.shape[0], :],
-                        differential[block_index, :, :],
+                        weight[t_index % weight.shape[0], :],
+                        differential[t_index, :, :],
                         y_index, x_index
                         )
 
@@ -505,11 +505,11 @@ def generate_simulator(
             _scale_differential_basic)
 
         def _scale_differential_basic_loop(differential):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for coef_index in nb.prange(differential.shape[0]):
+            for t_index in nb.prange(differential.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
                         _scale_differential_basic(
-                            differential[coef_index, :, :], y_index, x_index)
+                            differential[t_index, :, :], y_index, x_index)
 
         _scale_differential_basic_loop = nb.jit(
             _scale_differential_basic_loop, **cpu_options)
@@ -705,10 +705,10 @@ def generate_simulator(
         def _square_superoperator_kernel(inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                inp_sample = inp[e_index, :, :]
-                out_sample = out[e_index, :, :]
+                inp_sample = inp[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _square_superoperator(inp_sample, out_sample, y_index, x_index)
 
         _square_superoperator_kernel = nc.jit(
@@ -718,11 +718,11 @@ def generate_simulator(
         def _multiply_superoperator_kernel(left, right, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                left_sample = left[e_index, :, :]
-                right_sample = right[e_index, :, :]
-                out_sample = out[e_index, :, :]
+                left_sample = left[t_index, :, :]
+                right_sample = right[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -734,12 +734,12 @@ def generate_simulator(
                 left, right, out, offset):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
                 left_sample = left[
-                    offset + number_of_exponentials*e_index, :, :]
-                right_sample = right[e_index, :, :]
-                out_sample = out[e_index, :, :]
+                    offset + number_of_exponentials*t_index, :, :]
+                right_sample = right[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -750,10 +750,10 @@ def generate_simulator(
         def _copy_superoperator_quadrature_kernel(original, clone):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                original_sample = original[e_index, :, :]
-                clone_sample = clone[e_index, :, :]
+                original_sample = original[t_index, :, :]
+                clone_sample = clone[t_index, :, :]
                 _copy_superoperator(
                     original_sample, clone_sample, y_index, x_index)
 
@@ -768,11 +768,11 @@ def generate_simulator(
 
         # Wrap in kernel
         def _square_superoperator_loop(inp, out):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for e_index in nb.prange(inp.shape[0]):
-                        inp_sample = inp[e_index, :, :]
-                        out_sample = out[e_index, :, :]
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        inp_sample = inp[t_index, :, :]
+                        out_sample = out[t_index, :, :]
                         _square_superoperator(
                             inp_sample, out_sample, y_index, x_index)
 
@@ -781,12 +781,12 @@ def generate_simulator(
         )
 
         def _multiply_superoperator_loop(left, right, out):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for e_index in nb.prange(left.shape[0]):
-                        left_sample = left[e_index, :, :]
-                        right_sample = right[e_index, :, :]
-                        out_sample = out[e_index, :, :]
+            for t_index in nb.prange(left.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        left_sample = left[t_index, :, :]
+                        right_sample = right[t_index, :, :]
+                        out_sample = out[t_index, :, :]
                         _multiply_superoperator(
                             left_sample, right_sample, out_sample,
                             y_index, x_index
@@ -798,13 +798,13 @@ def generate_simulator(
 
         def _multiply_superoperator_quadrature_loop(
                 left, right, out, offset):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for e_index in nb.prange(left.shape[0]):
+            for t_index in nb.prange(left.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
                         left_sample = left[
-                            offset + number_of_exponentials*e_index, :, :]
-                        right_sample = right[e_index, :, :]
-                        out_sample = out[e_index, :, :]
+                            offset + number_of_exponentials*t_index, :, :]
+                        right_sample = right[t_index, :, :]
+                        out_sample = out[t_index, :, :]
                         _multiply_superoperator(
                             left_sample, right_sample, out_sample,
                             y_index, x_index
@@ -815,11 +815,11 @@ def generate_simulator(
         )
 
         def _copy_superoperator_quadrature_loop(original, clone):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for e_index in nb.prange(original.shape[0]):
-                        original_sample = original[e_index, :, :]
-                        clone_sample = clone[e_index, :, :]
+            for t_index in nb.prange(original.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        original_sample = original[t_index, :, :]
+                        clone_sample = clone[t_index, :, :]
                         _copy_superoperator(
                             original_sample, clone_sample, y_index, x_index)
 
@@ -893,21 +893,21 @@ def generate_simulator(
             def _apply_eig_double_kernel(inp, out, doubles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                e_index = nc.blockIdx.x
+                t_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < doubles_size:
                     _apply_eig_double(
-                        inp[e_index, :, :], out[e_index, :, :],
+                        inp[t_index, :, :], out[t_index, :, :],
                         doubles, y_index, x_index
                     )
 
             def _apply_eig_single_kernel(inp, out, singles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                e_index = nc.blockIdx.x
+                t_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < singles_size:
                     _apply_eig_single(
-                        inp[e_index, 2*doubles_size:, :],
-                        out[e_index, 2*doubles_size:, :],
+                        inp[t_index, 2*doubles_size:, :],
+                        out[t_index, 2*doubles_size:, :],
                         singles, y_index, x_index
                     )
 
@@ -919,21 +919,21 @@ def generate_simulator(
             _apply_eig_single = nb.jit(_apply_eig_single)
 
             def _apply_eig_double_loop(inp, out, doubles):
-                for x_index in nb.prange(operator_size):
-                    for y_index in nb.prange(doubles_size):
-                        for e_index in nb.prange(inp.shape[0]):
+                for t_index in nb.prange(inp.shape[0]):
+                    for x_index in nb.prange(operator_size):
+                        for y_index in nb.prange(doubles_size):
                             _apply_eig_double(
-                                inp[e_index, :, :], out[e_index, :, :],
+                                inp[t_index, :, :], out[t_index, :, :],
                                 doubles, y_index, x_index
                             )
 
             def _apply_eig_single_loop(inp, out, singles):
-                for x_index in nb.prange(operator_size):
-                    for y_index in nb.prange(doubles_size):
-                        for e_index in nb.prange(inp.shape[0]):
+                for t_index in nb.prange(inp.shape[0]):
+                    for x_index in nb.prange(operator_size):
+                        for y_index in nb.prange(doubles_size):
                             _apply_eig_single(
-                                inp[e_index, 2*doubles_size:, :],
-                                out[e_index, 2*doubles_size:, :],
+                                inp[t_index, 2*doubles_size:, :],
+                                out[t_index, 2*doubles_size:, :],
                                 singles, y_index, x_index
                             )
 
@@ -1019,30 +1019,30 @@ def generate_simulator(
         def _apply_global_sandwich_right_kernel(right, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < right.shape[1] and y_index < right.shape[0]:
                 _multiply_superoperator_right(
-                    right, inp[e_index, :, :],
-                    out[e_index, :, :], y_index, x_index
+                    right, inp[t_index, :, :],
+                    out[t_index, :, :], y_index, x_index
                 )
 
         def _apply_global_sandwich_left_kernel(left, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < left.shape[0] and y_index < left.shape[0]:
                 _multiply_superoperator_left(
-                    left, inp[e_index, :, :], out[e_index, :, :],
+                    left, inp[t_index, :, :], out[t_index, :, :],
                     y_index, x_index
                 )
 
         def _apply_global_addition_kernel(shift, inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < shift.shape[0] and y_index < shift.shape[0]:
                 _add_superoperator(
-                    shift, inp[e_index, :, :], out[e_index, :, :],
+                    shift, inp[t_index, :, :], out[t_index, :, :],
                     y_index, x_index
                 )
 
@@ -1060,29 +1060,29 @@ def generate_simulator(
         _add_superoperator = nb.jit(_add_superoperator)
 
         def _apply_global_sandwich_right_loop(right, inp, out):
-            for x_index in nb.prange(right.shape[1]):
-                for y_index in nb.prange(right.shape[0]):
-                    for e_index in nb.prange(inp.shape[0]):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(right.shape[1]):
+                    for y_index in nb.prange(right.shape[0]):
                         _multiply_superoperator_right(
-                            right, inp[e_index, :, :],
-                            out[e_index, :, :], y_index, x_index
+                            right, inp[t_index, :, :],
+                            out[t_index, :, :], y_index, x_index
                         )
 
         def _apply_global_sandwich_left_loop(left, inp, out):
-            for x_index in nb.prange(left.shape[0]):
-                for y_index in nb.prange(left.shape[1]):
-                    for e_index in nb.prange(inp.shape[0]):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(left.shape[0]):
+                    for y_index in nb.prange(left.shape[1]):
                         _multiply_superoperator_left(
-                            left, inp[e_index, :, :], out[e_index, :, :],
+                            left, inp[t_index, :, :], out[t_index, :, :],
                             y_index, x_index
                         )
 
         def _apply_global_addition_loop(shift, inp, out):
-            for x_index in nb.prange(right.shape[1]):
-                for y_index in nb.prange(right.shape[0]):
-                    for e_index in nb.prange(inp.shape[0]):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(right.shape[1]):
+                    for y_index in nb.prange(right.shape[0]):
                         _add_superoperator(
-                            shift, inp[e_index, :, :], out[e_index, :, :],
+                            shift, inp[t_index, :, :], out[t_index, :, :],
                             y_index, x_index
                         )
 
@@ -1134,12 +1134,12 @@ def generate_simulator(
         def _id_superoperator_kernel(time_evolutions):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                time_evolutions[e_index, y_index, x_index] = 0
+                time_evolutions[t_index, y_index, x_index] = 0
                 if not use_residual:
                     if y_index == x_index:
-                        time_evolutions[e_index, y_index, x_index] = 1
+                        time_evolutions[t_index, y_index, x_index] = 1
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
@@ -1167,13 +1167,13 @@ def generate_simulator(
 
     else:
         def _id_superoperator_loop(time_evolutions):
-            for x_index in nb.prange(operator_size):
-                for y_index in nb.prange(operator_size):
-                    for e_index in nb.prange(time_evolutions.shape[0]):
-                        time_evolutions[e_index, y_index, x_index] = 0
+            for t_index in nb.prange(time_evolutions.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        time_evolutions[t_index, y_index, x_index] = 0
                         if not use_residual:
                             if y_index == x_index:
-                                time_evolutions[e_index, y_index, x_index] = 1
+                                time_evolutions[t_index, y_index, x_index] = 1
 
         _id_superoperator_loop = nb.jit(_id_superoperator_loop, **cpu_options)
 
@@ -1289,12 +1289,12 @@ def generate_simulator(
         def _apply_time_evolution_kernel(
                 time_evolutions, density_operator_initial, density_operators):
             x_index = nc.threadIdx.x
-            e_index = nc.blockIdx.x
+            t_index = nc.blockIdx.x
             if x_index < operator_size_density:
                 _multiply_superoperator_operator(
-                    time_evolutions[e_index, :, :],
+                    time_evolutions[t_index, :, :],
                     density_operator_initial,
-                    density_operators[e_index, :],
+                    density_operators[t_index, :],
                     x_index
                 )
 
@@ -1305,12 +1305,12 @@ def generate_simulator(
 
         def _apply_time_evolution_loop(
                 time_evolutions, density_operator_initial, density_operators):
-            for x_index in nb.prange(operator_size_density):
-                for e_index in nb.prange(density_operators.shape[0]):
+            for t_index in nb.prange(density_operators.shape[0]):
+                for x_index in nb.prange(operator_size_density):
                     _multiply_superoperator_operator(
-                        time_evolutions[e_index, :, :],
+                        time_evolutions[t_index, :, :],
                         density_operator_initial,
-                        density_operators[e_index, :],
+                        density_operators[t_index, :],
                         x_index
                     )
 
