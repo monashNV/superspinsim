@@ -1093,8 +1093,8 @@ def generate_simulator(
 
         def _apply_global_addition_loop(shift, inp, out):
             for t_index in nb.prange(inp.shape[0]):
-                for x_index in nb.prange(right.shape[1]):
-                    for y_index in nb.prange(right.shape[0]):
+                for x_index in nb.prange(shift.shape[1]):
+                    for y_index in nb.prange(shift.shape[0]):
                         _add_superoperator(
                             shift, inp[t_index, :, :], out[t_index, :, :],
                             y_index, x_index
