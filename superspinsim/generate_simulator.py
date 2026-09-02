@@ -7,6 +7,8 @@ import numpy as np
 import numba as nb
 import numba.cuda as nc
 
+from numba.core.runtime import rtsys
+
 import warnings
 
 
@@ -63,7 +65,11 @@ def generate_simulator(
             _get_dimensions_for_gpu(operator_size_density, stride)
     else:
         cpu_options = {
-            "nopython": True, "error_model": "numpy", "fastmath": True
+            "nopython": True,
+            "error_model": "numpy",
+            "fastmath": True,
+            "parallel": True,
+            "boundscheck": True
         }
 
     if number_of_exponentials == 1:
@@ -798,7 +804,7 @@ def generate_simulator(
 
         def _multiply_superoperator_quadrature_loop(
                 left, right, out, offset):
-            for t_index in nb.prange(left.shape[0]):
+            for t_index in nb.prange(left.shape[0]//number_of_exponentials):
                 for x_index in nb.prange(operator_size):
                     for y_index in nb.prange(operator_size):
                         left_sample = left[
@@ -815,6 +821,8 @@ def generate_simulator(
         )
 
         def _copy_superoperator_quadrature_loop(original, clone):
+            # print(original.shape)
+            # print(clone.shape)
             for t_index in nb.prange(original.shape[0]):
                 for x_index in nb.prange(operator_size):
                     for y_index in nb.prange(operator_size):
@@ -1256,6 +1264,7 @@ def generate_simulator(
                 _basic_combine_copy_kernel[grid_size, block_size] \
                     (time_evolutions, time_index, scratch)
             else:
+                # print(time_index)
                 _basic_combine_loop(time_evolutions, time_index, scratch)
                 _basic_combine_copy_loop(time_evolutions, time_index, scratch)
 
@@ -1305,7 +1314,7 @@ def generate_simulator(
 
         def _apply_time_evolution_loop(
                 time_evolutions, density_operator_initial, density_operators):
-            for t_index in nb.prange(density_operators.shape[0]):
+            for t_index in nb.prange(time_evolutions.shape[0]):
                 for x_index in nb.prange(operator_size_density):
                     _multiply_superoperator_operator(
                         time_evolutions[t_index, :, :],
@@ -1591,9 +1600,10 @@ def generate_simulator(
             if verbose:
                 print("  Declare superoperator VRAM")
             superoperators_device = nc.device_array(
-                (weighted_coefficients_device.shape[0],
-                 operator_size, operator_size),
-                dtype=datatype)
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size, operator_size
+                ), dtype=datatype)
 
             scratch_device = nc.device_array(
                 (
@@ -1607,8 +1617,8 @@ def generate_simulator(
                 print("  Declare time evolution VRAM")
             time_evolution_device = nc.device_array(
                 (
-                    time_device.shape[0], operator_size_density,
-                    operator_size_density
+                    time_device.shape[0],
+                    operator_size_density, operator_size_density
                 ), dtype=datatype
             )
 
@@ -1687,8 +1697,10 @@ def generate_simulator(
                 dtype=datatype
             )
             weighted_coefficients_device = np.empty(
-                (weights_device.shape[0]*number_of_samples,
-                 generators.shape[0]),
+                (
+                    weights_device.shape[0]*number_of_samples,
+                    generators.shape[0]
+                ),
                 dtype=datatype
             )
 
@@ -1716,9 +1728,12 @@ def generate_simulator(
             if verbose:
                 print("  Declare superoperator RAM")
             superoperators_device = np.empty(
-                (weighted_coefficients_device.shape[0],
-                 operator_size, operator_size),
-                dtype=datatype)
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size, operator_size
+                ),
+                dtype=datatype
+            )
 
             scratch_device = np.empty(
                 (
@@ -1825,11 +1840,6 @@ def generate_simulator(
             _scale_differential_basic_run(superoperators_device)
             # print(superoperators_device)
 
-            # # Apply a Cayley transform (Pade 1,1) to the Lindbladian for
-            # # smoother exponentiation
-            # if use_cayley:
-            #     _calculate_cayley_run(superoperators_device)
-
             # Repeatedly square (1 +) Lindbladian superoperator for
             # exponentiation
             _repeated_quartic_superoperator_run(
@@ -1839,16 +1849,11 @@ def generate_simulator(
             # calculation
             _quadrature_combine_run(
                 superoperators_device, time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:time_evolution_device.shape[0], :, :]
+                # scratch_device
             )
 
             if use_rotating:
-                # print(time_evolution_device.shape)
-                # print(
-                #     scratch_device[:superoperators_device.shape[0], :, :].shape
-                # )
-                # print(doubles_forward_device.shape)
-                # print(singles_forward_device.shape)
                 _apply_eig_run(
                     time_evolution_device,
                     scratch_device[:superoperators_device.shape[0], :, :],
@@ -1862,6 +1867,8 @@ def generate_simulator(
         # Accumulate time evolution across all time steps
         if verbose:
             print("Combining time evolution steps")
+
+        # print(time_evolution_device.shape, scratch_device[0, :, :].shape)
         _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
 
         if use_rotating:
@@ -1870,7 +1877,7 @@ def generate_simulator(
             _apply_global_sandwich_run(
                 vectors_real_device, inv_vectors_real_device,
                 time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:time_evolution_device.shape[0], :, :]
             )
 
         if use_kernel:
@@ -1879,11 +1886,11 @@ def generate_simulator(
             _apply_global_sandwich_run(
                 image_projection_device, image_projection_transpose_device,
                 time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:time_evolution_device.shape[0], :, :]
             )
             _apply_global_addition_run(
                 kernel_projection_device, time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:time_evolution_device.shape[0], :, :]
             )
 
         if use_unitary:
@@ -1891,7 +1898,7 @@ def generate_simulator(
                 print("Moving from operator to superoperator form")
             _apply_global_sandwich_run(
                 elimination_device, duplication_device, time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:time_evolution_device.shape[0], :, :]
             )
 
         # Apply time evolution superoperators to initial condition
