@@ -90,6 +90,11 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.1.3
+
+Added CPU functionality.
+Noticed bug with unitary functionality.
+
 ### 1.1.2
 
 Fixed bug with spin-spin interactions of different spin numbers.
