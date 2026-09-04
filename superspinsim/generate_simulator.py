@@ -71,9 +71,12 @@ def generate_simulator(
             operator_size, stride)
         submatrix_size_density, number_of_submatrices_density = \
             _get_dimensions_for_gpu(operator_size_density, stride)
+        number_of_submatrices_scratch = number_of_submatrices_density
         if use_unitary:
             submatrix_size_unitary, number_of_submatrices_unitary = \
                 _get_dimensions_for_gpu(operator_size_unitary, stride)
+            number_of_submatrices_scratch = max(
+                number_of_submatrices_density, number_of_submatrices_unitary)
     else:
         cpu_options = {
             "nopython": True,
@@ -1124,8 +1127,8 @@ def generate_simulator(
     def _apply_global_sandwich_run(left, right, time_evolution, scratch):
         if use_cuda:
             grid_size = (
-                time_evolution.shape[0], number_of_submatrices_density,
-                number_of_submatrices_density
+                time_evolution.shape[0], number_of_submatrices_scratch,
+                number_of_submatrices_scratch
             )
             block_size = (submatrix_size_density, submatrix_size_density)
 
@@ -1417,8 +1420,8 @@ def generate_simulator(
     def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
         if use_cuda:
             grid_size = (
-                time_evolutions.shape[0], number_of_submatrices_density,
-                number_of_submatrices_density
+                time_evolutions.shape[0], number_of_submatrices_unitary,
+                number_of_submatrices_unitary
             )
             block_size = (submatrix_size, submatrix_size)
             _kronecker_product_kernel[grid_size, block_size] \
@@ -1429,8 +1432,8 @@ def generate_simulator(
     def _copy_unitary_run(original, clone):
         if use_cuda:
             grid_size = (
-                clone.shape[0], number_of_submatrices_density,
-                number_of_submatrices_density
+                original.shape[0], number_of_submatrices_unitary,
+                number_of_submatrices_unitary
             )
             block_size = (submatrix_size, submatrix_size)
             _copy_unitary_kernel[grid_size, block_size](original, clone)
@@ -1991,7 +1994,7 @@ def generate_simulator(
             )
             _apply_global_sandwich_run(
                 elimination_device, duplication_device,
-                # duplication_device, elimination_device, time_evolution_device,
+                # duplication_device, elimination_device,
                 time_evolution_device[:, :operator_size_unitary, :operator_size_unitary],
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary]
             )
