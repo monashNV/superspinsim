@@ -2453,18 +2453,28 @@ def _complex_to_real(generator: np.ndarray):
         (2*generator.shape[0], 2*generator.shape[1]),
         dtype=meta_datatype
     )
-    generator_real[::2, ::2] = generator[:, :, 0]
-    generator_real[1::2, 1::2] = generator[:, :, 0]
-    generator_real[::2, 1::2] = -generator[:, :, 1]
-    generator_real[1::2, ::2] = generator[:, :, 1]
+    # re = generator[:, :, 0]
+    # im = generator[:, :, 1]
+    re = -generator[:, :, 1]
+    im = generator[:, :, 0]
+
+    generator_real[::2, ::2] = re
+    generator_real[1::2, ::2] = im
+    generator_real[::2, 1::2] = -im
+    generator_real[1::2, 1::2] = re
     return generator_real
 
 
 def _complex_to_real_all(generators: dict[np.ndarray]):
-    return {
+    generators_real = {
         label: _complex_to_real(generator)
         for label, generator in generators.items()
     }
+    generators_reorder = {}
+    for label in ["H0", "Gx", "Gy", "Gz"]:
+        generators_reorder[label] = generators_real[label]
+    generators_real["Gr"] = np.zeros_like(generators_real["H0"])
+    return generators_real
 
 
 def _get_hermitian_basis_from_valid_indices(

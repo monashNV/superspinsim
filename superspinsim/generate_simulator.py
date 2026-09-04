@@ -51,8 +51,14 @@ def generate_simulator(
         4.0**number_of_quartic_repeats
 
     generators = generators.astype(datatype)
+    # input(generators)
     operator_size = generators.shape[1]
     operator_size_density = vectorisation_map.shape[0]
+    operator_size_scratch = operator_size_density
+    if use_unitary:
+        operator_size_unitary = 2*(operator_size//2)**2
+        operator_size_scratch = max(
+            operator_size_scratch, operator_size_unitary)
 
     if use_cuda:
         def _get_dimensions_for_gpu(size, stride):
@@ -65,6 +71,9 @@ def generate_simulator(
             operator_size, stride)
         submatrix_size_density, number_of_submatrices_density = \
             _get_dimensions_for_gpu(operator_size_density, stride)
+        if use_unitary:
+            submatrix_size_unitary, number_of_submatrices_unitary = \
+                _get_dimensions_for_gpu(operator_size_unitary, stride)
     else:
         cpu_options = {
             "nopython": True,
@@ -1368,8 +1377,66 @@ def generate_simulator(
             scratch_i += (y_index_out == x_index_out)*out_i
             scratch_i -= (y_index_in == x_index_in)*out_i
 
-        time_evolutions_unitary[y_index, x_index, 0] = scratch_r
-        time_evolutions_unitary[y_index, x_index, 1] = scratch_i
+        time_evolutions_unitary[2*y_index, 2*x_index] = scratch_r
+        time_evolutions_unitary[2*y_index + 1, 2*x_index + 1] = scratch_r
+        time_evolutions_unitary[2*y_index + 1, 2*x_index] = scratch_i
+        time_evolutions_unitary[2*y_index, 2*x_index + 1] = -scratch_i
+
+    if use_cuda:
+        _kronecker_product = nc.jit(_kronecker_product, device=True)
+
+        def _kronecker_product_kernel(time_evolutions_unitary, time_evolutions):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < operator_size_density \
+                    and y_index < operator_size_density:
+                _kronecker_product(
+                    time_evolutions_unitary[t_index], time_evolutions[t_index],
+                    y_index, x_index
+                )
+
+        _kronecker_product_kernel = nc.jit(_kronecker_product_kernel)
+
+        def _copy_unitary_kernel(original, clone):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < operator_size_density \
+                    and y_index < operator_size_density:
+                _copy_superoperator(
+                    original[t_index], clone[t_index],
+                    y_index, x_index
+                )
+
+        _copy_unitary_kernel = nc.jit(_copy_unitary_kernel)
+
+    else:
+        pass
+
+    def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
+        if use_cuda:
+            grid_size = (
+                time_evolutions.shape[0], number_of_submatrices_density,
+                number_of_submatrices_density
+            )
+            block_size = (submatrix_size, submatrix_size)
+            _kronecker_product_kernel[grid_size, block_size] \
+                (time_evolutions_unitary, time_evolutions)
+        else:
+            pass
+
+    def _copy_unitary_run(original, clone):
+        if use_cuda:
+            grid_size = (
+                clone.shape[0], number_of_submatrices_density,
+                number_of_submatrices_density
+            )
+            block_size = (submatrix_size, submatrix_size)
+            _copy_unitary_kernel[grid_size, block_size](original, clone)
+        else:
+            pass
+
 
     # Simulation --------------------------------------------------------------
 
@@ -1863,14 +1930,14 @@ def generate_simulator(
             # calculation
             _quadrature_combine_run(
                 superoperators_device, time_evolution_device,
-                scratch_device[:time_evolution_device.shape[0], :, :]
+                scratch_device[:number_of_samples, :operator_size, :operator_size]
                 # scratch_device
             )
 
             if use_rotating:
                 _apply_eig_run(
-                    time_evolution_device,
-                    scratch_device[:time_evolution_device.shape[0], :, :],
+                    time_evolution_device[:, :operator_size, :operator_size],
+                    scratch_device[:number_of_samples, :operator_size, :operator_size],
                     doubles_forward_device,
                     singles_forward_device
                 )
@@ -1883,15 +1950,18 @@ def generate_simulator(
             print("Combining time evolution steps")
 
         # print(time_evolution_device.shape, scratch_device[0, :, :].shape)
-        _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
+        _basic_combine_run(
+            time_evolution_device[:, :operator_size, :operator_size],
+            scratch_device[0, :operator_size, :operator_size]
+        )
 
         if use_rotating:
             if verbose:
                 print("Moving out of the rotating frame")
             _apply_global_sandwich_run(
                 vectors_real_device, inv_vectors_real_device,
-                time_evolution_device,
-                scratch_device[:time_evolution_device.shape[0], :, :]
+                time_evolution_device[:, :operator_size, :operator_size],
+                scratch_device[:number_of_samples, :operator_size, :operator_size]
             )
 
         if use_kernel:
@@ -1899,20 +1969,31 @@ def generate_simulator(
                 print("Moving out of the equivalence class")
             _apply_global_sandwich_run(
                 image_projection_device, image_projection_transpose_device,
-                time_evolution_device,
-                scratch_device[:time_evolution_device.shape[0], :, :]
+                time_evolution_device[:, :operator_size, :operator_size],
+                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
             )
             _apply_global_addition_run(
-                kernel_projection_device, time_evolution_device,
-                scratch_device[:time_evolution_device.shape[0], :, :]
+                kernel_projection_device,
+                time_evolution_device[:, :operator_size_density, :operator_size_density],
+                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
             )
 
         if use_unitary:
             if verbose:
                 print("Moving from operator to superoperator form")
+            _kronecker_product_run(
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
+                time_evolution_device[:, :operator_size, :operator_size]
+            )
+            _copy_unitary_run(
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
+                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary]
+            )
             _apply_global_sandwich_run(
-                elimination_device, duplication_device, time_evolution_device,
-                scratch_device[:time_evolution_device.shape[0], :, :]
+                elimination_device, duplication_device,
+                # duplication_device, elimination_device, time_evolution_device,
+                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary],
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary]
             )
 
         # Apply time evolution superoperators to initial condition

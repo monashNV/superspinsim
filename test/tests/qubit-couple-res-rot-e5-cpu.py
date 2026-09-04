@@ -46,7 +46,7 @@ def main():
         use_kernel=False,
         use_unitary=False,
         verbose=True,
-        use_cuda=True
+        use_cuda=False
     )
 
     # print(density)

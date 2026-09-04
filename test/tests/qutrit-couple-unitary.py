@@ -11,7 +11,7 @@ def main():
     dressing_amplitude = 10e-6  # 10 uT
 
     def mag_x(time):
-        return dressing_amplitude*math.cos(math.tau*dressing_frequency*time)
+        return 0.0 # dressing_amplitude*math.cos(math.tau*dressing_frequency*time)
 
     def mag_y(time):
         return 0.0
@@ -26,13 +26,14 @@ def main():
     # Define qubit
     spins = [[{
         "S": 1, "g": -1/2,            # (spin-one, 87Rb g factor)
-        "D": 72,                      # (87Rb quad shift)
-        "B0": np.array([0, 0, 1e-3])  # (Bias magnetic field of 1 mT along z)
+        # "D": 72,                      # (87Rb quad shift)
+        # "B0": np.array([0, 0, 1e-3])  # (Bias magnetic field of 1 mT along z)
     }]]
 
     # Define density matrix
     density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial[1, 1] = 1
+    print(density_initial)
 
     # Simulate
     time, density = simspins(
@@ -41,7 +42,7 @@ def main():
         spins, [{}], {},                    # Spin description
         density_initial,                    # Initial state
         use_rotating=False,
-        use_residual=True,
+        use_residual=False,
         number_of_exponentials=1,
         number_of_fine_divisions=100,
         use_kernel=False,
@@ -49,6 +50,7 @@ def main():
         verbose=True
     )
 
+    print(density)
     compare_density("qutrit-couple", density)
 
 
