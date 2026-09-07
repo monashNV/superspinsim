@@ -71,6 +71,7 @@ def generate_simulator(
             operator_size, stride)
         submatrix_size_density, number_of_submatrices_density = \
             _get_dimensions_for_gpu(operator_size_density, stride)
+        submatrix_size_scratch = submatrix_size_density
         number_of_submatrices_scratch = number_of_submatrices_density
         if use_unitary:
             submatrix_size_unitary, number_of_submatrices_unitary = \
@@ -87,7 +88,7 @@ def generate_simulator(
             "error_model": "numpy",
             "fastmath": True,
             "parallel": True,
-            "boundscheck": True
+            # "boundscheck": True
         }
 
     if number_of_exponentials == 1:
