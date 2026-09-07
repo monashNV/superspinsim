@@ -1361,10 +1361,10 @@ def generate_simulator(
 
     def _kronecker_product(
             time_evolutions_unitary, time_evolutions, y_index, x_index):
-        y_index_out = y_index//(time_evolutions.shape[0]//2)
-        x_index_out = x_index//(time_evolutions.shape[1]//2)
-        y_index_in = y_index % (time_evolutions.shape[0]//2)
-        x_index_in = x_index % (time_evolutions.shape[1]//2)
+        y_index_out = y_index//(operator_size//2)
+        x_index_out = x_index//(operator_size//2)
+        y_index_in = y_index % (operator_size//2)
+        x_index_in = x_index % (operator_size//2)
 
         out_r: datatype = time_evolutions[2*y_index_out, 2*x_index_out]
         out_i: datatype = -time_evolutions[2*y_index_out + 1, 2*x_index_out]
@@ -1399,7 +1399,8 @@ def generate_simulator(
             if x_index < operator_size_unitary//2 \
                     and y_index < operator_size_unitary//2:
                 _kronecker_product(
-                    time_evolutions_unitary[t_index], time_evolutions[t_index],
+                    time_evolutions_unitary[t_index, :, :],
+                    time_evolutions[t_index, :, :],
                     y_index, x_index
                 )
 
@@ -1409,17 +1410,41 @@ def generate_simulator(
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             t_index = nc.blockIdx.x
-            if x_index < operator_size_density \
-                    and y_index < operator_size_density:
+            if x_index < operator_size_unitary \
+                    and y_index < operator_size_unitary:
                 _copy_superoperator(
-                    original[t_index], clone[t_index],
+                    original[t_index, :, :], clone[t_index, :, :],
                     y_index, x_index
                 )
 
         _copy_unitary_kernel = nc.jit(_copy_unitary_kernel)
 
     else:
-        pass
+        _kronecker_product = nb.jit(_kronecker_product)
+
+        def _kronecker_product_loop(time_evolutions_unitary, time_evolutions):
+            for t_index in nb.prange(time_evolutions_unitary.shape[0]):
+                for x_index in nb.prange(operator_size_unitary//2):
+                    for y_index in nb.prange(operator_size_unitary//2):
+                        _kronecker_product(
+                            time_evolutions_unitary[t_index, :, :],
+                            time_evolutions[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        _kronecker_product_loop = nb.jit(
+            _kronecker_product_loop, **cpu_options)
+
+        def _copy_unitary_loop(original, clone):
+            for t_index in nb.prange(original.shape[0]):
+                for x_index in nb.prange(operator_size_unitary):
+                    for y_index in nb.prange(operator_size_unitary):
+                        _copy_superoperator(
+                            original[t_index, :, :], clone[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        _copy_unitary_loop = nb.jit(_copy_unitary_loop, **cpu_options)
 
     def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
         if use_cuda:
@@ -1431,7 +1456,7 @@ def generate_simulator(
             _kronecker_product_kernel[grid_size, block_size] \
                 (time_evolutions_unitary, time_evolutions)
         else:
-            pass
+            _kronecker_product_loop(time_evolutions_unitary, time_evolutions)
 
     def _copy_unitary_run(original, clone):
         if use_cuda:
@@ -1442,7 +1467,7 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _copy_unitary_kernel[grid_size, block_size](original, clone)
         else:
-            pass
+            _copy_unitary_loop(original, clone)
 
 
     # Simulation --------------------------------------------------------------
@@ -1696,7 +1721,7 @@ def generate_simulator(
             scratch_device = nc.device_array(
                 (
                     weighted_coefficients_device.shape[0],
-                    operator_size_density, operator_size_density
+                    operator_size_scratch, operator_size_scratch
                 ), dtype=datatype
             )
 
@@ -1706,7 +1731,7 @@ def generate_simulator(
             time_evolution_device = nc.device_array(
                 (
                     time_device.shape[0],
-                    operator_size_density, operator_size_density
+                    operator_size_scratch, operator_size_scratch
                 ), dtype=datatype
             )
 
@@ -1826,7 +1851,7 @@ def generate_simulator(
             scratch_device = np.empty(
                 (
                     weighted_coefficients_device.shape[0],
-                    operator_size_density, operator_size_density
+                    operator_size_scratch, operator_size_scratch
                 ), dtype=datatype
             )
 
@@ -1835,8 +1860,8 @@ def generate_simulator(
                 print("  Declare time evolution RAM")
             time_evolution_device = np.empty(
                 (
-                    time_device.shape[0], operator_size_density,
-                    operator_size_density
+                    time_device.shape[0], operator_size_scratch,
+                    operator_size_scratch
                 ), dtype=datatype
             )
 
@@ -1988,10 +2013,14 @@ def generate_simulator(
         if use_unitary:
             if verbose:
                 print("Moving from operator to superoperator form")
+            # print(time_evolution_device[:, :operator_size, :operator_size])
             _kronecker_product_run(
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
                 time_evolution_device[:, :operator_size, :operator_size]
             )
+            # print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary])
+            # print(operator_size)
+            # input(operator_size_unitary)
             _copy_unitary_run(
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
                 time_evolution_device[:, :operator_size_unitary, :operator_size_unitary]
@@ -2002,12 +2031,13 @@ def generate_simulator(
                 time_evolution_device[:, :operator_size_unitary, :operator_size_unitary],
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary]
             )
+            # input(time_evolution_device[:, :operator_size_density, :operator_size_density])
 
         # Apply time evolution superoperators to initial condition
         if verbose:
             print("Applying time evolution to initial state")
         _apply_time_evolution_run(
-            time_evolution_device,
+            time_evolution_device[:, :operator_size_density, :operator_size_density],
             density_operator_initial_device,
             density_operators_device
         )
