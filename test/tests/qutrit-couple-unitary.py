@@ -47,7 +47,7 @@ def main():
         number_of_fine_divisions=100,
         use_kernel=False,
         use_unitary=True,
-        use_cuda=False,
+        use_cuda=True,
         verbose=True
     )
 

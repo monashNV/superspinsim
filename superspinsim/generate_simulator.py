@@ -75,8 +75,12 @@ def generate_simulator(
         if use_unitary:
             submatrix_size_unitary, number_of_submatrices_unitary = \
                 _get_dimensions_for_gpu(operator_size_unitary, stride)
+            submatrix_size_scratch = max(
+                submatrix_size_density, submatrix_size_unitary
+            )
             number_of_submatrices_scratch = max(
-                number_of_submatrices_density, number_of_submatrices_unitary)
+                number_of_submatrices_density, number_of_submatrices_unitary
+            )
     else:
         cpu_options = {
             "nopython": True,
@@ -1107,7 +1111,7 @@ def generate_simulator(
 
         def _apply_global_addition_loop(shift, inp, out):
             for t_index in nb.prange(inp.shape[0]):
-                for x_index in nb.prange(shift.shape[1]):
+                for x_index in nb.prange(shift.shape[0]):
                     for y_index in nb.prange(shift.shape[0]):
                         _add_superoperator(
                             shift, inp[t_index, :, :], out[t_index, :, :],
@@ -1130,7 +1134,7 @@ def generate_simulator(
                 time_evolution.shape[0], number_of_submatrices_scratch,
                 number_of_submatrices_scratch
             )
-            block_size = (submatrix_size_density, submatrix_size_density)
+            block_size = (submatrix_size_scratch, submatrix_size_scratch)
 
             _apply_global_sandwich_right_kernel[grid_size, block_size](
                 right, time_evolution, scratch)
@@ -1449,10 +1453,11 @@ def generate_simulator(
     def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
         if use_cuda:
             grid_size = (
-                time_evolutions.shape[0], max(1, number_of_submatrices_unitary//2),
-                max(1, number_of_submatrices_unitary//2)
+                time_evolutions_unitary.shape[0],
+                number_of_submatrices_unitary,
+                number_of_submatrices_unitary
             )
-            block_size = (submatrix_size, submatrix_size)
+            block_size = (submatrix_size_unitary, submatrix_size_unitary)
             _kronecker_product_kernel[grid_size, block_size] \
                 (time_evolutions_unitary, time_evolutions)
         else:
@@ -1464,7 +1469,7 @@ def generate_simulator(
                 original.shape[0], number_of_submatrices_unitary,
                 number_of_submatrices_unitary
             )
-            block_size = (submatrix_size, submatrix_size)
+            block_size = (submatrix_size_unitary, submatrix_size_unitary)
             _copy_unitary_kernel[grid_size, block_size](original, clone)
         else:
             _copy_unitary_loop(original, clone)
@@ -2013,12 +2018,12 @@ def generate_simulator(
         if use_unitary:
             if verbose:
                 print("Moving from operator to superoperator form")
-            # print(time_evolution_device[:, :operator_size, :operator_size])
+            print(time_evolution_device[:, :operator_size, :operator_size].copy_to_host())
             _kronecker_product_run(
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
                 time_evolution_device[:, :operator_size, :operator_size]
             )
-            # print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary])
+            print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary].copy_to_host())
             # print(operator_size)
             # input(operator_size_unitary)
             _copy_unitary_run(
