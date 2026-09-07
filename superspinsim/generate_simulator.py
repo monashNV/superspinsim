@@ -44,8 +44,8 @@ def generate_simulator(
 
     if use_cayley:
         raise "Cayley not implemented"
-    if use_unitary:
-        print("Unitary mode not functional; currently being debugged")
+    # if use_unitary:
+    #     print("Unitary mode not functional; currently being debugged")
 
     scaling_for_quartics: datatype = \
         4.0**number_of_quartic_repeats

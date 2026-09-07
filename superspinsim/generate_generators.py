@@ -2158,11 +2158,15 @@ def real_eig(generator):
         vectors_list_real_double_new += vector_double
     vectors_list_real_double = vectors_list_real_double_new
 
-    values_list_real_single, vectors_list_real_single = \
-        zip(*sorted(
-            zip(values_list_real_single, vectors_list_real_single),
-            key=(lambda x: -abs(x[0]))
-        ))
+    try:
+        values_list_real_single, vectors_list_real_single = \
+            zip(*sorted(
+                zip(values_list_real_single, vectors_list_real_single),
+                key=(lambda x: -abs(x[0]))
+            ))
+    except ValueError:
+        values_list_real_single = []
+        vectors_list_real_single = []
     values_real_single = np.array(values_list_real_single)
 
     vectors_list_real = \

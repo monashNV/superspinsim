@@ -40,9 +40,9 @@ def main():
         0, 10e-6, 1e-9,                     # Time start/stop/step
         spins, [{}], {},                    # Spin description
         density_initial,                    # Initial state
-        use_rotating=False,
+        use_rotating=True,
         use_residual=True,
-        number_of_exponentials=1,
+        number_of_exponentials=5,
         number_of_fine_divisions=100,
         use_kernel=False,
         use_unitary=True,
