@@ -32,7 +32,9 @@ def main():
 
     # Define density matrix
     density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial[0, 0] = 1/3
+    density_initial[1, 1] = 1/3
+    density_initial[2, 2] = 1/3
     print(density_initial)
 
     # Simulate

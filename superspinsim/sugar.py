@@ -441,12 +441,26 @@ def simspins(
     if not use_unitary:
         if verbose:
             print("Using superoperator representation.")
-        generators = list(generators["generators"].values())
+        # generators = list(generators["generators"].values())
+        generators = [
+            generators["generators"]["L0"],
+            generators["generators"]["Gx"],
+            generators["generators"]["Gy"],
+            generators["generators"]["Gz"],
+            generators["generators"]["Gr"],
+        ]
     else:
         if verbose:
             print("Using operator representation.")
         unitary_dict = generators["elimination"]
-        generators = list(generators["unitary"].values())
+        # generators = list(generators["unitary"].values())
+        generators = [
+            generators["unitary"]["H0"],
+            generators["unitary"]["Gx"],
+            generators["unitary"]["Gy"],
+            generators["unitary"]["Gz"],
+            generators["unitary"]["Gr"],
+        ]
 
     kernel_dict = {}
     if use_kernel:

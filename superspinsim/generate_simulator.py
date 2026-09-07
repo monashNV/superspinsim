@@ -1367,23 +1367,27 @@ def generate_simulator(
         x_index_in = x_index % (time_evolutions.shape[1]//2)
 
         out_r: datatype = time_evolutions[2*y_index_out, 2*x_index_out]
-        out_i: datatype = time_evolutions[2*y_index_out + 1, 2*x_index_out]
+        out_i: datatype = -time_evolutions[2*y_index_out + 1, 2*x_index_out]
         in_r: datatype = time_evolutions[2*y_index_in, 2*x_index_in]
         in_i: datatype = time_evolutions[2*y_index_in + 1, 2*x_index_in]
 
-        scratch_r: datatype = out_r*in_r + out_i*in_i
-        scratch_i: datatype = out_r*in_i - out_i*in_r
+        scratch_r: datatype = out_r*in_r - out_i*in_i
+        scratch_i: datatype = out_r*in_i + out_i*in_r
 
         if use_residual:
             scratch_r += (y_index_out == x_index_out)*out_r
             scratch_r += (y_index_in == x_index_in)*out_r
             scratch_i += (y_index_out == x_index_out)*out_i
-            scratch_i -= (y_index_in == x_index_in)*out_i
+            scratch_i += (y_index_in == x_index_in)*out_i
 
         time_evolutions_unitary[2*y_index, 2*x_index] = scratch_r
         time_evolutions_unitary[2*y_index + 1, 2*x_index + 1] = scratch_r
-        time_evolutions_unitary[2*y_index + 1, 2*x_index] = scratch_i
-        time_evolutions_unitary[2*y_index, 2*x_index + 1] = -scratch_i
+        time_evolutions_unitary[2*y_index + 1, 2*x_index] = -scratch_i
+        time_evolutions_unitary[2*y_index, 2*x_index + 1] = scratch_i
+
+        # time_evolutions_unitary[y_index, x_index] = 0
+        # if y_index < operator_size and x_index < operator_size:
+        #     time_evolutions_unitary[y_index, x_index] = time_evolutions[y_index, x_index]
 
     if use_cuda:
         _kronecker_product = nc.jit(_kronecker_product, device=True)
@@ -1392,8 +1396,8 @@ def generate_simulator(
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             t_index = nc.blockIdx.x
-            if x_index < operator_size_density \
-                    and y_index < operator_size_density:
+            if x_index < operator_size_unitary//2 \
+                    and y_index < operator_size_unitary//2:
                 _kronecker_product(
                     time_evolutions_unitary[t_index], time_evolutions[t_index],
                     y_index, x_index
@@ -1420,8 +1424,8 @@ def generate_simulator(
     def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
         if use_cuda:
             grid_size = (
-                time_evolutions.shape[0], number_of_submatrices_unitary,
-                number_of_submatrices_unitary
+                time_evolutions.shape[0], max(1, number_of_submatrices_unitary//2),
+                max(1, number_of_submatrices_unitary//2)
             )
             block_size = (submatrix_size, submatrix_size)
             _kronecker_product_kernel[grid_size, block_size] \
