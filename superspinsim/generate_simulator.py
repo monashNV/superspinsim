@@ -1379,9 +1379,9 @@ def generate_simulator(
         scratch_i: datatype = out_r*in_i + out_i*in_r
 
         if use_residual:
-            scratch_r += (y_index_out == x_index_out)*out_r
+            scratch_r += (y_index_out == x_index_out)*in_r
+            scratch_i += (y_index_out == x_index_out)*in_i
             scratch_r += (y_index_in == x_index_in)*out_r
-            scratch_i += (y_index_out == x_index_out)*out_i
             scratch_i += (y_index_in == x_index_in)*out_i
 
         time_evolutions_unitary[2*y_index, 2*x_index] = scratch_r
@@ -2018,12 +2018,12 @@ def generate_simulator(
         if use_unitary:
             if verbose:
                 print("Moving from operator to superoperator form")
-            print(time_evolution_device[:, :operator_size, :operator_size].copy_to_host())
+            # print(time_evolution_device[:, :operator_size, :operator_size].copy_to_host())
             _kronecker_product_run(
                 scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
                 time_evolution_device[:, :operator_size, :operator_size]
             )
-            print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary].copy_to_host())
+            # print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary].copy_to_host())
             # print(operator_size)
             # input(operator_size_unitary)
             _copy_unitary_run(
