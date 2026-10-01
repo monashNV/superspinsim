@@ -1,4 +1,6 @@
 import numpy as np
+
+import numba as nb
 try:
     from numba import cuda as nc
 except:
@@ -19,7 +21,8 @@ from superspinsim.generate_generators import \
 def mesolve(
         H, rho0: np.ndarray, ti: float, tf: float, dt: float, c_ops=None,
         allowed: np.ndarray = None, use_rotating: bool = True,
-        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10):
+        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10,
+        use_cuda=True):
     """A wrapper for superspinsim to provide a similar syntax to other
     simulators, like `qutip.mesolve`.
 
@@ -75,8 +78,21 @@ def mesolve(
     time: np.ndarray
         Time samples in seconds.
     density: np.ndarray
-        Evaluated density matrices at the times given by :obj"`time` .
+        Evaluated density matrices at the times given by :obj:`time` .
     """
+
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
+            print("Cuda not available.\nWill run on CPU instead.")
+    if not use_cuda:
+        cpu_options = {
+            "nopython": True,
+            "error_model": "numpy",
+            "fastmath": True,
+            "parallel": True,
+            # "boundscheck": True
+        }
 
     ham_quiescent, ham_time_dependent, ham_coefficients = \
         _sort_operators(H, "H")
@@ -94,16 +110,26 @@ def mesolve(
     coefficients = []
 
     for coefficient in ham_coefficients:
-        coefficient_device = nc.jit(device=True)(coefficient)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient)
+        else:
+            coefficient_device = nb.jit(coefficient, **cpu_options)
         coefficients.append(coefficient_device)
 
     for coefficient in jump_coefficients:
-        coefficient_device = nc.jit(device=True)(coefficient)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient)
+        else:
+            coefficient_device = nb.jit(coefficient, **cpu_options)
 
         def coefficient_sqrt(time):
             return np.sqrt(coefficient_device(time))
 
-        coefficient_device = nc.jit(device=True)(coefficient_sqrt)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient_sqrt)
+        else:
+            coefficient_device = nb.jit(coefficient_sqrt, **cpu_options)
+
         coefficients.append(coefficient_device)
 
     # Write coefficient function factory
@@ -120,7 +146,8 @@ def mesolve(
         lindbladian, superoperators_time_dependent, valid_indices,
         number_of_exponentials=number_of_exponentials,
         number_of_fine_divisions=number_of_fine_divisions,
-        use_rotating=use_rotating, **rotating_dict
+        use_rotating=use_rotating, **rotating_dict,
+        use_cuda=use_cuda
     )
     return_value = simulator(rho0, ti, tf, dt)
 
