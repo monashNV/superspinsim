@@ -5,7 +5,10 @@ import sympy as sy
 import copy
 
 import numba as nb
-import numba.cuda as nc
+try:
+    import numba.cuda as nc
+except Exception:
+    nc = None
 
 import superspinsim.params as s3p
 from superspinsim.util import colour_complex_matrix

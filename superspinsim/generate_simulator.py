@@ -5,7 +5,12 @@ import math
 import numpy as np
 
 import numba as nb
-import numba.cuda as nc
+
+try:
+    import numba.cuda as nc
+except Exception:
+    print("Cuda not available")
+    nc = None
 
 from numba.core.runtime import rtsys
 
