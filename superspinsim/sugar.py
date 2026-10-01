@@ -432,6 +432,11 @@ def simspins(
         Evaluated density matrices at the times given by :obj:`time` .
     """
 
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
+            print("Cuda not available.\nWill run on CPU instead.")
+
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions, use_unitary,
         verbose=verbose

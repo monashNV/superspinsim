@@ -2090,6 +2090,10 @@ def _generate_lindbladian(
         functions.
     """
 
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
+
     # Make the individual functions device functions
     if use_cuda:
         coefficient_x = nc.jit(device=True)(coefficient_functions[0])

@@ -9,7 +9,6 @@ import numba as nb
 try:
     import numba.cuda as nc
 except Exception:
-    print("Cuda not available")
     nc = None
 
 from numba.core.runtime import rtsys
@@ -46,6 +45,10 @@ def generate_simulator(
 
         use_cayley: bool = False
         ):
+
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
 
     if use_cayley:
         raise "Cayley not implemented"
