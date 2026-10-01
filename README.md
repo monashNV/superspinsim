@@ -90,6 +90,10 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.2.1
+
+Fixed bug of still requiring cuda for CPU functionality.
+
 ### 1.2.0
 
 Fixed bug with unitary functionality.
