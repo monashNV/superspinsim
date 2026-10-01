@@ -2119,6 +2119,30 @@ def _generate_lindbladian(
     return lindbladian
 
 
+def _generate_valid_indices(valid_mask: np.ndarray = None):
+    if valid_mask is None:
+        valid_mask = np.zeros((7, 7), dtype=meta_datatype)
+        valid_mask[:3, :3] = 1
+        valid_mask[3:6, 3:6] = 1
+        valid_mask[6, 6] = 1
+
+    valid_indices = []
+
+    hilbert_size = valid_mask.shape[0]
+    for y_index in range(hilbert_size):
+        if valid_mask[y_index, y_index]:
+            valid_indices.append([y_index, y_index, 0])
+
+    for y_index in range(hilbert_size - 1):
+        for x_index in range(y_index + 1, hilbert_size):
+            if valid_mask[y_index, x_index]:
+                valid_indices.append([y_index, x_index, 0])
+                valid_indices.append([y_index, x_index, 1])
+
+    valid_indices = np.array(valid_indices, dtype=np.int32)
+    return valid_indices
+
+
 def real_eig(generator):
     """
         Diagonalise the system/dc/quiescent Lindblad operator into it's real
@@ -2713,29 +2737,6 @@ def _calculate_elimination_matrices(basis_hermitian: list, basis_full: list):
 #     generators_list = list(generators["generators"].values())
 # 
 #     return lindbladian, generators_list, vectorisation_map
-# def _generate_valid_indices(valid_mask: np.ndarray = None):
-#     if valid_mask is None:
-#         valid_mask = np.zeros((7, 7), dtype=meta_datatype)
-#         valid_mask[:3, :3] = 1
-#         valid_mask[3:6, 3:6] = 1
-#         valid_mask[6, 6] = 1
-# 
-#     valid_indices = []
-# 
-#     hilbert_size = valid_mask.shape[0]
-#     for y_index in range(hilbert_size):
-#         if valid_mask[y_index, y_index]:
-#             valid_indices.append([y_index, y_index, 0])
-# 
-#     for y_index in range(hilbert_size - 1):
-#         for x_index in range(y_index + 1, hilbert_size):
-#             if valid_mask[y_index, x_index]:
-#                 valid_indices.append([y_index, x_index, 0])
-#                 valid_indices.append([y_index, x_index, 1])
-# 
-#     valid_indices = np.array(valid_indices, dtype=np.int32)
-#     return valid_indices
-
 
 # Main/test ===================================================================
 
