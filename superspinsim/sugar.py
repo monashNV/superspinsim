@@ -1,5 +1,8 @@
 import numpy as np
-from numba import cuda as nc
+try:
+    from numba import cuda as nc
+except:
+    nc = None
 
 import os
 import sys
