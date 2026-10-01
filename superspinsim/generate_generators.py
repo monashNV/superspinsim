@@ -21,7 +21,7 @@ def generate_atoms(
         block_interactions: dict, use_unitary: bool = False,
         verbose: bool = False) -> [dict, dict, list[dict], dict]:
     """
-    Define a system of multiple spins.
+        Define a system of multiple spins.
     """
 
     # We're going to add to these structures, so it's best to deep copy.
@@ -133,7 +133,7 @@ def _add_atom(
         block: list[dict], atom: dict, label_sets: dict[str, set[str]],
         previous_identity: np.ndarray, hilbert_space_shape: list[int]):
     """
-    Define an atom.
+        Define an atom.
     """
 
     electron_spin, previous_identity = _add_electron(
@@ -157,7 +157,7 @@ def _add_electron(
             previous_identity: np.ndarray, hilbert_space_shape: list[int]
         ) -> [int, np.ndarray]:
     """
-    Defines the electron spin system.
+        Defines the electron spin system.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -1836,6 +1836,14 @@ def _couple_bell_ground(
             )
 
 
+def _couple_coherent_blocks(
+        atom_a_dict: dict, atom_b_dict: dict, spin_a: float, spin_b: float,
+        magnetic_a: float, magnetic_b: float, interaction: dict,
+        label_sets: dict[str, dict[str, np.ndarray]]):
+    pass
+    # label_a = 
+
+
 def _couple_incoherent(
         initial_projector: np.ndarray, final_projector: np.ndarray,
         template: np.ndarray) -> list[np.ndarray]:
@@ -1868,14 +1876,36 @@ def _couple_incoherent(
     return out
 
 
+def _couple_coherent(
+        initial_projector: np.ndarray, final_projector: np.ndarray,
+        template: np.ndarray) -> list[np.ndarray]:
+    """
+        Create a hamiltonian operator between two states between blocks.
+    """
+
+    # Use in-block projectors to pick out the states involved in the jump
+    # operator.
+    initial = np.sum(initial_projector, axis=(0, 2))
+    final = np.sum(final_projector, axis=(0, 2))
+
+    # If initial and final states do not have the same number of
+    # sub-levels, couple with just one jump operator.
+    operator = np.zeros_like(template)
+    operator[:, :, 0] |= np.outer(final, initial)
+    operator[:, :, 0] |= np.outer(initial, final)
+    out = [operator]
+
+    return out
+
+
 def _get_spin_labels(
         spin: float, magnetic_number: float) -> [float, str, str]:
     """
         Convert magnetic number to string labels.
     """
 
-    if magnetic_number != 0:
-        magnetic_number *= -1
+    # if magnetic_number != 0:
+    #     magnetic_number *= -1
     if np.isclose(math.fmod(spin, 1), 0):
         magnetic_label = f"S|{magnetic_number:.0f})({magnetic_number:.0f}|"
         operator_label = f"{magnetic_number:.0f}"
@@ -2562,188 +2592,188 @@ def _calculate_elimination_matrices(basis_hermitian: list, basis_full: list):
 
 # Legacy code start ===========================================================
 
-# def generate_7(
-#         coefficient_functions: list[callable],
-#         quiescent_magnetic_field: np.ndarray = None,
-#         use_rotating: bool = False,
-#         return_full: bool = False,
-#         rotation_magnetic_from_atom: str = None):
-# 
-#     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
-#     # lindbladian = _generate_lindbladian(coefficient_functions)
-# 
-#     if quiescent_magnetic_field is None:
-#         quiescent_magnetic_field = np.zeros(3)
-# 
-#     nv_ground = {
-#         "S": 1,
-#         "g": s3p.nv.room.ground.g_longitudinal,
-#         "g_perp": s3p.nv.room.ground.g_transverse,
-#         "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
-#         "TS1": s3p.nv.room.ground.thermalisation_time,
-#         "TS2": s3p.nv.room.ground.dephasing_time,
-# 
-#         "B0": quiescent_magnetic_field,
-#         "T": s3p.standards.lab.ntp.temperature
-#     }
-# 
-#     nv_excited = {
-#         "S": 1,
-#         "g": s3p.nv.room.excited.g_longitudinal,
-#         "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
-#         "TS1": s3p.nv.room.excited.thermalisation_time,
-#         "TS2": s3p.nv.room.excited.dephasing_time,
-# 
-#         "B0": quiescent_magnetic_field,
-#         "T": s3p.standards.lab.ntp.temperature
-#     }
-# 
-#     nv_singlet = {
-#         "S": 0,
-#     }
-# 
-#     nv_orbitals = {
-#         # Optical transitions
-#         ((0, 0), (1, 0)): {
-#             "rel": s3p.nv.room.optical.conserving,
-#             "rel_n": s3p.nv.room.optical.nonconserving
-#         },
-# 
-#         # ISC excited
-#         ((1, 0), (2, 0)): {
-#             "s_gets_0": s3p.nv.room.isc.s_gets_z,
-#             "s_gets_1": s3p.nv.room.isc.s_gets_pm
-#         },
-# 
-#         # ISC ground
-#         ((2, 0), (0, 0)): {
-#             "0_gets_s": s3p.nv.room.isc.z_gets_s,
-#             "1_gets_s": s3p.nv.room.isc.pm_gets_s
-#         }
-#     }
-# 
-#     if rotation_magnetic_from_atom is not None:
-#         nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
-#         nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
-#         nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
-# 
-#     generators, vectorisation_map = generate_atoms(
-#         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
-#     )
-# 
-#     generators_list = list(generators["generators"].values())
-# 
-#     if use_rotating:
-#         vectors_real, inv_vectors_real, doubles, singles = \
-#             real_eig(generators_list[0])
-# 
-#         generators_list = generators_list[1:]
-# 
-#         generators_list_real = [
-#             inv_vectors_real@generator@vectors_real
-#             for generator in generators_list
-#         ]
-# 
-#         if return_full:
-#             return (
-#                 lindbladian, generators_list_real, vectorisation_map,
-#                 vectors_real, inv_vectors_real, doubles, singles, generators
-#             )
-#         return (
-#             lindbladian, generators_list_real, vectorisation_map, vectors_real,
-#             inv_vectors_real, doubles, singles
-#         )
-# 
-#     if return_full:
-#         return lindbladian, generators_list, vectorisation_map, generators
-#     return lindbladian, generators_list, vectorisation_map
-# 
-# 
-# def generate_21(
-#         coefficient_functions: list[callable],
-#         quiescent_magnetic_field: np.ndarray):
-# 
-#     lindbladian = _generate_lindbladian(coefficient_functions)
-# 
-#     nv_ground = {
-#         "S": 1,
-#         "g": s3p.nv.room.ground.g_longitudinal,
-#         "g_perp": s3p.nv.room.ground.g_transverse,
-#         "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
-#         "TS1": s3p.nv.room.ground.thermalisation_time,
-#         "TS2": s3p.nv.room.ground.dephasing_time,
-# 
-#         "I": 1,
-#         "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-#         "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-#         "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-#         "TI2": s3p.nv.room.ground.dephasing_time_14N,
-#         "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
-#         "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
-# 
-#         "B0": quiescent_magnetic_field,
-#         "T": s3p.standards.lab.ntp.temperature
-#     }
-# 
-#     nv_excited = {
-#         "S": 1,
-#         "g": s3p.nv.room.excited.g_longitudinal,
-#         "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
-#         "TS1": s3p.nv.room.excited.thermalisation_time,
-#         "TS2": s3p.nv.room.excited.dephasing_time,
-# 
-#         "I": 1,
-#         "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
-#         "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
-#         "TI1": s3p.nv.room.excited.thermalisation_time_14N,
-#         "TI2": s3p.nv.room.excited.dephasing_time_14N,
-#         "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
-#         "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
-# 
-#         "B0": quiescent_magnetic_field,
-#         "T": s3p.standards.lab.ntp.temperature
-#     }
-# 
-#     nv_singlet = {
-#         "S": 0,
-# 
-#         "I": 1,
-#         "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-#         "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-#         "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-#         "TI2": s3p.nv.room.ground.dephasing_time_14N,
-# 
-#         "B0": quiescent_magnetic_field,
-#         "T": s3p.standards.lab.ntp.temperature
-#     }
-# 
-#     nv_orbitals = {
-#         # Optical transitions
-#         ((0, 0), (1, 0)): {
-#             "rel": s3p.nv.room.optical.conserving,
-#             "rel_n": s3p.nv.room.optical.nonconserving
-#         },
-# 
-#         # ISC excited
-#         ((1, 0), (2, 0)): {
-#             "s_gets_0": s3p.nv.room.isc.s_gets_z,
-#             "s_gets_1": s3p.nv.room.isc.s_gets_pm
-#         },
-# 
-#         # ISC ground
-#         ((2, 0), (0, 0)): {
-#             "0_gets_s": s3p.nv.room.isc.z_gets_s,
-#             "1_gets_s": s3p.nv.room.isc.pm_gets_s
-#         }
-#     }
-# 
-#     generators, vectorisation_map = generate_atoms(
-#         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
-#     )
-# 
-#     generators_list = list(generators["generators"].values())
-# 
-#     return lindbladian, generators_list, vectorisation_map
+def generate_7(
+        coefficient_functions: list[callable],
+        quiescent_magnetic_field: np.ndarray = None,
+        use_rotating: bool = False,
+        return_full: bool = False,
+        rotation_magnetic_from_atom: str = None):
+
+    lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
+    # lindbladian = _generate_lindbladian(coefficient_functions)
+
+    if quiescent_magnetic_field is None:
+        quiescent_magnetic_field = np.zeros(3)
+
+    nv_ground = {
+        "S": 1,
+        "g": s3p.nv.room.ground.g_longitudinal,
+        "g_perp": s3p.nv.room.ground.g_transverse,
+        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+        "TS1": s3p.nv.room.ground.thermalisation_time,
+        "TS2": s3p.nv.room.ground.dephasing_time,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
+    }
+
+    nv_excited = {
+        "S": 1,
+        "g": s3p.nv.room.excited.g_longitudinal,
+        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+        "TS1": s3p.nv.room.excited.thermalisation_time,
+        "TS2": s3p.nv.room.excited.dephasing_time,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
+    }
+
+    nv_singlet = {
+        "S": 0,
+    }
+
+    nv_orbitals = {
+        # Optical transitions
+        ((0, 0), (1, 0)): {
+            "rel": s3p.nv.room.optical.conserving,
+            "rel_n": s3p.nv.room.optical.nonconserving
+        },
+
+        # ISC excited
+        ((1, 0), (2, 0)): {
+            "s_gets_0": s3p.nv.room.isc.s_gets_z,
+            "s_gets_1": s3p.nv.room.isc.s_gets_pm
+        },
+
+        # ISC ground
+        ((2, 0), (0, 0)): {
+            "0_gets_s": s3p.nv.room.isc.z_gets_s,
+            "1_gets_s": s3p.nv.room.isc.pm_gets_s
+        }
+    }
+
+    if rotation_magnetic_from_atom is not None:
+        nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
+        nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
+
+    generators, vectorisation_map = generate_atoms(
+        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
+    )
+
+    generators_list = list(generators["generators"].values())
+
+    if use_rotating:
+        vectors_real, inv_vectors_real, doubles, singles = \
+            real_eig(generators_list[0])
+
+        generators_list = generators_list[1:]
+
+        generators_list_real = [
+            inv_vectors_real@generator@vectors_real
+            for generator in generators_list
+        ]
+
+        if return_full:
+            return (
+                lindbladian, generators_list_real, vectorisation_map,
+                vectors_real, inv_vectors_real, doubles, singles, generators
+            )
+        return (
+            lindbladian, generators_list_real, vectorisation_map, vectors_real,
+            inv_vectors_real, doubles, singles
+        )
+
+    if return_full:
+        return lindbladian, generators_list, vectorisation_map, generators
+    return lindbladian, generators_list, vectorisation_map
+
+
+def generate_21(
+        coefficient_functions: list[callable],
+        quiescent_magnetic_field: np.ndarray):
+
+    lindbladian = _generate_lindbladian(coefficient_functions)
+
+    nv_ground = {
+        "S": 1,
+        "g": s3p.nv.room.ground.g_longitudinal,
+        "g_perp": s3p.nv.room.ground.g_transverse,
+        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+        "TS1": s3p.nv.room.ground.thermalisation_time,
+        "TS2": s3p.nv.room.ground.dephasing_time,
+
+        "I": 1,
+        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+        "TI2": s3p.nv.room.ground.dephasing_time_14N,
+        "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
+        "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
+    }
+
+    nv_excited = {
+        "S": 1,
+        "g": s3p.nv.room.excited.g_longitudinal,
+        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+        "TS1": s3p.nv.room.excited.thermalisation_time,
+        "TS2": s3p.nv.room.excited.dephasing_time,
+
+        "I": 1,
+        "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.excited.thermalisation_time_14N,
+        "TI2": s3p.nv.room.excited.dephasing_time_14N,
+        "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
+        "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
+    }
+
+    nv_singlet = {
+        "S": 0,
+
+        "I": 1,
+        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+        "TI2": s3p.nv.room.ground.dephasing_time_14N,
+
+        "B0": quiescent_magnetic_field,
+        "T": s3p.standards.lab.ntp.temperature
+    }
+
+    nv_orbitals = {
+        # Optical transitions
+        ((0, 0), (1, 0)): {
+            "rel": s3p.nv.room.optical.conserving,
+            "rel_n": s3p.nv.room.optical.nonconserving
+        },
+
+        # ISC excited
+        ((1, 0), (2, 0)): {
+            "s_gets_0": s3p.nv.room.isc.s_gets_z,
+            "s_gets_1": s3p.nv.room.isc.s_gets_pm
+        },
+
+        # ISC ground
+        ((2, 0), (0, 0)): {
+            "0_gets_s": s3p.nv.room.isc.z_gets_s,
+            "1_gets_s": s3p.nv.room.isc.pm_gets_s
+        }
+    }
+
+    generators, vectorisation_map = generate_atoms(
+        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
+    )
+
+    generators_list = list(generators["generators"].values())
+
+    return lindbladian, generators_list, vectorisation_map
 
 # Main/test ===================================================================
 
