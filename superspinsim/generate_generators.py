@@ -1838,10 +1838,32 @@ def _couple_bell_ground(
 
 def _couple_coherent_blocks(
         atom_a_dict: dict, atom_b_dict: dict, spin_a: float, spin_b: float,
-        magnetic_a: float, magnetic_b: float, interaction: dict,
+        magnetic_a: float, magnetic_b: float, strength: float, v_index: int,
+        controllable: bool, interaction: dict,
         label_sets: dict[str, dict[str, np.ndarray]]):
-    pass
-    # label_a = 
+    operator_labels = label_sets["operator_labels"]
+
+    _, magnetic_label_a, operator_label_a = _get_spin_labels(
+        spin_a, magnetic_a)
+    _, magnetic_label_b, operator_label_b = _get_spin_labels(
+        spin_b, magnetic_b)
+    projector_a = atom_a_dict[magnetic_a]
+    projector_b = atom_b_dict[magnetic_b]
+    couplings = _couple_coherent(
+        projector_a, projector_b, np.zeros_like(projector_a))
+
+    if controllable:
+        operator_label = "Vr"
+    else:
+        operator_label = "Vc"
+
+    for index, coupling in enumerate(couplings):
+        coupling *= strength
+        _record_operator(
+            f"{operator_label} {v_index} {index}",
+            coupling, interaction,
+            [operator_labels]
+        )
 
 
 def _couple_incoherent(
@@ -1888,12 +1910,25 @@ def _couple_coherent(
     initial = np.sum(initial_projector, axis=(0, 2))
     final = np.sum(final_projector, axis=(0, 2))
 
-    # If initial and final states do not have the same number of
-    # sub-levels, couple with just one jump operator.
-    operator = np.zeros_like(template)
-    operator[:, :, 0] |= np.outer(final, initial)
-    operator[:, :, 0] |= np.outer(initial, final)
-    out = [operator]
+    if np.isclose(np.sum(initial), np.sum(final)):
+        # If initial and final states have the same number of sub-levels,
+        # couple each sub-level individually.
+        out = []
+        indices_initial = np.where(initial > 0)[0]
+        indices_excited = np.where(final > 0)[0]
+        for index_initial, index_final in \
+                zip(indices_initial, indices_excited):
+            operator = np.zeros_like(template)
+            operator[index_final, index_initial, 0] = 1
+            operator[index_initial, index_final, 0] = 1
+            out.append(operator)
+    else:
+        # If initial and final states do not have the same number of
+        # sub-levels, couple with just one jump operator.
+        operator = np.zeros_like(template)
+        operator[:, :, 0] |= np.outer(final, initial)
+        operator[:, :, 0] |= np.outer(initial, final)
+        out = [operator]
 
     return out
 
@@ -2033,7 +2068,7 @@ def _combine_superoperators(superoperator_dict: dict):
 
     # Sum dissipators that couple eg different hyperfine levels.
     superoperator_combine_labels = \
-        {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc", "Lbell"}
+        {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc", "Lbell", "Vr", "Vc"}
     superoperator_dict_add = {}
     for label, superoperator in superoperator_dict.items():
         if "]" not in label:
@@ -2057,7 +2092,7 @@ def _combine_superoperators(superoperator_dict: dict):
     # controllable dissipators into Gr.
     superoperator_combine_labels_dict = {
         "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc", "Lbell"],
-        "Gr": ["Lrc", "Lrn"]
+        "Gr": ["Lrc", "Lrn", "Vr"]
     }
     superoperator_dict_add = {}
     for combined_label, superoperator_combine_labels in \
@@ -2095,7 +2130,7 @@ def _combine_superoperators(superoperator_dict: dict):
 
     # Combine the system/dc/quiescent von Neuman superoperator with the
     # dissipator
-    superoperator_combine_labels_dict = {"L0": ["H0", "D"]}
+    superoperator_combine_labels_dict = {"L0": ["H0", "D", "Vc"]}
     superoperator_dict_add = {}
     for combined_label, superoperator_combine_labels in \
             superoperator_combine_labels_dict.items():
