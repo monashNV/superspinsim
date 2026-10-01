@@ -1493,11 +1493,13 @@ def _couple_optical(
     dissipator_labels = label_sets["dissipator_labels"]
 
     spin = spin_a
+    # Cycle over mS levels
     for magnetic_number in np.arange(-spin, spin + 0.1):
         magnetic_number, magnetic_label, operator_label_partial = \
             _get_spin_labels(spin, magnetic_number)
         operator_label = f"{operator_label_partial} {operator_label_partial}"
 
+        # Create a spin-conserving excitation jump operator for every mS level
         raise_conserves = _couple_incoherent(
             atom_a_dict[magnetic_label],
             atom_b_dict[magnetic_label],
@@ -1510,6 +1512,7 @@ def _couple_optical(
                 interaction, [operator_labels, dissipator_labels]
             )
 
+        # Create a spin-conserving relaxation jump operator for every mS level
         lower_conserves = _couple_incoherent(
             atom_b_dict[magnetic_label],
             atom_a_dict[magnetic_label],
@@ -1526,9 +1529,10 @@ def _couple_optical(
             continue
 
         for magnetic_number_excited in np.arange(-spin, spin + 0.1):
-
             if np.isclose(
                     abs(magnetic_number - magnetic_number_excited), 1):
+                # Create a spin-nonconserving excitation jump operators between
+                # neighbouring mS levels
                 magnetic_number_excited, magnetic_label_excited, \
                     operator_label_partial_excited = _get_spin_labels(
                         spin, magnetic_number_excited
@@ -1557,6 +1561,8 @@ def _couple_optical(
                         [operator_labels, dissipator_labels]
                     )
 
+                # Create a spin-nonconserving relaxation jump operators between
+                # neighbouring mS levels
                 lower_nonconserves = _couple_incoherent(
                     atom_b_dict[magnetic_label_excited],
                     atom_a_dict[magnetic_label],
@@ -1582,10 +1588,14 @@ def _couple_isc_excited(
         atom_a_dict: dict, atom_b_dict: dict, relaxation_rate_0: float,
         relaxation_rate_1: float, interaction: dict,
         label_sets: dict[str, dict[str, np.ndarray]]):
+    """
+        Define many-to-one decay paths.
+    """
 
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
 
+    # Only supports spin-one to spin-zero (like NV) for the moment
     spin = 1
     for magnetic_number in np.arange(-spin, spin + 0.1):
         magnetic_number, magnetic_label, operator_label_triplet = \
@@ -1620,10 +1630,14 @@ def _couple_isc_ground(
         atom_a_dict: dict, atom_b_dict: dict, relaxation_rate_0: float,
         relaxation_rate_1: float, interaction: dict,
         label_sets: dict[str, dict[str, np.ndarray]]):
+    """
+        Define one-to-many decay paths.
+    """
 
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
 
+    # Only supports spin-zero to spin-one (like NV) for the moment
     spin = 1
     for magnetic_number in np.arange(-spin, spin + 0.1):
         magnetic_number, magnetic_label, operator_label_triplet = \
@@ -1658,6 +1672,10 @@ def _couple_bell_excited(
         atom_a_dict: dict, atom_b_dict: dict, atom_c_dict: dict,
         psi_gets_e: float, phi_gets_e: float,
         interaction: dict, label_sets: dict[str, dict[str, np.ndarray]]):
+    """
+        An incoherent transition between a singlet state (a) and two entangled
+        qubits (b) and (c), like the C? defect in hBN.
+    """
 
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
@@ -1670,11 +1688,14 @@ def _couple_bell_excited(
     projector_c_p = atom_c_dict[magnetic_label_p]
     projector_c_m = atom_c_dict[magnetic_label_m]
 
+    # Alligned states (Bell phi states in QI literature)
     projector_phi_p = projector_b_p*projector_c_p
     projector_phi_m = projector_b_m*projector_c_m
+    # Anti-aligned states (Bell psi states in QI literature)
     projector_psi_p = projector_b_p*projector_c_m
     projector_psi_m = projector_b_m*projector_c_p
 
+    # Decay from singlet to anti-aligned states
     if psi_gets_e is not None:
         dissipators = _couple_incoherent(
             atom_a_dict[magnetic_label_singlet],
@@ -1700,6 +1721,8 @@ def _couple_bell_excited(
                 dissipator, interaction,
                 [operator_labels, dissipator_labels]
             )
+
+    # Decay from singlet to aligned states
     if phi_gets_e is not None:
         dissipators = _couple_incoherent(
             atom_a_dict[magnetic_label_singlet],
@@ -1731,6 +1754,10 @@ def _couple_bell_ground(
         atom_b_dict: dict, atom_c_dict: dict, atom_a_dict: dict,
         g_gets_psi: float, g_gets_phi: float,
         interaction: dict, label_sets: dict[str, dict[str, np.ndarray]]):
+    """
+        An incoherent transition between two entangled qubits (b) and (c) and
+        a singlet state (a), like the C? defect in hBN.
+    """
 
     operator_labels = label_sets["operator_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
@@ -1738,16 +1765,20 @@ def _couple_bell_ground(
     _, magnetic_label_p, _ = _get_spin_labels(1/2, 1/2)
     _, magnetic_label_m, _ = _get_spin_labels(1/2, -1/2)
     _, magnetic_label_singlet, _ = _get_spin_labels(0, 0)
+
     projector_b_p = atom_b_dict[magnetic_label_p]
     projector_b_m = atom_b_dict[magnetic_label_m]
     projector_c_p = atom_c_dict[magnetic_label_p]
     projector_c_m = atom_c_dict[magnetic_label_m]
 
+    # Alligned states (Bell phi states in QI literature)
     projector_phi_p = projector_b_p*projector_c_p
     projector_phi_m = projector_b_m*projector_c_m
+    # Anti-aligned states (Bell psi states in QI literature)
     projector_psi_p = projector_b_p*projector_c_m
     projector_psi_m = projector_b_m*projector_c_p
 
+    # Decay from anti-aligned states to singlet
     if g_gets_psi is not None:
         dissipators = _couple_incoherent(
             projector_psi_p,
@@ -1773,6 +1804,8 @@ def _couple_bell_ground(
                 dissipator, interaction,
                 [operator_labels, dissipator_labels]
             )
+
+    # Decay from aligned states to singlet
     if g_gets_phi is not None:
         dissipators = _couple_incoherent(
             projector_phi_p,
@@ -1803,10 +1836,18 @@ def _couple_bell_ground(
 def _couple_incoherent(
         initial_projector: np.ndarray, final_projector: np.ndarray,
         template: np.ndarray) -> list[np.ndarray]:
+    """
+        Create a jump operator between two states between blocks.
+    """
+
+    # Use in-block projectors to pick out the states involved in the jump
+    # operator.
     initial = np.sum(initial_projector, axis=(0, 2))
     final = np.sum(final_projector, axis=(0, 2))
 
     if np.isclose(np.sum(initial), np.sum(final)):
+        # If initial and final states have the same number of sub-levels,
+        # couple each sub-level individually.
         out = []
         indices_initial = np.where(initial > 0)[0]
         indices_excited = np.where(final > 0)[0]
@@ -1816,6 +1857,8 @@ def _couple_incoherent(
             superoperator[index_final, index_initial, 0] = 1
             out.append(superoperator)
     else:
+        # If initial and final states do not have the same number of
+        # sub-levels, couple with just one jump operator.
         superoperator = np.zeros_like(template)
         superoperator[:, :, 0] = np.outer(final, initial)
         out = [superoperator]
@@ -1824,6 +1867,10 @@ def _couple_incoherent(
 
 def _get_spin_labels(
         spin: float, magnetic_number: float) -> [float, str, str]:
+    """
+        Convert magnetic number to string labels.
+    """
+
     if magnetic_number != 0:
         magnetic_number *= -1
     if np.isclose(math.fmod(spin, 1), 0):
@@ -1838,6 +1885,11 @@ def _get_spin_labels(
 
 def _generate_superoperators(
         operator_dict: dict, valid_indices: np.ndarray) -> dict:
+    """
+        Find vectorised forms of the dissipators and von Neumann
+        superoperators.
+    """
+
     superoperator_dict = {}
     for label, operator in operator_dict.items():
         if "|" not in label:
@@ -1851,8 +1903,102 @@ def _generate_superoperators(
     return superoperator_dict
 
 
+def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
+    """
+        Calculate the vectorised expression for the von Neumann superoperator
+        from its effect on the Hermitian su(N) basis states defined by
+        `valid_indices`.
+    """
+
+    operator_dimension = valid_indices.shape[0]
+    hilbert_size = operator.shape[0]
+    superoperator = np.empty(
+        (operator_dimension, operator_dimension),
+        dtype=meta_datatype
+    )
+
+    for in_index in range(operator_dimension):
+        y_in_index = valid_indices[in_index, 0]
+        x_in_index = valid_indices[in_index, 1]
+        c_in_index = valid_indices[in_index, 2]
+
+        density_matrix = np.zeros(
+            (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+        density_matrix[y_in_index, x_in_index, c_in_index] = 1
+        if y_in_index != x_in_index:
+            if c_in_index:
+                density_matrix[x_in_index, y_in_index, c_in_index] = -1
+            else:
+                density_matrix[x_in_index, y_in_index, c_in_index] = 1
+
+        scratch = _mult(operator, density_matrix) \
+            - _mult(density_matrix, operator)
+        operator_out = np.empty_like(scratch)
+        operator_out[:, :, 0] = scratch[:, :, 1]
+        operator_out[:, :, 1] = -scratch[:, :, 0]
+
+        for out_index in range(operator_dimension):
+            y_out_index = valid_indices[out_index, 0]
+            x_out_index = valid_indices[out_index, 1]
+            c_out_index = valid_indices[out_index, 2]
+            superoperator[out_index, in_index] = \
+                operator_out[y_out_index, x_out_index, c_out_index]
+    return superoperator
+
+
+def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
+    """
+        Calculate the vectorised expression for a dissipator from its effect on
+        the Hermitian su(N) basis states defined by `valid_indices`.
+    """
+
+    operator_dimension = valid_indices.shape[0]
+    hilbert_size = operator.shape[0]
+    superoperator = np.empty(
+        (operator_dimension, operator_dimension),
+        dtype=meta_datatype
+    )
+
+    for in_index in range(operator_dimension):
+        y_in_index = valid_indices[in_index, 0]
+        x_in_index = valid_indices[in_index, 1]
+        c_in_index = valid_indices[in_index, 2]
+
+        density_matrix = np.zeros(
+            (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+        density_matrix[y_in_index, x_in_index, c_in_index] = 1
+        if y_in_index != x_in_index:
+            if c_in_index:
+                density_matrix[x_in_index, y_in_index, c_in_index] = -1
+            else:
+                density_matrix[x_in_index, y_in_index, c_in_index] = 1
+
+        operator_transpose = np.transpose(operator.copy(), axes=(1, 0, 2))
+        operator_transpose[:, :, 1] = -operator_transpose[:, :, 1]
+        operator_out = _mult(_mult(operator, density_matrix),
+                             operator_transpose)
+        proj = _mult(operator_transpose, operator)
+        operator_out -= 0.5*_mult(proj, density_matrix)
+        operator_out -= 0.5*_mult(density_matrix, proj)
+
+        for out_index in range(operator_dimension):
+            y_out_index = valid_indices[out_index, 0]
+            x_out_index = valid_indices[out_index, 1]
+            c_out_index = valid_indices[out_index, 2]
+            superoperator[out_index, in_index] = \
+                operator_out[y_out_index, x_out_index, c_out_index]
+    return superoperator
+
+
 def _combine_superoperators(superoperator_dict: dict):
+    """
+        Sum the superoperators that have the same coefficients in the control
+        Lie algebra.
+    """
+
     dissipator_dict = {}
+
+    # Sum dissipators that couple eg different hyperfine levels.
     superoperator_combine_labels = \
         {"LS1", "LI1", "Lrc", "Llc", "Lrn", "Lln", "Lisc", "Lbell"}
     superoperator_dict_add = {}
@@ -1874,6 +2020,8 @@ def _combine_superoperators(superoperator_dict: dict):
     superoperator_dict.update(superoperator_dict_add)
     dissipator_dict.update(superoperator_dict_add)
 
+    # Sum all of the system/dc/quiescent dissipators into D, and all of the
+    # controllable dissipators into Gr.
     superoperator_combine_labels_dict = {
         "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc", "Lbell"],
         "Gr": ["Lrc", "Lrn"]
@@ -1898,6 +2046,7 @@ def _combine_superoperators(superoperator_dict: dict):
     superoperator_dict.update(superoperator_dict_add)
     dissipator_dict.update(superoperator_dict_add)
 
+    # Needs two rounds to capture eg all hyperfine levels on both sides
     superoperator_dict_add = {}
     for label, superoperator in dissipator_dict.items():
         if "]" not in label:
@@ -1911,6 +2060,8 @@ def _combine_superoperators(superoperator_dict: dict):
     superoperator_dict.update(superoperator_dict_add)
     dissipator_dict.update(superoperator_dict_add)
 
+    # Combine the system/dc/quiescent von Neuman superoperator with the
+    # dissipator
     superoperator_combine_labels_dict = {"L0": ["H0", "D"]}
     superoperator_dict_add = {}
     for combined_label, superoperator_combine_labels in \
@@ -1931,6 +2082,12 @@ def _combine_superoperators(superoperator_dict: dict):
 def _generate_lindbladian(
         coefficient_functions: list[callable], use_rotating: bool = False,
         use_cuda=True):
+    """
+        Create the full vector control function from individual control
+        functions.
+    """
+
+    # Make the individual functions device functions
     if use_cuda:
         coefficient_x = nc.jit(device=True)(coefficient_functions[0])
         coefficient_y = nc.jit(device=True)(coefficient_functions[1])
@@ -1943,6 +2100,9 @@ def _generate_lindbladian(
         coefficient_r = nb.jit(coefficient_functions[3])
 
     if use_rotating:
+        # If using the generalised rotating frame, the system/dc/quiescent
+        # Lindbladian is applied in the rotating frame step, separately from
+        # the rest of the components.
         def lindbladian(time, coefficient):
             coefficient[0] = coefficient_x(time)
             coefficient[1] = coefficient_y(time)
@@ -1959,191 +2119,12 @@ def _generate_lindbladian(
     return lindbladian
 
 
-def generate_7(
-        coefficient_functions: list[callable],
-        quiescent_magnetic_field: np.ndarray = None,
-        use_rotating: bool = False,
-        return_full: bool = False,
-        rotation_magnetic_from_atom: str = None):
-
-    lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
-    # lindbladian = _generate_lindbladian(coefficient_functions)
-
-    if quiescent_magnetic_field is None:
-        quiescent_magnetic_field = np.zeros(3)
-
-    nv_ground = {
-        "S": 1,
-        "g": s3p.nv.room.ground.g_longitudinal,
-        "g_perp": s3p.nv.room.ground.g_transverse,
-        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
-        "TS1": s3p.nv.room.ground.thermalisation_time,
-        "TS2": s3p.nv.room.ground.dephasing_time,
-
-        "B0": quiescent_magnetic_field,
-        "T": s3p.standards.lab.ntp.temperature
-    }
-
-    nv_excited = {
-        "S": 1,
-        "g": s3p.nv.room.excited.g_longitudinal,
-        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
-        "TS1": s3p.nv.room.excited.thermalisation_time,
-        "TS2": s3p.nv.room.excited.dephasing_time,
-
-        "B0": quiescent_magnetic_field,
-        "T": s3p.standards.lab.ntp.temperature
-    }
-
-    nv_singlet = {
-        "S": 0,
-    }
-
-    nv_orbitals = {
-        # Optical transitions
-        ((0, 0), (1, 0)): {
-            "rel": s3p.nv.room.optical.conserving,
-            "rel_n": s3p.nv.room.optical.nonconserving
-        },
-
-        # ISC excited
-        ((1, 0), (2, 0)): {
-            "s_gets_0": s3p.nv.room.isc.s_gets_z,
-            "s_gets_1": s3p.nv.room.isc.s_gets_pm
-        },
-
-        # ISC ground
-        ((2, 0), (0, 0)): {
-            "0_gets_s": s3p.nv.room.isc.z_gets_s,
-            "1_gets_s": s3p.nv.room.isc.pm_gets_s
-        }
-    }
-
-    if rotation_magnetic_from_atom is not None:
-        nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
-        nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
-        nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
-
-    generators, vectorisation_map = generate_atoms(
-        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
-    )
-
-    generators_list = list(generators["generators"].values())
-
-    if use_rotating:
-        vectors_real, inv_vectors_real, doubles, singles = \
-            real_eig(generators_list[0])
-
-        generators_list = generators_list[1:]
-
-        generators_list_real = [
-            inv_vectors_real@generator@vectors_real
-            for generator in generators_list
-        ]
-
-        if return_full:
-            return (
-                lindbladian, generators_list_real, vectorisation_map,
-                vectors_real, inv_vectors_real, doubles, singles, generators
-            )
-        return (
-            lindbladian, generators_list_real, vectorisation_map, vectors_real,
-            inv_vectors_real, doubles, singles
-        )
-
-    if return_full:
-        return lindbladian, generators_list, vectorisation_map, generators
-    return lindbladian, generators_list, vectorisation_map
-
-
-def generate_21(
-        coefficient_functions: list[callable],
-        quiescent_magnetic_field: np.ndarray):
-
-    lindbladian = _generate_lindbladian(coefficient_functions)
-
-    nv_ground = {
-        "S": 1,
-        "g": s3p.nv.room.ground.g_longitudinal,
-        "g_perp": s3p.nv.room.ground.g_transverse,
-        "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
-        "TS1": s3p.nv.room.ground.thermalisation_time,
-        "TS2": s3p.nv.room.ground.dephasing_time,
-
-        "I": 1,
-        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-        "TI2": s3p.nv.room.ground.dephasing_time_14N,
-        "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
-        "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
-
-        "B0": quiescent_magnetic_field,
-        "T": s3p.standards.lab.ntp.temperature
-    }
-
-    nv_excited = {
-        "S": 1,
-        "g": s3p.nv.room.excited.g_longitudinal,
-        "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
-        "TS1": s3p.nv.room.excited.thermalisation_time,
-        "TS2": s3p.nv.room.excited.dephasing_time,
-
-        "I": 1,
-        "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
-        "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
-        "TI1": s3p.nv.room.excited.thermalisation_time_14N,
-        "TI2": s3p.nv.room.excited.dephasing_time_14N,
-        "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
-        "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
-
-        "B0": quiescent_magnetic_field,
-        "T": s3p.standards.lab.ntp.temperature
-    }
-
-    nv_singlet = {
-        "S": 0,
-
-        "I": 1,
-        "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
-        "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
-        "TI1": s3p.nv.room.ground.thermalisation_time_14N,
-        "TI2": s3p.nv.room.ground.dephasing_time_14N,
-
-        "B0": quiescent_magnetic_field,
-        "T": s3p.standards.lab.ntp.temperature
-    }
-
-    nv_orbitals = {
-        # Optical transitions
-        ((0, 0), (1, 0)): {
-            "rel": s3p.nv.room.optical.conserving,
-            "rel_n": s3p.nv.room.optical.nonconserving
-        },
-
-        # ISC excited
-        ((1, 0), (2, 0)): {
-            "s_gets_0": s3p.nv.room.isc.s_gets_z,
-            "s_gets_1": s3p.nv.room.isc.s_gets_pm
-        },
-
-        # ISC ground
-        ((2, 0), (0, 0)): {
-            "0_gets_s": s3p.nv.room.isc.z_gets_s,
-            "1_gets_s": s3p.nv.room.isc.pm_gets_s
-        }
-    }
-
-    generators, vectorisation_map = generate_atoms(
-        [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
-    )
-
-    generators_list = list(generators["generators"].values())
-
-    return lindbladian, generators_list, vectorisation_map
-
-
 def real_eig(generator):
+    """
+        Diagonalise the system/dc/quiescent Lindblad operator into it's real
+        block-diagonal form.
+    """
+
     values, vectors = np.linalg.eig(generator)
 
     vectors_complex = np.empty(
@@ -2226,112 +2207,15 @@ def real_eig(generator):
     )
 
 
-# Legacy code start ===========================================================
-
-def _generate_valid_indices(valid_mask: np.ndarray = None):
-    if valid_mask is None:
-        valid_mask = np.zeros((7, 7), dtype=meta_datatype)
-        valid_mask[:3, :3] = 1
-        valid_mask[3:6, 3:6] = 1
-        valid_mask[6, 6] = 1
-
-    valid_indices = []
-
-    hilbert_size = valid_mask.shape[0]
-    for y_index in range(hilbert_size):
-        if valid_mask[y_index, y_index]:
-            valid_indices.append([y_index, y_index, 0])
-
-    for y_index in range(hilbert_size - 1):
-        for x_index in range(y_index + 1, hilbert_size):
-            if valid_mask[y_index, x_index]:
-                valid_indices.append([y_index, x_index, 0])
-                valid_indices.append([y_index, x_index, 1])
-
-    valid_indices = np.array(valid_indices, dtype=np.int32)
-    return valid_indices
-
-
-def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
-    operator_dimension = valid_indices.shape[0]
-    hilbert_size = operator.shape[0]
-    superoperator = np.empty(
-        (operator_dimension, operator_dimension),
-        dtype=meta_datatype
-    )
-
-    for in_index in range(operator_dimension):
-        y_in_index = valid_indices[in_index, 0]
-        x_in_index = valid_indices[in_index, 1]
-        c_in_index = valid_indices[in_index, 2]
-
-        density_matrix = np.zeros(
-            (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
-        density_matrix[y_in_index, x_in_index, c_in_index] = 1
-        if y_in_index != x_in_index:
-            if c_in_index:
-                density_matrix[x_in_index, y_in_index, c_in_index] = -1
-            else:
-                density_matrix[x_in_index, y_in_index, c_in_index] = 1
-
-        scratch = _mult(operator, density_matrix) \
-            - _mult(density_matrix, operator)
-        operator_out = np.empty_like(scratch)
-        operator_out[:, :, 0] = scratch[:, :, 1]
-        operator_out[:, :, 1] = -scratch[:, :, 0]
-
-        for out_index in range(operator_dimension):
-            y_out_index = valid_indices[out_index, 0]
-            x_out_index = valid_indices[out_index, 1]
-            c_out_index = valid_indices[out_index, 2]
-            superoperator[out_index, in_index] = \
-                operator_out[y_out_index, x_out_index, c_out_index]
-    return superoperator
-
-
-def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
-    operator_dimension = valid_indices.shape[0]
-    hilbert_size = operator.shape[0]
-    superoperator = np.empty(
-        (operator_dimension, operator_dimension),
-        dtype=meta_datatype
-    )
-
-    for in_index in range(operator_dimension):
-        y_in_index = valid_indices[in_index, 0]
-        x_in_index = valid_indices[in_index, 1]
-        c_in_index = valid_indices[in_index, 2]
-
-        density_matrix = np.zeros(
-            (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
-        density_matrix[y_in_index, x_in_index, c_in_index] = 1
-        if y_in_index != x_in_index:
-            if c_in_index:
-                density_matrix[x_in_index, y_in_index, c_in_index] = -1
-            else:
-                density_matrix[x_in_index, y_in_index, c_in_index] = 1
-
-        operator_transpose = np.transpose(operator.copy(), axes=(1, 0, 2))
-        operator_transpose[:, :, 1] = -operator_transpose[:, :, 1]
-        operator_out = _mult(_mult(operator, density_matrix),
-                             operator_transpose)
-        proj = _mult(operator_transpose, operator)
-        operator_out -= 0.5*_mult(proj, density_matrix)
-        operator_out -= 0.5*_mult(density_matrix, proj)
-
-        for out_index in range(operator_dimension):
-            y_out_index = valid_indices[out_index, 0]
-            x_out_index = valid_indices[out_index, 1]
-            c_out_index = valid_indices[out_index, 2]
-            superoperator[out_index, in_index] = \
-                operator_out[y_out_index, x_out_index, c_out_index]
-    return superoperator
-
 # Kernel ======================================================================
 
 tolerance = 1e-14
 
 def _rref(matrix: np.ndarray):
+    """
+        Find the reduced row-echelon form (rref) of a matrix.
+    """
+
     matrix_sy = sy.Matrix(matrix)
     rref_sy, pivot_sy = matrix_sy.rref(iszerofunc=lambda x: abs(x) < tolerance)
     rref = np.array(rref_sy, np.float64)
@@ -2340,6 +2224,10 @@ def _rref(matrix: np.ndarray):
 
 
 def _make_real(kernels: list[np.ndarray]):
+    """
+        Convert the complex basis for the kernel into a real basis.
+    """
+
     kernels_real = []
     for kernel in kernels:
         kernel_real = []
@@ -2362,8 +2250,15 @@ def _make_real(kernels: list[np.ndarray]):
 
 
 def _apply_zassenhaus(kernels: list[np.ndarray]):
+    """
+        Find the a basis for the intersection of the kernels of all generators
+        in the control Lie algebra usingb the Zassenhaus algorithm.
+    """
+
     current_intersection = kernels[0]
     for kernel_index in range(1, len(kernels)):
+        # Find the intersection of all of the kernels (two at once)
+
         kernel = kernels[kernel_index]
         # Shapes
         if len(current_intersection.shape) > 0:
@@ -2441,6 +2336,10 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
 
 
 def _gram_schmidt(initial: list, avoid: list = None):
+    """
+        Use the Gram-Schmidt algorithm to make found bases orthogonal.
+    """
+
     final = []
     for column in initial:
         if avoid is not None:
@@ -2457,6 +2356,11 @@ def _gram_schmidt(initial: list, avoid: list = None):
 
 
 def _find_orthogonal(intersection: np.ndarray):
+    """
+        Find orthogonal bases for both the intersection of the kernels, and the
+        images.
+    """
+
     intersection_orthogonal = _gram_schmidt(intersection.T)
     intersection_orthogonal_a = \
         np.array(intersection_orthogonal, dtype=np.float64).T
@@ -2472,6 +2376,12 @@ def _find_orthogonal(intersection: np.ndarray):
 
 
 def find_kernel(generators: np.ndarray):
+    """
+        Remove redundant dimensions from the superoperators by finding the
+        intersection of all of the kernels of the superoperators in the control
+        Lie algebra.
+    """
+
     kernels = []
     for generator in generators:
         vals, vecs = np.linalg.eig(generator)
@@ -2619,7 +2529,215 @@ def _calculate_elimination_matrices(basis_hermitian: list, basis_full: list):
     return elimination_matrix, duplication_matrix
 
 
-# Main ========================================================================
+# Legacy code start ===========================================================
+
+# def generate_7(
+#         coefficient_functions: list[callable],
+#         quiescent_magnetic_field: np.ndarray = None,
+#         use_rotating: bool = False,
+#         return_full: bool = False,
+#         rotation_magnetic_from_atom: str = None):
+# 
+#     lindbladian = _generate_lindbladian(coefficient_functions, use_rotating)
+#     # lindbladian = _generate_lindbladian(coefficient_functions)
+# 
+#     if quiescent_magnetic_field is None:
+#         quiescent_magnetic_field = np.zeros(3)
+# 
+#     nv_ground = {
+#         "S": 1,
+#         "g": s3p.nv.room.ground.g_longitudinal,
+#         "g_perp": s3p.nv.room.ground.g_transverse,
+#         "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+#         "TS1": s3p.nv.room.ground.thermalisation_time,
+#         "TS2": s3p.nv.room.ground.dephasing_time,
+# 
+#         "B0": quiescent_magnetic_field,
+#         "T": s3p.standards.lab.ntp.temperature
+#     }
+# 
+#     nv_excited = {
+#         "S": 1,
+#         "g": s3p.nv.room.excited.g_longitudinal,
+#         "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+#         "TS1": s3p.nv.room.excited.thermalisation_time,
+#         "TS2": s3p.nv.room.excited.dephasing_time,
+# 
+#         "B0": quiescent_magnetic_field,
+#         "T": s3p.standards.lab.ntp.temperature
+#     }
+# 
+#     nv_singlet = {
+#         "S": 0,
+#     }
+# 
+#     nv_orbitals = {
+#         # Optical transitions
+#         ((0, 0), (1, 0)): {
+#             "rel": s3p.nv.room.optical.conserving,
+#             "rel_n": s3p.nv.room.optical.nonconserving
+#         },
+# 
+#         # ISC excited
+#         ((1, 0), (2, 0)): {
+#             "s_gets_0": s3p.nv.room.isc.s_gets_z,
+#             "s_gets_1": s3p.nv.room.isc.s_gets_pm
+#         },
+# 
+#         # ISC ground
+#         ((2, 0), (0, 0)): {
+#             "0_gets_s": s3p.nv.room.isc.z_gets_s,
+#             "1_gets_s": s3p.nv.room.isc.pm_gets_s
+#         }
+#     }
+# 
+#     if rotation_magnetic_from_atom is not None:
+#         nv_ground["Rb_gets_a"] = rotation_magnetic_from_atom
+#         nv_excited["Rb_gets_a"] = rotation_magnetic_from_atom
+#         nv_singlet["Rb_gets_a"] = rotation_magnetic_from_atom
+# 
+#     generators, vectorisation_map = generate_atoms(
+#         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
+#     )
+# 
+#     generators_list = list(generators["generators"].values())
+# 
+#     if use_rotating:
+#         vectors_real, inv_vectors_real, doubles, singles = \
+#             real_eig(generators_list[0])
+# 
+#         generators_list = generators_list[1:]
+# 
+#         generators_list_real = [
+#             inv_vectors_real@generator@vectors_real
+#             for generator in generators_list
+#         ]
+# 
+#         if return_full:
+#             return (
+#                 lindbladian, generators_list_real, vectorisation_map,
+#                 vectors_real, inv_vectors_real, doubles, singles, generators
+#             )
+#         return (
+#             lindbladian, generators_list_real, vectorisation_map, vectors_real,
+#             inv_vectors_real, doubles, singles
+#         )
+# 
+#     if return_full:
+#         return lindbladian, generators_list, vectorisation_map, generators
+#     return lindbladian, generators_list, vectorisation_map
+# 
+# 
+# def generate_21(
+#         coefficient_functions: list[callable],
+#         quiescent_magnetic_field: np.ndarray):
+# 
+#     lindbladian = _generate_lindbladian(coefficient_functions)
+# 
+#     nv_ground = {
+#         "S": 1,
+#         "g": s3p.nv.room.ground.g_longitudinal,
+#         "g_perp": s3p.nv.room.ground.g_transverse,
+#         "D": math.tau*s3p.nv.room.ground.zfs_longitudinal,
+#         "TS1": s3p.nv.room.ground.thermalisation_time,
+#         "TS2": s3p.nv.room.ground.dephasing_time,
+# 
+#         "I": 1,
+#         "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+#         "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+#         "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+#         "TI2": s3p.nv.room.ground.dephasing_time_14N,
+#         "A": math.tau*s3p.nv.room.ground.hyperfine_14N_longitudinal,
+#         "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
+# 
+#         "B0": quiescent_magnetic_field,
+#         "T": s3p.standards.lab.ntp.temperature
+#     }
+# 
+#     nv_excited = {
+#         "S": 1,
+#         "g": s3p.nv.room.excited.g_longitudinal,
+#         "D": math.tau*s3p.nv.room.excited.zfs_longitudinal,
+#         "TS1": s3p.nv.room.excited.thermalisation_time,
+#         "TS2": s3p.nv.room.excited.dephasing_time,
+# 
+#         "I": 1,
+#         "gN": s3p.nv.room.excited.g_N_14N_longitudinal,
+#         "P": math.tau*s3p.nv.room.excited.nuclear_quadrupole_14N_longitudinal,
+#         "TI1": s3p.nv.room.excited.thermalisation_time_14N,
+#         "TI2": s3p.nv.room.excited.dephasing_time_14N,
+#         "A": math.tau*s3p.nv.room.excited.hyperfine_14N_longitudinal,
+#         "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
+# 
+#         "B0": quiescent_magnetic_field,
+#         "T": s3p.standards.lab.ntp.temperature
+#     }
+# 
+#     nv_singlet = {
+#         "S": 0,
+# 
+#         "I": 1,
+#         "gN": s3p.nv.room.ground.g_N_14N_longitudinal,
+#         "P": math.tau*s3p.nv.room.ground.nuclear_quadrupole_14N_longitudinal,
+#         "TI1": s3p.nv.room.ground.thermalisation_time_14N,
+#         "TI2": s3p.nv.room.ground.dephasing_time_14N,
+# 
+#         "B0": quiescent_magnetic_field,
+#         "T": s3p.standards.lab.ntp.temperature
+#     }
+# 
+#     nv_orbitals = {
+#         # Optical transitions
+#         ((0, 0), (1, 0)): {
+#             "rel": s3p.nv.room.optical.conserving,
+#             "rel_n": s3p.nv.room.optical.nonconserving
+#         },
+# 
+#         # ISC excited
+#         ((1, 0), (2, 0)): {
+#             "s_gets_0": s3p.nv.room.isc.s_gets_z,
+#             "s_gets_1": s3p.nv.room.isc.s_gets_pm
+#         },
+# 
+#         # ISC ground
+#         ((2, 0), (0, 0)): {
+#             "0_gets_s": s3p.nv.room.isc.z_gets_s,
+#             "1_gets_s": s3p.nv.room.isc.pm_gets_s
+#         }
+#     }
+# 
+#     generators, vectorisation_map = generate_atoms(
+#         [[nv_ground], [nv_excited], [nv_singlet]], [{}, {}, {}], nv_orbitals
+#     )
+# 
+#     generators_list = list(generators["generators"].values())
+# 
+#     return lindbladian, generators_list, vectorisation_map
+# def _generate_valid_indices(valid_mask: np.ndarray = None):
+#     if valid_mask is None:
+#         valid_mask = np.zeros((7, 7), dtype=meta_datatype)
+#         valid_mask[:3, :3] = 1
+#         valid_mask[3:6, 3:6] = 1
+#         valid_mask[6, 6] = 1
+# 
+#     valid_indices = []
+# 
+#     hilbert_size = valid_mask.shape[0]
+#     for y_index in range(hilbert_size):
+#         if valid_mask[y_index, y_index]:
+#             valid_indices.append([y_index, y_index, 0])
+# 
+#     for y_index in range(hilbert_size - 1):
+#         for x_index in range(y_index + 1, hilbert_size):
+#             if valid_mask[y_index, x_index]:
+#                 valid_indices.append([y_index, x_index, 0])
+#                 valid_indices.append([y_index, x_index, 1])
+# 
+#     valid_indices = np.array(valid_indices, dtype=np.int32)
+#     return valid_indices
+
+
+# Main/test ===================================================================
 
 def _rotation():
     import matplotlib.pyplot as plt
