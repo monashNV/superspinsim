@@ -18,7 +18,7 @@ def generate_atoms(
         block_interactions: dict, use_unitary: bool = False,
         verbose: bool = False) -> [dict, dict, list[dict], dict]:
     """
-        Define a system of multiple spins.
+    Define a system of multiple spins.
     """
 
     # We're going to add to these structures, so it's best to deep copy.
@@ -130,7 +130,7 @@ def _add_atom(
         block: list[dict], atom: dict, label_sets: dict[str, set[str]],
         previous_identity: np.ndarray, hilbert_space_shape: list[int]):
     """
-        Define an atom.
+    Define an atom.
     """
 
     electron_spin, previous_identity = _add_electron(
@@ -154,7 +154,7 @@ def _add_electron(
             previous_identity: np.ndarray, hilbert_space_shape: list[int]
         ) -> [int, np.ndarray]:
     """
-        Defines the electron spin system.
+    Defines the electron spin system.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -292,7 +292,7 @@ def _add_nucleus(
             previous_identity: np.ndarray, hilbert_space_shape: list[int]
         ) -> [int, np.ndarray]:
     """
-        Generates a nucleus.
+    Generates a nucleus.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -421,11 +421,11 @@ def _add_thermalisation(
     zfs_generator: np.ndarray, label_sets: dict[str, set[str]]
 ) -> set[str]:
     """
-        Themalisation (T1 time):
-        Model: The rate of flow into an energy eigenstate is proportional
-        to its Boltzmann factor.
-        See Equation (VIII.9) from [Abragam "The Principles of Nuclear
-        Magnetism", 1961, ISBN 0198512368]
+    Themalisation (T1 time):
+    Model: The rate of flow into an energy eigenstate is proportional
+    to its Boltzmann factor.
+    See Equation (VIII.9) from [Abragam "The Principles of Nuclear
+    Magnetism", 1961, ISBN 0198512368]
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -520,7 +520,7 @@ def _add_hyperfine(
         electron_spin: float, nuclear_spin: float, atom: dict,
         label_sets: dict[str, set[str]]):
     """
-        Add hyperfine interactions to the atom.
+    Add hyperfine interactions to the atom.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -580,7 +580,7 @@ def _combine_in_atom(
         electron_spin: float, nuclear_spin: float, atom: dict,
         label_sets: dict[str, set[str]]):
     """
-        Zeeman and ZFS.
+    Zeeman and ZFS.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -711,7 +711,7 @@ def _add_spin_spin_coupling(
 
 def _remove_trace(description: list[dict], operator_labels: set[str]):
     """
-        Remove trace from all operators.
+    Remove trace from all operators.
     """
 
     for block in description:
@@ -731,7 +731,7 @@ def _combine_coherent_atoms(
         description: list[dict], atom_interactions: list[dict],
         field_labels: set[str]) -> list:
     """
-        Combine all operators in block.
+    Combine all operators in block.
     """
 
     block_operator_list = []
@@ -787,7 +787,7 @@ def _list_operators(
     block_interactions: dict, label_sets: dict[str, set[str]]
 ) -> dict[str, dict[str, np.ndarray]]:
     """
-        Put all generated operators into global lists.
+    Put all generated operators into global lists.
     """
 
     operator_labels = label_sets["operator_labels"]
@@ -891,7 +891,7 @@ def _list_operators(
 
 def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     """
-        Multiply two complex matrices.
+    Multiply two complex matrices.
     """
 
     operator_out = np.empty_like(left)
@@ -904,8 +904,8 @@ def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
 
 def add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
     """
-        Add a new spin system to the Hilbert/operator space.
-        See Sakurai 3ed Section 3.5.3.
+    Add a new spin system to the Hilbert/operator space.
+    See Sakurai 3ed Section 3.5.3.
     """
 
     spin_dimension = int(2*spin + 1)
@@ -957,23 +957,33 @@ def _product_spin_state(
         previous_identity: np.ndarray, spin_identity: np.ndarray,
         block: list, atom_current: dict, temp_labels: set,
         operator_labels: set, dissipator_labels: set) -> np.ndarray:
+    """
+    Combine operators for all atoms in the block.
+    """
+
     if previous_identity is not None:
         operator_labels_add = set()
+        # Combine all atoms in the block
         for atom in block:
             ignore = []
             for operator_label in operator_labels:
                 if operator_label in atom.keys() \
                         and operator_label not in ignore:
                     operator = atom[operator_label]
+
                     if operator_label in dissipator_labels:
+                        # Combine jump operators
                         atom.pop(operator_label)
                         if operator_label in temp_labels and \
                                 atom is atom_current:
-                            operators_new = kroneker_jump_inner(
+                            operators_new = _kronecker_jump_inner(
                                 operator, previous_identity)
                         else:
-                            operators_new = kroneker_jump_outer(
+                            operators_new = _kronecker_jump_outer(
                                 spin_identity, operator)
+
+                        # Make sure newly added operators are ignored next
+                        # round
                         for index, operator_new in enumerate(operators_new):
                             label_extend = f"{operator_label} {index}"
                             atom[label_extend] = operator_new
@@ -981,24 +991,25 @@ def _product_spin_state(
                             ignore.append(label_extend)
 
                     else:
+                        # Combine Hamiltonians
                         if operator_label in temp_labels and \
                                 atom is atom_current:
-                            operator_new = kroneker_product(
+                            operator_new = _kronecker_product(
                                 operator, previous_identity)
                         else:
-                            operator_new = kroneker_product(
+                            operator_new = _kronecker_product(
                                 spin_identity, operator)
                         atom[operator_label] = operator_new
 
         operator_labels |= operator_labels_add
         dissipator_labels |= operator_labels_add
 
-        spin_identity = kroneker_product(spin_identity, previous_identity)
+        spin_identity = _kronecker_product(spin_identity, previous_identity)
 
     return spin_identity
 
 
-def kroneker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
+def _kronecker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
     """
         Take the Kroneker product between two operators.
     """
@@ -1030,8 +1041,13 @@ def kroneker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
     return product
 
 
-def kroneker_jump_inner(
+def _kronecker_jump_inner(
         inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
+    """
+    When combining systems, jump operators must be duplicated across all of the
+    degrees of freedom of the new system.
+    """
+
     products = []
 
     for outer_index in range(outer.shape[0]):
@@ -1056,9 +1072,13 @@ def kroneker_jump_inner(
     return products
 
 
-def kroneker_jump_outer(
+def _kronecker_jump_outer(
         inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
     products = []
+    """
+    When combining systems, jump operators must be duplicated across all of the
+    degrees of freedom of the new system.
+    """
 
     for inner_index in range(inner.shape[0]):
         product = np.zeros(
@@ -1082,7 +1102,7 @@ def kroneker_jump_outer(
 
 def _direct_sum(upper: np.ndarray, lower: np.ndarray) -> np.ndarray:
     """
-        Combining incoherent systems
+    Combine two groups.
     """
 
     sum_size = upper.shape[0] + lower.shape[0]
@@ -1094,7 +1114,7 @@ def _direct_sum(upper: np.ndarray, lower: np.ndarray) -> np.ndarray:
 
 def _add_vec(left: tuple, right: tuple) -> tuple:
     """
-        Add two vector operators together.
+    Add two vector operators together.
     """
 
     out = []
@@ -1105,8 +1125,8 @@ def _add_vec(left: tuple, right: tuple) -> tuple:
 
 def _linear_transform(trans: np.ndarray, inp: tuple) -> tuple:
     """
-        Apply a linear transform to a spin vector.
-        The typical case would be the g tensor.
+    Apply a linear transform to a spin vector.
+    The typical case would be the g tensor.
     """
 
     out = [None]*3
@@ -1197,6 +1217,7 @@ def _record_spin_quadratic(
         atom: dict, label_sets: list):
     """
         Write a quadratic expansion of a spin vector to an atom dictionary.
+        Currently this does nothing, as we don't need to record these operators.
     """
 
     # directions = ("x", "y", "z")
@@ -1218,7 +1239,7 @@ def _combine_blocks(
         description: list[list[dict]], coherent_atoms: list[dict],
         label_sets: dict[str, set[str]]):
     """
-        Direct sum the incoherent blocks together.
+        Direct sum the blocks together.
     """
 
     projector_labels = label_sets["projector_labels"]
@@ -1232,11 +1253,16 @@ def _combine_blocks(
         current_size = 0
         current_zero = None
         current_allowed = None
+
+        # Create a template of a zero operator in combined space which we can
+        # add other operators to.
         if combined_size > 0:
             combined_zero = np.zeros(
                 (combined_size, combined_size, 2),
                 dtype=meta_datatype
             )
+
+        # Express the new system in the combined basis (lower right)
         for atom_index, atom in enumerate(block):
 
             for operator_label in dissipator_labels:
@@ -1273,6 +1299,7 @@ def _combine_blocks(
             current_allowed[:, :, 0] = np.ones(
                 (current_size, current_size), dtype=meta_datatype)
 
+        # Express the old system in the combined basis (upper left)
         for block_previous_index, (block_previous, coherent_atom_previous) \
                 in enumerate(zip(description, coherent_atoms)):
             if block_previous_index < block_index:
@@ -1296,9 +1323,15 @@ def _combine_blocks(
                             current_zero
                         )
 
+        # Determine which indices are "allowed";
+        # ie whether or not they can be non-zero.
+        # This is done with a binary matrix with a one in the index of an
+        # element that can be non-zero.
         if combined_size == 0:
             combined_allowed = current_allowed
         else:
+            # If the blocks are incoherent, then the combined allowed indices
+            # are the direct sum of the individual ones.
             combined_allowed = _direct_sum(
                 combined_allowed, current_allowed)
         combined_size += current_size
@@ -1310,8 +1343,15 @@ def _combine_blocks_operator(
         operator_label: str, atom: dict, current_size: int,
         current_zero: np.ndarray, current_allowed: np.ndarray,
         combined_size: int, combined_zero: np.ndarray):
+    """
+        Direct sum an operator acting on the new subsystem, with the zero of
+        the previous subsystem.
+        This makes the operator act on the full system.
+    """
 
     operator = atom[operator_label]
+
+    # If the new subsystem is yet to be defined, then define it here.
     if current_size == 0:
         current_size = operator.shape[0]
         current_zero = np.zeros(
@@ -1324,6 +1364,7 @@ def _combine_blocks_operator(
             dtype=meta_datatype
         )
 
+    # Actually do the direct sum.
     if combined_size > 0:
         operator = _direct_sum(combined_zero, operator)
     atom[operator_label] = operator
@@ -1334,6 +1375,11 @@ def _combine_blocks_operator(
 def _combine_blocks_operator_previous(
         operator_label: str, atom_previous: dict,
         current_zero: np.ndarray):
+    """
+        Direct sum an operator acting on the previous subsystem, with the zero
+        of the new subsystem.
+        This makes the operator act on the full system.
+    """
 
     operator = atom_previous[operator_label]
     operator = _direct_sum(operator, current_zero)
@@ -1345,7 +1391,7 @@ def _add_block_interaction(
         interaction: dict, description: list[list[dict]],
         label_sets: dict[str, set[str]]):
     """
-        Add incoherent interactions between blocks.
+        Add interactions between blocks.
     """
 
     atom_a_dict = description[block_a][atom_a]
@@ -1360,7 +1406,7 @@ def _add_block_interaction(
 
     if spin_a is not None and spin_b is not None:
         if spin_a == spin_b:
-            # Optical
+            # NV optical
             if "rel_n" in interaction.keys():
                 relaxation_rate_nonconserve = interaction["rel_n"]
             else:
@@ -1376,7 +1422,7 @@ def _add_block_interaction(
             )
 
         elif spin_a == 1 and spin_b == 0:
-            # ISC excited
+            # NV ISC excited
             if "s_gets_0" in interaction.keys():
                 relaxation_rate_0 = interaction["s_gets_0"]
             if "s_gets_1" in interaction.keys():
@@ -1388,7 +1434,7 @@ def _add_block_interaction(
                 )
 
         elif spin_a == 0 and spin_b == 1:
-            # ISC ground
+            # NV ISC ground
             if "0_gets_s" in interaction.keys():
                 relaxation_rate_0 = interaction["0_gets_s"]
             if "1_gets_s" in interaction.keys():
@@ -1400,7 +1446,7 @@ def _add_block_interaction(
                 )
 
         elif spin_a == 0 and spin_b == 1/2:
-            # C? ISC excited
+            # C? in hBN ISC excited
             psi_gets_e = None
             phi_gets_e = None
             if "psi_gets_e" in interaction.keys():
@@ -1417,7 +1463,7 @@ def _add_block_interaction(
                 )
 
         elif spin_b == 0 and spin_a == 1/2:
-            # C? ISC excited
+            # C? in hBN ISC ground
             g_gets_psi = None
             g_gets_phi = None
             if "g_gets_psi" in interaction.keys():
@@ -2453,12 +2499,20 @@ def find_kernel(generators: np.ndarray):
 # Unitary =====================================================================
 
 def _complex_to_real(generator: np.ndarray):
+    """
+    Transform the equation,
+        dy/dt = -i H y,
+    with H Hermitian and y complex to,
+        dY/dt = A Y,
+    with A real and Y real.
+    Here, Y is twice the dimension of y, and contains the real and imaginary
+    components of y interlaced.
+    """
+
     generator_real = np.empty(
         (2*generator.shape[0], 2*generator.shape[1]),
         dtype=meta_datatype
     )
-    # re = generator[:, :, 0]
-    # im = generator[:, :, 1]
     re = -generator[:, :, 1]
     im = generator[:, :, 0]
 
@@ -2470,6 +2524,10 @@ def _complex_to_real(generator: np.ndarray):
 
 
 def _complex_to_real_all(generators: dict[np.ndarray]):
+    """
+    Calls `_complex_to_real` on all relevant Hamiltonians.
+    """
+
     generators_real = {
         label: _complex_to_real(generator)
         for label, generator in generators.items()
@@ -2483,6 +2541,19 @@ def _complex_to_real_all(generators: dict[np.ndarray]):
 
 def _get_hermitian_basis_from_valid_indices(
         valid_indices: np.ndarray, hilbert_size: int):
+    """
+    Evaluates the basis elements of Hermitian matrices of su(N) from the array
+    of `valid_indices`.
+    Here N is `hilbert_size`.
+    The Hermitian matrices are written as real matrices with a third index for
+    real/imaginary.
+
+    `valid_indices` is a 3*M array.
+    A row of [4, 4, 0] corresponds to a matrix basis element of E_44.
+    A row of [1, 2, 0] corresponds to a matrix basis element of T_21.
+    A row of [3, 5, 1] corresponds to a matrix basis element of -i T'_53.
+    """
+
     matrix_basis = []
     for y_in_index, x_in_index, c_in_index in valid_indices:
         density_matrix = np.zeros(
@@ -2498,6 +2569,13 @@ def _get_hermitian_basis_from_valid_indices(
 
 
 def _get_full_basis(hilbert_size: int):
+    """
+    Generates a complete set of basis Hermitian matrices for SU(N).
+    Here N is `hilbert_size`.
+    The Hermitian matrices are written as real matrices with a third index for
+    real/imaginary.
+    """
+
     matrix_basis = []
     for x_index in range(hilbert_size):
         for y_index in range(hilbert_size):
@@ -2510,6 +2588,12 @@ def _get_full_basis(hilbert_size: int):
 
 
 def _calculate_elimination_matrix(basis_hermitian: list, basis_full: list):
+    """
+    Calculate the elimination or duplication matrix between vectorisations in
+    two different Hermitian matrix bases.
+    See manuscript for explanation of maths.
+    """
+
     elimination_matrix = np.empty(
         (len(basis_hermitian), len(basis_full)), dtype=meta_datatype)
     for hermitian_index, element_hermitian in enumerate(basis_hermitian):
@@ -2521,6 +2605,13 @@ def _calculate_elimination_matrix(basis_hermitian: list, basis_full: list):
 
 
 def _calculate_elimination_matrices(basis_hermitian: list, basis_full: list):
+    """
+    Calculate the transformation matrices between two Hermitian matrix bases in
+    both directions.
+    That is, find both the elimination and duplication matrices.
+    See `_calculate_elimination_matrix`.
+    """
+
     elimination_matrix = _calculate_elimination_matrix(
         basis_hermitian, basis_full)
     duplication_matrix = _calculate_elimination_matrix(
