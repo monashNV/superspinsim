@@ -90,6 +90,11 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.2.3
+
+Fixed bug of incorrect bounds and memory leaks when using the kernel
+functionality on CPU.
+
 ### 1.2.2
 
 Added CPU functionality for qutip.
