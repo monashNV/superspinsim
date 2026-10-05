@@ -40,7 +40,6 @@ There are some further features which are thinking about adding, possibly after
 the manuscript is submitted:
 
 - Support to split the problem over multiple GPUs, rather than just one.
-- Support for running the algorithm on (SIMD operations on) a CPU.
   
 
 ## Installation

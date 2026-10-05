@@ -11,8 +11,6 @@ try:
 except Exception:
     nc = None
 
-from numba.core.runtime import rtsys
-
 import warnings
 
 
@@ -200,8 +198,8 @@ def generate_simulator(
         if use_cuda:
             grid_size = (int(math.ceil(time.size/32)), 1)
             block_size = (32, 1)
-            _calculate_time_basic_kernel[grid_size, block_size] \
-                (time, time_start, time_step)
+            _calculate_time_basic_kernel[grid_size, block_size](
+                time, time_start, time_step)
         else:
             _calculate_time_basic_loop(time, time_start, time_step)
 
@@ -210,8 +208,8 @@ def generate_simulator(
         if use_cuda:
             grid_size = (int(math.ceil(time.size/32)), 1)
             block_size = (32, 1)
-            _calculate_time_quadrature_kernel[grid_size, block_size] \
-                (time, time_sample, time_start, time_step, sample)
+            _calculate_time_quadrature_kernel[grid_size, block_size](
+                time, time_sample, time_start, time_step, sample)
         else:
             _calculate_time_quadrature_loop(
                 time, time_sample, time_start, time_step, sample)
@@ -306,7 +304,8 @@ def generate_simulator(
 
         def _combine_coefficients_loop(
                 coefficients, weighted_coefficients, weights):
-            for t_index in nb.prange(weighted_coefficients.shape[0]//weights.shape[0]):
+            for t_index in nb.prange(
+                    weighted_coefficients.shape[0]//weights.shape[0]):
                 for coef_index in nb.prange(weighted_coefficients.shape[1]):
                     for weight_index in nb.prange(weights.shape[0]):
                         _combine_coefficients(
@@ -328,8 +327,8 @@ def generate_simulator(
         if use_cuda:
             grid_size = (weighted_coefficients.shape[0]//weights.shape[0], 1)
             block_size = (weighted_coefficients.shape[1], weights.shape[0])
-            _combine_coefficients_kernel[grid_size, block_size] \
-                (coefficients, weighted_coefficients, weights)
+            _combine_coefficients_kernel[grid_size, block_size](
+                coefficients, weighted_coefficients, weights)
         else:
             _combine_coefficients_loop(
                 coefficients, weighted_coefficients, weights)
@@ -426,8 +425,8 @@ def generate_simulator(
                 number_of_submatrices
             )
             block_size = (submatrix_size, submatrix_size)
-            _calculate_differential_kernel[grid_size, block_size] \
-                (time_step, generator, coefficient, differential)
+            _calculate_differential_kernel[grid_size, block_size](
+                time_step, generator, coefficient, differential)
         else:
             _calculate_differential_loop(
                 time_step, generator, coefficient, differential)
@@ -490,12 +489,13 @@ def generate_simulator(
                 for x_index in nb.prange(operator_size):
                     for y_index in nb.prange(operator_size):
                         _calculate_differential_rotating(
-                        time_step, generator,
-                        coefficient[
-                            coefficient_index_start:coefficient_index_end, :],
-                        weight[t_index % weight.shape[0], :],
-                        differential[t_index, :, :],
-                        y_index, x_index
+                            time_step, generator,
+                            coefficient[
+                                coefficient_index_start:coefficient_index_end,
+                                :],
+                            weight[t_index % weight.shape[0], :],
+                            differential[t_index, :, :],
+                            y_index, x_index
                         )
 
         _calculate_differential_rotating_loop = \
@@ -556,11 +556,10 @@ def generate_simulator(
                 number_of_submatrices
             )
             block_size = (submatrix_size, submatrix_size)
-            _scale_differential_basic_kernel[grid_size, block_size] \
-                (differential)
+            _scale_differential_basic_kernel[grid_size, block_size](
+                differential)
         else:
             _scale_differential_basic_loop(differential)
-
 
     # Cayley ------------------------------------------------------------------
 
@@ -1249,9 +1248,11 @@ def generate_simulator(
 
         for exponential_index in range(0, number_of_exponentials, 2):
             if use_cuda:
-                _multiply_superoperator_quadrature_kernel[grid_size, block_size](
+                _multiply_superoperator_quadrature_kernel[
+                        grid_size, block_size](
                     exponentials, time_evolution, scratch,
-                        number_of_exponentials - exponential_index - 1)
+                    number_of_exponentials - exponential_index - 1
+                )
             else:
                 _multiply_superoperator_quadrature_loop(
                     exponentials, time_evolution, scratch,
@@ -1281,8 +1282,8 @@ def generate_simulator(
                 number_of_submatrices
             )
             block_size = (submatrix_size, submatrix_size)
-            _id_superoperator_kernel[grid_size, block_size] \
-                (time_evolution)
+            _id_superoperator_kernel[grid_size, block_size](
+                time_evolution)
         else:
             _id_superoperator_loop(time_evolution)
 
@@ -1292,10 +1293,10 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
         for time_index in range(0, time_evolutions.shape[0] - 1):
             if use_cuda:
-                _basic_combine_kernel[grid_size, block_size] \
-                    (time_evolutions, time_index, scratch)
-                _basic_combine_copy_kernel[grid_size, block_size] \
-                    (time_evolutions, time_index, scratch)
+                _basic_combine_kernel[grid_size, block_size](
+                    time_evolutions, time_index, scratch)
+                _basic_combine_copy_kernel[grid_size, block_size](
+                    time_evolutions, time_index, scratch)
             else:
                 # print(time_index)
                 _basic_combine_loop(time_evolutions, time_index, scratch)
@@ -1364,8 +1365,8 @@ def generate_simulator(
         if use_cuda:
             grid_size = (time_evolutions.shape[0], 1)
             block_size = (operator_size_density, 1)
-            _apply_time_evolution_kernel[grid_size, block_size] \
-                (time_evolutions, density_operator_initial, density_operators)
+            _apply_time_evolution_kernel[grid_size, block_size](
+                time_evolutions, density_operator_initial, density_operators)
         else:
             _apply_time_evolution_loop(
                 time_evolutions, density_operator_initial, density_operators)
@@ -1405,7 +1406,8 @@ def generate_simulator(
     if use_cuda:
         _kronecker_product = nc.jit(_kronecker_product, device=True)
 
-        def _kronecker_product_kernel(time_evolutions_unitary, time_evolutions):
+        def _kronecker_product_kernel(
+                time_evolutions_unitary, time_evolutions):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             t_index = nc.blockIdx.x
@@ -1467,8 +1469,8 @@ def generate_simulator(
                 number_of_submatrices_unitary
             )
             block_size = (submatrix_size_unitary, submatrix_size_unitary)
-            _kronecker_product_kernel[grid_size, block_size] \
-                (time_evolutions_unitary, time_evolutions)
+            _kronecker_product_kernel[grid_size, block_size](
+                time_evolutions_unitary, time_evolutions)
         else:
             _kronecker_product_loop(time_evolutions_unitary, time_evolutions)
 
@@ -1482,7 +1484,6 @@ def generate_simulator(
             _copy_unitary_kernel[grid_size, block_size](original, clone)
         else:
             _copy_unitary_loop(original, clone)
-
 
     # Simulation --------------------------------------------------------------
 
@@ -1976,14 +1977,16 @@ def generate_simulator(
             # calculation
             _quadrature_combine_run(
                 superoperators_device, time_evolution_device,
-                scratch_device[:number_of_samples, :operator_size, :operator_size]
+                scratch_device[
+                    :number_of_samples, :operator_size, :operator_size]
                 # scratch_device
             )
 
             if use_rotating:
                 _apply_eig_run(
                     time_evolution_device[:, :operator_size, :operator_size],
-                    scratch_device[:number_of_samples, :operator_size, :operator_size],
+                    scratch_device[
+                        :number_of_samples, :operator_size, :operator_size],
                     doubles_forward_device,
                     singles_forward_device
                 )
@@ -2007,7 +2010,8 @@ def generate_simulator(
             _apply_global_sandwich_run(
                 vectors_real_device, inv_vectors_real_device,
                 time_evolution_device[:, :operator_size, :operator_size],
-                scratch_device[:number_of_samples, :operator_size, :operator_size]
+                scratch_device[
+                    :number_of_samples, :operator_size, :operator_size]
             )
             # print("After rotating:")
             # print(np.any(np.isnan(time_evolution_device)))
@@ -2018,8 +2022,12 @@ def generate_simulator(
                 print("Moving out of the equivalence class")
             _apply_global_sandwich_run(
                 image_projection_device, image_projection_transpose_device,
-                time_evolution_device[:, :operator_size_density, :operator_size_density],
-                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
+                time_evolution_device[
+                    :, :operator_size_density, :operator_size_density],
+                scratch_device[
+                    :number_of_samples, :operator_size_density,
+                    :operator_size_density
+                ]
             )
             # print("During kernel:")
             # print(np.any(np.isnan(time_evolution_device)))
@@ -2027,8 +2035,12 @@ def generate_simulator(
             # print(np.any(np.isnan(time_evolution_device[:, :operator_size_density, :operator_size_density])))
             _apply_global_addition_run(
                 kernel_projection_device,
-                time_evolution_device[:, :operator_size_density, :operator_size_density],
-                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
+                time_evolution_device[
+                    :, :operator_size_density, :operator_size_density],
+                scratch_device[
+                    :number_of_samples, :operator_size_density,
+                    :operator_size_density
+                ]
             )
             # input(time_evolution_device)
             # print("After kernel:")
@@ -2041,21 +2053,32 @@ def generate_simulator(
                 print("Moving from operator to superoperator form")
             # print(time_evolution_device[:, :operator_size, :operator_size].copy_to_host())
             _kronecker_product_run(
-                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
+                scratch_device[
+                    :number_of_samples, :operator_size_unitary,
+                    :operator_size_unitary
+                ],
                 time_evolution_device[:, :operator_size, :operator_size]
             )
             # print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary].copy_to_host())
             # print(operator_size)
             # input(operator_size_unitary)
             _copy_unitary_run(
-                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
-                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary]
+                scratch_device[
+                    :number_of_samples, :operator_size_unitary,
+                    :operator_size_unitary
+                ],
+                time_evolution_device[
+                    :, :operator_size_unitary, :operator_size_unitary]
             )
             _apply_global_sandwich_run(
                 elimination_device, duplication_device,
                 # duplication_device, elimination_device,
-                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary],
-                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary]
+                time_evolution_device[
+                    :, :operator_size_unitary, :operator_size_unitary],
+                scratch_device[
+                    :number_of_samples, :operator_size_unitary,
+                    :operator_size_unitary
+                ]
             )
             # input(time_evolution_device[:, :operator_size_density, :operator_size_density])
 
@@ -2063,7 +2086,8 @@ def generate_simulator(
         if verbose:
             print("Applying time evolution to initial state")
         _apply_time_evolution_run(
-            time_evolution_device[:, :operator_size_density, :operator_size_density],
+            time_evolution_device[
+                :, :operator_size_density, :operator_size_density],
             density_operator_initial_device,
             density_operators_device
         )

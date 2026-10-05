@@ -1,7 +1,113 @@
 [project]
 name = "superspinsim"
 version = "1.2.3"
-description = "A GPU-based simulator for time-dependent quantum systems."
+description = """
+    A general, GPU-based simulator, optimised for time-dependent spin systems.
+    We were motivated by the ability to quickly simulate highly time-dependent
+    quantum sensing protocols for the seven-level spin and optical model of
+    the nitrogen-vacancy (NV) colour centre in diamond.
+    However, the dynamics of general atomic and defect systems are able to be
+    simulated as well.
+
+    ## Project status
+
+    SuperSpinsim is a **work-in-progress**.
+
+    The simulator is currently functional.
+
+    We are preparing a manuscript for review.
+    There are a few that we want to add before submission which are not
+    fully-implemented yet:
+
+    - A simplified way to declare quantum states.
+
+    There are some further features which are thinking about adding, possibly after
+    the manuscript is submitted:
+
+    - Support to split the problem over multiple GPUs, rather than just one.
+
+    ## Version log
+
+    ### 1.2.3
+
+    Fixed bug of incorrect bounds and memory leaks when using the kernel
+    functionality on CPU.
+
+    ### 1.2.2
+
+    Added CPU functionality for qutip.
+
+    ### 1.2.1
+
+    Fixed bug of still requiring cuda for CPU functionality.
+
+    ### 1.2.0
+
+    Fixed bug with unitary functionality.
+
+    ### 1.1.3
+
+    Added CPU functionality.
+    Noticed bug with unitary functionality.
+
+    ### 1.1.2
+
+    Fixed bug with spin-spin interactions of different spin numbers.
+
+    ### 1.1.1
+
+    Updated documentation
+
+    ### 1.1.0
+
+    Added ability for incoherent transitions to entangled states
+    (needed for, eg, the model of C? defects in hBN).
+
+    ### 1.0.1
+
+    Fix for documentation.
+
+    ### 1.0.0
+
+    BREAKING: The spin system generator uses a better model for T1 thermalisation.
+
+    ### 0.5.0
+
+    Added unitary mode for solving the Shroedinger/von Neumann equation.
+
+    ### 0.4.0
+
+    Tested equivalence classes.
+
+    ### 0.3.3
+
+    Added a test system for a continuous integration (CI) like workflow to try and
+    catch bugs early.
+
+    ### 0.3.2
+
+    Qudratures datatype changed from float128 to float64 for windows compatibility.
+
+    ### 0.3.1
+
+    README links fixed.
+
+    ### 0.3.0
+
+    Public release.
+
+    ### 0.2.0
+
+    Implementing equivalence classes.
+
+    ### 0.1.1
+
+    Fixed bug in undefined `zfs_generator` in `generate_generators`.
+
+    ### 0.1.0
+
+    First usable; private.
+    """
 readme = "README.md"
 dependencies = [
 	"numba",
@@ -20,12 +126,3 @@ exclude = [
 	"test*",
 	"examples*"
 ]
-
-
-
-
-
-
-
-
-
