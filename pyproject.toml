@@ -10,7 +10,7 @@ dependencies = [
 	"numba-cuda",
 	"numpy<2.5",
 	"sympy",
-	"qutip"
+	"qutip",
 ]
 
 [tool.setuptools.packages.find]

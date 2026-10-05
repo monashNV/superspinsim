@@ -11,7 +11,7 @@ except Exception:
     nc = None
 
 import superspinsim.params as s3p
-from superspinsim.util import colour_complex_matrix
+# from superspinsim.util import colour_complex_matrix
 
 meta_datatype = np.float64
 
@@ -1028,17 +1028,17 @@ def _kronecker_product(inner: np.ndarray, outer: np.ndarray) -> np.ndarray:
     for outer_index_y in range(outer.shape[0]):
         for outer_index_x in range(outer.shape[1]):
             product[
-                outer_index_y*inner.shape[0]
-                :(outer_index_y + 1)*inner.shape[0],
-                outer_index_x*inner.shape[1]
-                :(outer_index_x + 1)*inner.shape[1], 0
+                outer_index_y*inner.shape[0]:
+                (outer_index_y + 1)*inner.shape[0],
+                outer_index_x*inner.shape[1]:
+                (outer_index_x + 1)*inner.shape[1], 0
             ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 0] \
                 - outer[outer_index_y, outer_index_x, 1]*inner[:, :, 1]
             product[
-                outer_index_y*inner.shape[0]
-                :(outer_index_y + 1)*inner.shape[0],
-                outer_index_x*inner.shape[1]
-                :(outer_index_x + 1)*inner.shape[1], 1
+                outer_index_y*inner.shape[0]:
+                (outer_index_y + 1)*inner.shape[0],
+                outer_index_x*inner.shape[1]:
+                (outer_index_x + 1)*inner.shape[1], 1
             ] = outer[outer_index_y, outer_index_x, 0]*inner[:, :, 1] \
                 + outer[outer_index_y, outer_index_x, 1]*inner[:, :, 0]
     return product
@@ -1063,10 +1063,10 @@ def _kronecker_jump_inner(
         )
 
         product[
-            outer_index*inner.shape[0]
-            :(outer_index + 1)*inner.shape[0],
-            outer_index*inner.shape[1]
-            :(outer_index + 1)*inner.shape[1], :
+            outer_index*inner.shape[0]:
+            (outer_index + 1)*inner.shape[0],
+            outer_index*inner.shape[1]:
+            (outer_index + 1)*inner.shape[1], :
         ] = inner
 
         if not np.isclose(np.sum(product**2), 0):
@@ -1220,7 +1220,8 @@ def _record_spin_quadratic(
         atom: dict, label_sets: list):
     """
         Write a quadratic expansion of a spin vector to an atom dictionary.
-        Currently this does nothing, as we don't need to record these operators.
+        Currently this does nothing, as we don't need to record these
+        operators.
     """
 
     # directions = ("x", "y", "z")
@@ -1408,6 +1409,20 @@ def _add_block_interaction(
         spin_b = atom_b_dict["S"]
 
     if spin_a is not None and spin_b is not None:
+        if "coh" in interaction.keys():
+            coherents = interaction["coh"]
+            for coherent in coherents:
+                if "ini" not in coherent:
+                    continue
+                if "fin" not in coherent:
+                    continue
+                if "amp" not in coherent:
+                    continue
+                ini = coherent["ini"]
+                fin = coherent["fin"]
+                amp = coherent["amp"]
+
+        # Spin-dependent
         if spin_a == spin_b:
             # NV optical
             if "rel_n" in interaction.keys():
@@ -2307,6 +2322,7 @@ def real_eig(generator):
 
 tolerance = 1e-14
 
+
 def _rref(matrix: np.ndarray):
     """
         Find the reduced row-echelon form (rref) of a matrix.
@@ -2396,8 +2412,8 @@ def _apply_zassenhaus(kernels: list[np.ndarray]):
 
         rref, _ = _rref(zassenhaus_matrix)
 
-        intersection_bound = \
-            min(current_intersection_s0, kernel_s0)
+        # intersection_bound = \
+        #     min(current_intersection_s0, kernel_s0)
         intersection_start = None
         intersection_end = None
         for row_index in range(current_intersection_s0 + kernel_s0):
@@ -2810,11 +2826,12 @@ def generate_21(
 
     return lindbladian, generators_list, vectorisation_map
 
+
 # Main/test ===================================================================
 
 def _rotation():
-    import matplotlib.pyplot as plt
-    from cmcrameri import cm
+    # import matplotlib.pyplot as plt
+    # from cmcrameri import cm
 
     from pogger import Pogger as Logger
 
@@ -2839,7 +2856,7 @@ def _rotation():
             # "A_perp": math.tau*s3p.nv.room.ground.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": 0 #s3p.standards.lab.ntp.temperature
+            "T": 0  # s3p.standards.lab.ntp.temperature
         }
 
         nv_excited = {
@@ -2858,7 +2875,7 @@ def _rotation():
             # "A_perp": math.tau*s3p.nv.room.excited.hyperfine_14N_transverse,
 
             "B0": quiescent_magnetic_field,
-            "T": 0 #s3p.standards.lab.ntp.temperature
+            "T": 0  # s3p.standards.lab.ntp.temperature
         }
 
         nv_singlet = {
