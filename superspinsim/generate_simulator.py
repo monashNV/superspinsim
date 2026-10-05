@@ -1111,7 +1111,7 @@ def generate_simulator(
 
         def _apply_global_sandwich_left_loop(left, inp, out):
             for t_index in nb.prange(inp.shape[0]):
-                for x_index in nb.prange(left.shape[0]):
+                for x_index in nb.prange(left.shape[1]):
                     for y_index in nb.prange(left.shape[0]):
                         _multiply_superoperator_left(
                             left, inp[t_index, :, :], out[t_index, :, :],
@@ -2009,20 +2009,32 @@ def generate_simulator(
                 time_evolution_device[:, :operator_size, :operator_size],
                 scratch_device[:number_of_samples, :operator_size, :operator_size]
             )
+            # print("After rotating:")
+            # print(np.any(np.isnan(time_evolution_device)))
+            # print(np.any(np.isnan(time_evolution_device[:, :operator_size, :operator_size])))
 
         if use_kernel:
             if verbose:
                 print("Moving out of the equivalence class")
             _apply_global_sandwich_run(
                 image_projection_device, image_projection_transpose_device,
-                time_evolution_device[:, :operator_size, :operator_size],
+                time_evolution_device[:, :operator_size_density, :operator_size_density],
                 scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
             )
+            # print("During kernel:")
+            # print(np.any(np.isnan(time_evolution_device)))
+            # print(np.any(np.isnan(time_evolution_device[:, :operator_size, :operator_size])))
+            # print(np.any(np.isnan(time_evolution_device[:, :operator_size_density, :operator_size_density])))
             _apply_global_addition_run(
                 kernel_projection_device,
                 time_evolution_device[:, :operator_size_density, :operator_size_density],
                 scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
             )
+            # input(time_evolution_device)
+            # print("After kernel:")
+            # print(np.any(np.isnan(time_evolution_device)))
+            # print(np.any(np.isnan(time_evolution_device[:, :operator_size, :operator_size])))
+            # print(np.any(np.isnan(time_evolution_device[:, :operator_size_density, :operator_size_density])))
 
         if use_unitary:
             if verbose:
@@ -2055,6 +2067,9 @@ def generate_simulator(
             density_operator_initial_device,
             density_operators_device
         )
+        # print("Density matrices:")
+        # print(np.any(np.isnan(density_operators_device)))
+        # print(np.any(np.isnan(density_operators_device[:, :operator_size_density])))
 
         # Retrieve results from GPU
         if use_cuda:
