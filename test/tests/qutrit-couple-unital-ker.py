@@ -32,7 +32,9 @@ def main():
 
     # Define density matrix
     density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial[0, 0] = 1/3
+    density_initial[1, 1] = 1/3
+    density_initial[2, 2] = 1/3
 
     # Simulate
     time, density = simspins(
@@ -40,18 +42,15 @@ def main():
         0, 10e-6, 1e-9,                     # Time start/stop/step
         spins, [{}], {},                    # Spin description
         density_initial,                    # Initial state
-        use_rotating=True,
+        use_rotating=False,
         use_residual=True,
-        number_of_exponentials=5,
+        number_of_exponentials=1,
         number_of_fine_divisions=100,
         use_kernel=True,
-        use_unitary=False,
-        use_cuda=False,
         verbose=True
     )
 
-    print(density)
-    compare_density("qutrit-couple", density)
+    compare_density("qutrit-couple-unital", density)
 
 
 if __name__ == "__main__":
