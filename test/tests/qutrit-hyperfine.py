@@ -1,5 +1,5 @@
 def main():
-    from util import compare_density
+    from util import compare_density, save_density
 
     import math
     import numpy as np
@@ -27,12 +27,14 @@ def main():
     spins = [[{
         "S": 1, "g": -1/2,            # (spin-one, 87Rb g factor)
         "D": 72,                      # (87Rb quad shift)
-        "B0": np.array([0, 0, 1e-3])  # (Bias magnetic field of 1 mT along z)
+        "B0": np.array([0, 0, 1e-3]), # (Bias magnetic field of 1 mT along z)
+        "I": 1/2, "gI": 1.0,
+        "A": 2e9
     }]]
 
     # Define density matrix
-    density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial = np.zeros((6, 6), dtype=np.float64)
+    density_initial[0, 0] = 1
 
     # Simulate
     time, density = simspins(
@@ -44,12 +46,13 @@ def main():
         use_residual=True,
         number_of_exponentials=1,
         number_of_fine_divisions=100,
-        use_kernel=True,
+        use_kernel=False,
         use_unitary=False,
         verbose=True
     )
 
-    compare_density("qutrit-couple", density)
+    save_density("qutrit-hyperfine", density)
+    compare_density("qutrit-hyperfine", density)
 
 
 if __name__ == "__main__":

@@ -29,18 +29,12 @@ dynamics):
 SuperSpinsim is a **work-in-progress**.
 
 The simulator is currently functional.
-There may still be some edge cases that cause errors; please let us know here
-if any are found.
 
-There are a few features related to efficient representation of
-states/processes that we want to add which are not fully-implemented yet:
+We are preparing a manuscript for review.
+There are a few that we want to add before submission which are not
+fully-implemented yet:
 
-- Compressed, equivalence class representations of systems which have subspaces
-  of states unaffected by the equations of motion.
-  - Experimental feature; implemented but not fully tested.
-- Efficient calculation of purely unitary dynamics.
-
-We will submit a manuscript for review when the above are implemented.
+- A simplified way to declare quantum states.
 
 There are some further features which are thinking about adding, possibly after
 the manuscript is submitted:
@@ -95,6 +89,52 @@ uv add ../superspinsim
 ```
 
 ## Version log
+
+### 1.2.2
+
+Added CPU functionality for qutip.
+
+### 1.2.1
+
+Fixed bug of still requiring cuda for CPU functionality.
+
+### 1.2.0
+
+Fixed bug with unitary functionality.
+
+### 1.1.3
+
+Added CPU functionality.
+Noticed bug with unitary functionality.
+
+### 1.1.2
+
+Fixed bug with spin-spin interactions of different spin numbers.
+
+### 1.1.1
+
+Updated documentation
+
+### 1.1.0
+
+Added ability for incoherent transitions to entangled states
+(needed for, eg, the model of C? defects in hBN).
+
+### 1.0.1
+
+Fix for documentation.
+
+### 1.0.0
+
+BREAKING: The spin system generator uses a better model for T1 thermalisation.
+
+### 0.5.0
+
+Added unitary mode for solving the Shroedinger/von Neumann equation.
+
+### 0.4.0
+
+Tested equivalence classes.
 
 ### 0.3.3
 

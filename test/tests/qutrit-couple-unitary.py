@@ -33,6 +33,7 @@ def main():
     # Define density matrix
     density_initial = np.zeros((3, 3), dtype=np.float64)
     density_initial[2, 2] = 1
+    # print(density_initial)
 
     # Simulate
     time, density = simspins(
@@ -42,13 +43,15 @@ def main():
         density_initial,                    # Initial state
         use_rotating=True,
         use_residual=True,
-        number_of_exponentials=1,
+        number_of_exponentials=5,
         number_of_fine_divisions=100,
-        use_kernel=True,
-        use_unitary=False,
+        use_kernel=False,
+        use_unitary=True,
+        use_cuda=True,
         verbose=True
     )
 
+    # print(density)
     compare_density("qutrit-couple", density)
 
 

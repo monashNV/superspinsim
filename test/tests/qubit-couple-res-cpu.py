@@ -7,7 +7,7 @@ def main():
     from superspinsim import simspins
 
     # Define magnetic field (Rabi dressing)
-    dressing_frequency = 7e6    # ~ on resonance
+    dressing_frequency = 28e6   # ~ on resonance
     dressing_amplitude = 10e-6  # 10 uT
 
     def mag_x(time):
@@ -25,14 +25,13 @@ def main():
 
     # Define qubit
     spins = [[{
-        "S": 1, "g": -1/2,            # (spin-one, 87Rb g factor)
-        "D": 72,                      # (87Rb quad shift)
-        "B0": np.array([0, 0, 1e-3])  # (Bias magnetic field of 1 mT along z)
+        "S": 1/2, "g": 2.0,           # (spin-half, electron g factor)
+        "B0": np.array([0, 0, 1e-3])  # Bias magnetic field of 1 mT along z
     }]]
 
     # Define density matrix
-    density_initial = np.zeros((3, 3), dtype=np.float64)
-    density_initial[2, 2] = 1
+    density_initial = np.zeros((2, 2), dtype=np.float64)
+    density_initial[0, 0] = 1
 
     # Simulate
     time, density = simspins(
@@ -40,16 +39,18 @@ def main():
         0, 10e-6, 1e-9,                     # Time start/stop/step
         spins, [{}], {},                    # Spin description
         density_initial,                    # Initial state
-        use_rotating=True,
+        use_rotating=False,
         use_residual=True,
         number_of_exponentials=1,
         number_of_fine_divisions=100,
-        use_kernel=True,
+        use_kernel=False,
         use_unitary=False,
-        verbose=True
+        verbose=True,
+        use_cuda=False
     )
 
-    compare_density("qutrit-couple", density)
+    # print(density)
+    compare_density("qubit-couple", density)
 
 
 if __name__ == "__main__":

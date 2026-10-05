@@ -5,7 +5,13 @@ import math
 import numpy as np
 
 import numba as nb
-import numba.cuda as nc
+
+try:
+    import numba.cuda as nc
+except Exception:
+    nc = None
+
+from numba.core.runtime import rtsys
 
 import warnings
 
@@ -20,7 +26,6 @@ def generate_simulator(
         number_of_quartic_repeats: int = 35,  # 35,
         number_of_exponentials: int = 2,
         number_of_fine_divisions: int = 1,
-        use_cayley: bool = False,
 
         use_rotating: bool = False,
         vectors_real: np.ndarray = None,
@@ -32,30 +37,67 @@ def generate_simulator(
         full_projection: np.ndarray = None,
         image_projection: np.ndarray = None,
 
-        is_unitary: bool = False,
+        use_unitary: bool = False,
+        elimination: np.ndarray = None,
+        duplication: np.ndarray = None,
 
-        verbose: bool = False
+        verbose: bool = False,
+
+        use_cayley: bool = False
         ):
+
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
 
     if use_cayley:
         raise "Cayley not implemented"
+    # if use_unitary:
+    #     print("Unitary mode not functional; currently being debugged")
 
     scaling_for_quartics: datatype = \
         4.0**number_of_quartic_repeats
 
     generators = generators.astype(datatype)
-    wavefunction_size = np.max(vectorisation_map[:, 0]) + 1
+    # input(generators)
     operator_size = generators.shape[1]
+    operator_size_density = vectorisation_map.shape[0]
+    operator_size_scratch = operator_size_density
+    if use_unitary:
+        operator_size_unitary = 2*(operator_size//2)**2
+        operator_size_scratch = max(
+            operator_size_scratch, operator_size_unitary)
 
-    # A matrix of size larger than 32*32 cannot be have its entries allocated a
-    # unique thread each, because that is too much for cuda.
-    sqrt_block_size_max = 32
-    operator_size_block = min(operator_size, sqrt_block_size_max)
-    operator_stride_max = int(math.ceil(operator_size/operator_size_block))
+    if use_cuda:
+        def _get_dimensions_for_gpu(size, stride):
+            submatrix_size = min(size, stride)
+            number_of_submatrices = int(math.ceil(size/submatrix_size))
+            return submatrix_size, number_of_submatrices
 
-    stride = 32
-    submatrix_size = min(operator_size, stride)
-    number_of_submatrices = int(math.ceil(operator_size/submatrix_size))
+        stride = 32
+        submatrix_size, number_of_submatrices = _get_dimensions_for_gpu(
+            operator_size, stride)
+        submatrix_size_density, number_of_submatrices_density = \
+            _get_dimensions_for_gpu(operator_size_density, stride)
+        submatrix_size_scratch = submatrix_size_density
+        number_of_submatrices_scratch = number_of_submatrices_density
+        if use_unitary:
+            submatrix_size_unitary, number_of_submatrices_unitary = \
+                _get_dimensions_for_gpu(operator_size_unitary, stride)
+            submatrix_size_scratch = max(
+                submatrix_size_density, submatrix_size_unitary
+            )
+            number_of_submatrices_scratch = max(
+                number_of_submatrices_density, number_of_submatrices_unitary
+            )
+    else:
+        cpu_options = {
+            "nopython": True,
+            "error_model": "numpy",
+            "fastmath": True,
+            "parallel": True,
+            # "boundscheck": True
+        }
 
     if number_of_exponentials == 1:
         if verbose:
@@ -89,6 +131,8 @@ def generate_simulator(
         inv_vectors_real = inv_vectors_real.copy()
         doubles = doubles.copy()
         singles = singles.copy()
+        if doubles.shape[0] == 0:
+            doubles = doubles.reshape((0, 2))
         doubles_size = doubles.shape[0]
         singles_size = singles.size
 
@@ -130,12 +174,36 @@ def generate_simulator(
         _calculate_time_quadrature_kernel = nc.jit(
             _calculate_time_quadrature_kernel)
 
+    else:
+        _calculate_time = nb.jit(_calculate_time)
+        _calculate_time_quadrature = nb.jit(_calculate_time_quadrature)
+
+        def _calculate_time_basic_loop(time, time_start, time_step):
+            for time_index in nb.prange(time.size):
+                _calculate_time(time, time_index, time_start, time_step)
+
+        _calculate_time_basic_loop = nb.jit(
+            _calculate_time_basic_loop, **cpu_options
+        )
+
+        def _calculate_time_quadrature_loop(
+                time, time_sample, time_start, time_step, sample):
+            for time_index in nb.prange(time.size):
+                _calculate_time_quadrature(
+                    time_sample, time_index, time_start, time_step, sample)
+
+        _calculate_time_quadrature_loop = nb.jit(
+            _calculate_time_quadrature_loop, **cpu_options
+        )
+
     def _calculate_time_basic_run(time, time_start, time_step):
         if use_cuda:
             grid_size = (int(math.ceil(time.size/32)), 1)
             block_size = (32, 1)
             _calculate_time_basic_kernel[grid_size, block_size] \
                 (time, time_start, time_step)
+        else:
+            _calculate_time_basic_loop(time, time_start, time_step)
 
     def _calculate_time_quadrature_run(
             time, time_sample, time_start, time_step, sample):
@@ -144,6 +212,9 @@ def generate_simulator(
             block_size = (32, 1)
             _calculate_time_quadrature_kernel[grid_size, block_size] \
                 (time, time_sample, time_start, time_step, sample)
+        else:
+            _calculate_time_quadrature_loop(
+                time, time_sample, time_start, time_step, sample)
 
     # Sampling ----------------------------------------------------------------
 
@@ -162,15 +233,30 @@ def generate_simulator(
 
             sample_kernel = nc.jit(sample_kernel)
 
+        else:
+            sampler_device = nb.jit(sampler)
+
+            def sample_loop(times, coefficients):
+                for time_index in nb.prange(times.size):
+                    for generator_index in range(coefficients.shape[1]):
+                        coefficients[time_index, generator_index] = 0.0
+
+                    sampler_device(
+                        times[time_index], coefficients[time_index, :])
+
+            sample_loop = nb.jit(sample_loop, **cpu_options)
+
         def sample_run(times, coefficients):
             if use_cuda:
                 grid_size = (int(math.ceil(times.size/32)), 1)
                 block_size = (32, 1)
                 sample_kernel[grid_size, block_size](times, coefficients)
+            else:
+                sample_loop(times, coefficients)
 
         return sample_run
 
-    # Make sampler GPU compatible
+    # Make sampler GPU/CPU compatible
     sample_run = _generate_sampler(sampler)
 
     # Quadrature --------------------------------------------------------------
@@ -180,11 +266,16 @@ def generate_simulator(
             exponential_index, coefficient_index):
         scratch = 0
         for trace_index in range(weight.shape[1]):
-            scratch = nc.fma(
-                weight[exponential_index, trace_index],
-                coefficient[trace_index, coefficient_index],
-                scratch
-            )
+            if use_cuda:
+                scratch = nc.fma(
+                    weight[exponential_index, trace_index],
+                    coefficient[trace_index, coefficient_index],
+                    scratch
+                )
+            else:
+                scratch += \
+                    weight[exponential_index, trace_index] \
+                    * coefficient[trace_index, coefficient_index]
         weighted_coefficient[exponential_index, coefficient_index] = scratch
 
     if use_cuda:
@@ -192,20 +283,45 @@ def generate_simulator(
 
         def _combine_coefficients_kernel(
                 coefficients, weighted_coefficients, weights):
-            if nc.threadIdx.x < weighted_coefficients.shape[1] \
-                    and nc.threadIdx.y < weights.shape[0]:
+            coef_index = nc.threadIdx.x
+            weight_index = nc.threadIdx.y
+            t_index = nc.blockIdx.x
+            if coef_index < weighted_coefficients.shape[1] \
+                    and weight_index < weights.shape[0]:
                 _combine_coefficients(
-                    coefficients[nc.blockIdx.x*weights.shape[1]:
-                                 (nc.blockIdx.x + 1)*weights.shape[1], :],
+                    coefficients[t_index*weights.shape[1]:
+                                 (t_index + 1)*weights.shape[1], :],
                     weighted_coefficients[
-                        nc.blockIdx.x*weights.shape[0]:
-                        (nc.blockIdx.x + 1)*weights.shape[0], :],
+                        t_index*weights.shape[0]:
+                        (t_index + 1)*weights.shape[0], :],
                     weights,
-                    nc.threadIdx.y,
-                    nc.threadIdx.x
+                    weight_index,
+                    coef_index
                 )
 
         _combine_coefficients_kernel = nc.jit(_combine_coefficients_kernel)
+
+    else:
+        _combine_coefficients = nb.jit(_combine_coefficients)
+
+        def _combine_coefficients_loop(
+                coefficients, weighted_coefficients, weights):
+            for t_index in nb.prange(weighted_coefficients.shape[0]//weights.shape[0]):
+                for coef_index in nb.prange(weighted_coefficients.shape[1]):
+                    for weight_index in nb.prange(weights.shape[0]):
+                        _combine_coefficients(
+                            coefficients[t_index*weights.shape[1]:
+                                         (t_index + 1)*weights.shape[1], :],
+                            weighted_coefficients[
+                                t_index*weights.shape[0]:
+                                (t_index + 1)*weights.shape[0], :],
+                            weights,
+                            weight_index,
+                            coef_index
+                        )
+
+        _combine_coefficients_loop = nb.jit(
+            _combine_coefficients_loop, **cpu_options)
 
     def _combine_coefficients_run(
             coefficients, weighted_coefficients, weights):
@@ -214,6 +330,9 @@ def generate_simulator(
             block_size = (weighted_coefficients.shape[1], weights.shape[0])
             _combine_coefficients_kernel[grid_size, block_size] \
                 (coefficients, weighted_coefficients, weights)
+        else:
+            _combine_coefficients_loop(
+                coefficients, weighted_coefficients, weights)
 
     # Matrix form -------------------------------------------------------------
 
@@ -222,43 +341,82 @@ def generate_simulator(
         scratch: datatype = 0.0
 
         for generator_index in range(generator.shape[0]):
-            scratch = nc.fma(
-                coefficient[generator_index],
-                generator[generator_index, y_index, x_index],
-                scratch
-            )
+            if use_cuda:
+                scratch = nc.fma(
+                    coefficient[generator_index],
+                    generator[generator_index, y_index, x_index],
+                    scratch
+                )
+            else:
+                scratch += \
+                    coefficient[generator_index] \
+                    * generator[generator_index, y_index, x_index]
 
         differential[y_index, x_index] = time_step*scratch
 
     if use_cuda:
         _calculate_differential = nc.jit(_calculate_differential, device=True)
 
-        if use_rotating:
-            def _calculate_differential_kernel(
-                    time_step, generator, coefficient, differential):
-                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
-                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                if x_index < operator_size and y_index < operator_size:
-                    _calculate_differential(
-                        time_step,
-                        generator[
-                            nc.blockIdx.x % number_of_exponentials, :, :, :
-                        ],
-                        coefficient[nc.blockIdx.x, :],
-                        differential[nc.blockIdx.x, :, :], y_index, x_index
-                    )
-        else:
-            def _calculate_differential_kernel(
-                    time_step, generator, coefficient, differential):
-                x_index = nc.threadIdx.x + stride*nc.blockIdx.y
-                y_index = nc.threadIdx.y + stride*nc.blockIdx.z
-                if x_index < operator_size and y_index < operator_size:
-                    _calculate_differential(
-                        time_step, generator, coefficient[nc.blockIdx.x, :],
-                        differential[nc.blockIdx.x, :, :], y_index, x_index
-                    )
+        # if use_rotating:
+        #     def _calculate_differential_kernel(
+        #             time_step, generator, coefficient, differential):
+        #         x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+        #         y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+        #         coef_index = nc.blockIdx.x
+        #         if x_index < operator_size and y_index < operator_size:
+        #             _calculate_differential(
+        #                 time_step,
+        #                 generator[
+        #                     coef_index % number_of_exponentials, :, :, :
+        #                 ],
+        #                 coefficient[coef_index, :],
+        #                 differential[coef_index, :, :], y_index, x_index
+        #             )
+        # else:
+        def _calculate_differential_kernel(
+                time_step, generator, coefficient, differential):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            coef_index = nc.blockIdx.x
+            if x_index < operator_size and y_index < operator_size:
+                _calculate_differential(
+                    time_step, generator, coefficient[coef_index, :],
+                    differential[coef_index, :, :], y_index, x_index
+                )
 
         _calculate_differential_kernel = nc.jit(_calculate_differential_kernel)
+
+    else:
+        _calculate_differential = nb.jit(_calculate_differential)
+
+        # if use_rotating:
+        #     def _calculate_differential_loop(
+        #             time_step, generator, coefficient, differential):
+        #         x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+        #         y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+        #         coef_index = nc.blockIdx.x
+        #         if x_index < operator_size and y_index < operator_size:
+        #             _calculate_differential(
+        #                 time_step,
+        #                 generator[
+        #                     coef_index % number_of_exponentials, :, :, :
+        #                 ],
+        #                 coefficient[coef_index, :],
+        #                 differential[coef_index, :, :], y_index, x_index
+        #             )
+        # else:
+        def _calculate_differential_loop(
+                time_step, generator, coefficient, differential):
+            for t_index in nb.prange(coefficient.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        _calculate_differential(
+                            time_step, generator, coefficient[t_index, :],
+                            differential[t_index, :, :], y_index, x_index
+                        )
+
+        _calculate_differential_loop = nb.jit(
+            _calculate_differential_loop, **cpu_options)
 
     def _calculate_differential_run(
             time_step, generator, coefficient, differential):
@@ -270,6 +428,9 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _calculate_differential_kernel[grid_size, block_size] \
                 (time_step, generator, coefficient, differential)
+        else:
+            _calculate_differential_loop(
+                time_step, generator, coefficient, differential)
 
     def _calculate_differential_rotating(
             time_step, generator, coefficient, weight, differential, y_index,
@@ -283,7 +444,10 @@ def generate_simulator(
                     generator[node_index, generator_index, y_index, x_index] \
                     * coefficient[node_index, generator_index]
                 scratch_mult_1 = time_step*weight[node_index]
-                scratch = nc.fma(scratch_mult_0, scratch_mult_1, scratch)
+                if use_cuda:
+                    scratch = nc.fma(scratch_mult_0, scratch_mult_1, scratch)
+                else:
+                    scratch += scratch_mult_0*scratch_mult_1
         differential[y_index, x_index] = scratch
 
     if use_cuda:
@@ -311,6 +475,31 @@ def generate_simulator(
 
         _calculate_differential_rotating_kernel = \
             nc.jit(_calculate_differential_rotating_kernel)
+    else:
+        _calculate_differential_rotating = \
+            nb.jit(_calculate_differential_rotating)
+
+        def _calculate_differential_rotating_loop(
+                time_step, generator, coefficient, weight, differential):
+            for t_index in nb.prange(differential.shape[0]):
+                coefficient_index_start = \
+                    (t_index//weight.shape[0]) \
+                    * weight.shape[1]
+                coefficient_index_end = \
+                    coefficient_index_start + weight.shape[1]
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        _calculate_differential_rotating(
+                        time_step, generator,
+                        coefficient[
+                            coefficient_index_start:coefficient_index_end, :],
+                        weight[t_index % weight.shape[0], :],
+                        differential[t_index, :, :],
+                        y_index, x_index
+                        )
+
+        _calculate_differential_rotating_loop = \
+            nb.jit(_calculate_differential_rotating_loop, **cpu_options)
 
     def _calculate_differential_rotating_run(
             time_step, generator, coefficient, weight, differential):
@@ -322,15 +511,16 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _calculate_differential_rotating_kernel[grid_size, block_size](
                 time_step, generator, coefficient, weight, differential)
+        else:
+            _calculate_differential_rotating_loop(
+                time_step, generator, coefficient, weight, differential)
 
     def _scale_differential_basic(differential, y_index, x_index):
-        if use_cayley:
-            differential[y_index, x_index] /= 2*scaling_for_quartics
-        else:
-            differential[y_index, x_index] /= scaling_for_quartics
-            if not use_residual:
-                if y_index == x_index:
-                    differential[y_index, x_index] += 1.0
+        differential[y_index, x_index] /= scaling_for_quartics
+        if not use_residual:
+            if y_index == x_index:
+                differential[y_index, x_index] += 1.0
+
     if use_cuda:
         _scale_differential_basic = nc.jit(
             _scale_differential_basic, device=True)
@@ -338,12 +528,26 @@ def generate_simulator(
         def _scale_differential_basic_kernel(differential):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            coef_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
                 _scale_differential_basic(
-                    differential[nc.blockIdx.x, :, :], y_index, x_index)
+                    differential[coef_index, :, :], y_index, x_index)
 
         _scale_differential_basic_kernel = nc.jit(
             _scale_differential_basic_kernel)
+    else:
+        _scale_differential_basic = nb.jit(
+            _scale_differential_basic)
+
+        def _scale_differential_basic_loop(differential):
+            for t_index in nb.prange(differential.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        _scale_differential_basic(
+                            differential[t_index, :, :], y_index, x_index)
+
+        _scale_differential_basic_loop = nb.jit(
+            _scale_differential_basic_loop, **cpu_options)
 
     def _scale_differential_basic_run(differential):
         if use_cuda:
@@ -354,6 +558,9 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _scale_differential_basic_kernel[grid_size, block_size] \
                 (differential)
+        else:
+            _scale_differential_basic_loop(differential)
+
 
     # Cayley ------------------------------------------------------------------
 
@@ -363,121 +570,121 @@ def generate_simulator(
     if use_cuda:
         _negate_superoperator = nc.jit(_negate_superoperator, device=True)
 
-        def _calculate_cayley_kernel(differential):
-            if nc.threadIdx.y < operator_size \
-                    and nc.threadIdx.x < wavefunction_size:
-                scratch = nc.shared.array(
-                    (operator_size, operator_size, 2),
-                    dtype=datatype
-                )
+    #     def _calculate_cayley_kernel(differential):
+    #         if nc.threadIdx.y < operator_size \
+    #                 and nc.threadIdx.x < wavefunction_size:
+    #             scratch = nc.shared.array(
+    #                 (operator_size, operator_size, 2),
+    #                 dtype=datatype
+    #             )
 
-                for x_index_stride in range(wavefunction_size):
-                    _negate_superoperator(
-                        differential[nc.blockIdx.x, :, :, :],
-                        scratch,
-                        nc.threadIdx.y,
-                        nc.threadIdx.x + x_index_stride*wavefunction_size
-                    )
-                nc.syncthreads()
+    #             for x_index_stride in range(wavefunction_size):
+    #                 _negate_superoperator(
+    #                     differential[nc.blockIdx.x, :, :, :],
+    #                     scratch,
+    #                     nc.threadIdx.y,
+    #                     nc.threadIdx.x + x_index_stride*wavefunction_size
+    #                 )
+    #             nc.syncthreads()
 
-                diff = differential[nc.blockIdx.x, :, :, :]
+    #             diff = differential[nc.blockIdx.x, :, :, :]
 
-                for node_index in range(operator_size):
-                    # Scale row
-                    if nc.threadIdx.x == 1:
+    #             for node_index in range(operator_size):
+    #                 # Scale row
+    #                 if nc.threadIdx.x == 1:
 
-                        node_real = scratch[node_index, node_index, 0]
-                        node_imag = scratch[node_index, node_index, 1]
-                        div_real = (1 + node_real) \
-                            / ((1 + node_real)**2 + node_imag**2)
-                        div_imag = -node_imag \
-                            / ((1 + node_real)**2 + node_imag**2)
-                    nc.syncthreads()
+    #                     node_real = scratch[node_index, node_index, 0]
+    #                     node_imag = scratch[node_index, node_index, 1]
+    #                     div_real = (1 + node_real) \
+    #                         / ((1 + node_real)**2 + node_imag**2)
+    #                     div_imag = -node_imag \
+    #                         / ((1 + node_real)**2 + node_imag**2)
+    #                 nc.syncthreads()
 
-                    if nc.threadIdx.x == 1:
-                        eval_real = \
-                            div_real*scratch[node_index, nc.threadIdx.y, 0] \
-                            - div_imag*scratch[node_index, nc.threadIdx.y, 1]
-                        eval_imag = \
-                            div_real*scratch[node_index, nc.threadIdx.y, 1] \
-                            + div_imag*scratch[node_index, nc.threadIdx.y, 0]
-                        if nc.threadIdx.y == node_index:
-                            eval_real -= \
-                                node_real*div_real - node_imag*div_imag
-                            eval_imag -= \
-                                node_imag*div_real + node_real*div_imag
-                        scratch[node_index, nc.threadIdx.y, 0] = eval_real
-                        scratch[node_index, nc.threadIdx.y, 1] = eval_imag
+    #                 if nc.threadIdx.x == 1:
+    #                     eval_real = \
+    #                         div_real*scratch[node_index, nc.threadIdx.y, 0] \
+    #                         - div_imag*scratch[node_index, nc.threadIdx.y, 1]
+    #                     eval_imag = \
+    #                         div_real*scratch[node_index, nc.threadIdx.y, 1] \
+    #                         + div_imag*scratch[node_index, nc.threadIdx.y, 0]
+    #                     if nc.threadIdx.y == node_index:
+    #                         eval_real -= \
+    #                             node_real*div_real - node_imag*div_imag
+    #                         eval_imag -= \
+    #                             node_imag*div_real + node_real*div_imag
+    #                     scratch[node_index, nc.threadIdx.y, 0] = eval_real
+    #                     scratch[node_index, nc.threadIdx.y, 1] = eval_imag
 
-                        eval_real = \
-                            div_real*diff[node_index, nc.threadIdx.y, 0] \
-                            - div_imag*diff[node_index, nc.threadIdx.y, 1]
-                        eval_imag = \
-                            div_real*diff[node_index, nc.threadIdx.y, 1] \
-                            + div_imag*diff[node_index, nc.threadIdx.y, 0]
-                        if nc.threadIdx.y == node_index:
-                            eval_real -= \
-                                node_real*div_real - node_imag*div_imag
-                            eval_imag -= \
-                                node_imag*div_real + node_real*div_imag
-                        diff[node_index, nc.threadIdx.y, 0] = eval_real
-                        diff[node_index, nc.threadIdx.y, 1] = eval_imag
+    #                     eval_real = \
+    #                         div_real*diff[node_index, nc.threadIdx.y, 0] \
+    #                         - div_imag*diff[node_index, nc.threadIdx.y, 1]
+    #                     eval_imag = \
+    #                         div_real*diff[node_index, nc.threadIdx.y, 1] \
+    #                         + div_imag*diff[node_index, nc.threadIdx.y, 0]
+    #                     if nc.threadIdx.y == node_index:
+    #                         eval_real -= \
+    #                             node_real*div_real - node_imag*div_imag
+    #                         eval_imag -= \
+    #                             node_imag*div_real + node_real*div_imag
+    #                     diff[node_index, nc.threadIdx.y, 0] = eval_real
+    #                     diff[node_index, nc.threadIdx.y, 1] = eval_imag
 
-                    nc.syncthreads()
+    #                 nc.syncthreads()
 
-                    # Eliminate rows
-                    for x_index_stride in range(wavefunction_size):
-                        x_index = nc.threadIdx.x \
-                            + x_index_stride*wavefunction_size
+    #                 # Eliminate rows
+    #                 for x_index_stride in range(wavefunction_size):
+    #                     x_index = nc.threadIdx.x \
+    #                         + x_index_stride*wavefunction_size
 
-                        if x_index != node_index:
-                            scale_real = -scratch[x_index, node_index, 0]
-                            scale_imag = -scratch[x_index, node_index, 1]
-                        nc.syncthreads()
+    #                     if x_index != node_index:
+    #                         scale_real = -scratch[x_index, node_index, 0]
+    #                         scale_imag = -scratch[x_index, node_index, 1]
+    #                     nc.syncthreads()
 
-                        if x_index != node_index:
-                            eval_real = scale_real \
-                                * scratch[x_index, nc.threadIdx.y, 0] \
-                                - scale_imag \
-                                * scratch[x_index, nc.threadIdx.y, 1]
-                            eval_imag = scale_real \
-                                * scratch[x_index, nc.threadIdx.y, 1] \
-                                + scale_imag \
-                                * scratch[x_index, nc.threadIdx.y, 0]
-                            if nc.threadIdx.y == node_index:
-                                eval_real += scale_real
-                                eval_imag += scale_imag
-                        nc.syncthreads()
+    #                     if x_index != node_index:
+    #                         eval_real = scale_real \
+    #                             * scratch[x_index, nc.threadIdx.y, 0] \
+    #                             - scale_imag \
+    #                             * scratch[x_index, nc.threadIdx.y, 1]
+    #                         eval_imag = scale_real \
+    #                             * scratch[x_index, nc.threadIdx.y, 1] \
+    #                             + scale_imag \
+    #                             * scratch[x_index, nc.threadIdx.y, 0]
+    #                         if nc.threadIdx.y == node_index:
+    #                             eval_real += scale_real
+    #                             eval_imag += scale_imag
+    #                     nc.syncthreads()
 
-                        if x_index != node_index:
-                            scratch[x_index, nc.threadIdx.y, 0] += eval_real
-                            scratch[x_index, nc.threadIdx.y, 1] += eval_imag
-                        nc.syncthreads()
+    #                     if x_index != node_index:
+    #                         scratch[x_index, nc.threadIdx.y, 0] += eval_real
+    #                         scratch[x_index, nc.threadIdx.y, 1] += eval_imag
+    #                     nc.syncthreads()
 
-                        if x_index != node_index:
-                            eval_real = scale_real \
-                                * diff[x_index, nc.threadIdx.y, 0] \
-                                - scale_imag*diff[x_index, nc.threadIdx.y, 1]
-                            eval_imag = scale_real \
-                                * diff[x_index, nc.threadIdx.y, 1] \
-                                + scale_imag*diff[x_index, nc.threadIdx.y, 0]
-                            if nc.threadIdx.y == node_index:
-                                eval_real += scale_real
-                                eval_imag += scale_imag
-                        nc.syncthreads()
+    #                     if x_index != node_index:
+    #                         eval_real = scale_real \
+    #                             * diff[x_index, nc.threadIdx.y, 0] \
+    #                             - scale_imag*diff[x_index, nc.threadIdx.y, 1]
+    #                         eval_imag = scale_real \
+    #                             * diff[x_index, nc.threadIdx.y, 1] \
+    #                             + scale_imag*diff[x_index, nc.threadIdx.y, 0]
+    #                         if nc.threadIdx.y == node_index:
+    #                             eval_real += scale_real
+    #                             eval_imag += scale_imag
+    #                     nc.syncthreads()
 
-                        if x_index != node_index:
-                            diff[x_index, nc.threadIdx.y, 0] += eval_real
-                            diff[x_index, nc.threadIdx.y, 1] += eval_imag
-                        nc.syncthreads()
+    #                     if x_index != node_index:
+    #                         diff[x_index, nc.threadIdx.y, 0] += eval_real
+    #                         diff[x_index, nc.threadIdx.y, 1] += eval_imag
+    #                     nc.syncthreads()
 
-        _calculate_cayley_kernel = nc.jit(_calculate_cayley_kernel)
+    #     _calculate_cayley_kernel = nc.jit(_calculate_cayley_kernel)
 
-    def _calculate_cayley_run(differential):
-        if use_cuda:
-            grid_size = (differential.shape[0], 1)
-            block_size = (wavefunction_size, operator_size)
-            _calculate_cayley_kernel[grid_size, block_size](differential)
+    # def _calculate_cayley_run(differential):
+    #     if use_cuda:
+    #         grid_size = (differential.shape[0], 1)
+    #         block_size = (wavefunction_size, operator_size)
+    #         _calculate_cayley_kernel[grid_size, block_size](differential)
 
     # Repeated squaring -------------------------------------------------------
 
@@ -489,11 +696,15 @@ def generate_simulator(
 
         for trace_index in range(operator_size):
             # TODO: unroll?
-            out_scratch = nc.fma(
-                    inp[y_index, trace_index],
-                    inp[trace_index, x_index],
-                    out_scratch
-            )
+            if use_cuda:
+                out_scratch = nc.fma(
+                        inp[y_index, trace_index],
+                        inp[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    inp[y_index, trace_index]*inp[trace_index, x_index]
 
         out[y_index, x_index] = out_scratch
 
@@ -505,11 +716,15 @@ def generate_simulator(
             out_scratch: datatype = 0.0
 
         for trace_index in range(operator_size):
-            out_scratch = nc.fma(
-                    left[y_index, trace_index],
-                    right[trace_index, x_index],
-                    out_scratch
-            )
+            if use_cuda:
+                out_scratch = nc.fma(
+                        left[y_index, trace_index],
+                        right[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    left[y_index, trace_index]*right[trace_index, x_index]
         out[y_index, x_index] = out_scratch
 
     def _copy_superoperator(original, clone, y_index, x_index):
@@ -525,9 +740,10 @@ def generate_simulator(
         def _square_superoperator_kernel(inp, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                inp_sample = inp[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                inp_sample = inp[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _square_superoperator(inp_sample, out_sample, y_index, x_index)
 
         _square_superoperator_kernel = nc.jit(
@@ -537,10 +753,11 @@ def generate_simulator(
         def _multiply_superoperator_kernel(left, right, out):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                left_sample = left[nc.blockIdx.x, :, :]
-                right_sample = right[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                left_sample = left[t_index, :, :]
+                right_sample = right[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -552,11 +769,12 @@ def generate_simulator(
                 left, right, out, offset):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
                 left_sample = left[
-                    offset + number_of_exponentials*nc.blockIdx.x, :, :]
-                right_sample = right[nc.blockIdx.x, :, :]
-                out_sample = out[nc.blockIdx.x, :, :]
+                    offset + number_of_exponentials*t_index, :, :]
+                right_sample = right[t_index, :, :]
+                out_sample = out[t_index, :, :]
                 _multiply_superoperator(
                     left_sample, right_sample, out_sample, y_index, x_index)
 
@@ -567,14 +785,83 @@ def generate_simulator(
         def _copy_superoperator_quadrature_kernel(original, clone):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                original_sample = original[nc.blockIdx.x, :, :]
-                clone_sample = clone[nc.blockIdx.x, :, :]
+                original_sample = original[t_index, :, :]
+                clone_sample = clone[t_index, :, :]
                 _copy_superoperator(
                     original_sample, clone_sample, y_index, x_index)
 
         _copy_superoperator_quadrature_kernel = nc.jit(
             _copy_superoperator_quadrature_kernel
+        )
+    else:
+        # Compile squaring
+        _square_superoperator = nb.jit(_square_superoperator)
+        _multiply_superoperator = nb.jit(_multiply_superoperator)
+        _copy_superoperator = nb.jit(_copy_superoperator)
+
+        # Wrap in kernel
+        def _square_superoperator_loop(inp, out):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        inp_sample = inp[t_index, :, :]
+                        out_sample = out[t_index, :, :]
+                        _square_superoperator(
+                            inp_sample, out_sample, y_index, x_index)
+
+        _square_superoperator_loop = nb.jit(
+            _square_superoperator_loop, **cpu_options
+        )
+
+        def _multiply_superoperator_loop(left, right, out):
+            for t_index in nb.prange(left.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        left_sample = left[t_index, :, :]
+                        right_sample = right[t_index, :, :]
+                        out_sample = out[t_index, :, :]
+                        _multiply_superoperator(
+                            left_sample, right_sample, out_sample,
+                            y_index, x_index
+                        )
+
+        _multiply_superoperator_loop = nb.jit(
+            _multiply_superoperator_loop, **cpu_options
+        )
+
+        def _multiply_superoperator_quadrature_loop(
+                left, right, out, offset):
+            for t_index in nb.prange(left.shape[0]//number_of_exponentials):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        left_sample = left[
+                            offset + number_of_exponentials*t_index, :, :]
+                        right_sample = right[t_index, :, :]
+                        out_sample = out[t_index, :, :]
+                        _multiply_superoperator(
+                            left_sample, right_sample, out_sample,
+                            y_index, x_index
+                        )
+
+        _multiply_superoperator_quadrature_loop = nb.jit(
+            _multiply_superoperator_quadrature_loop, **cpu_options
+        )
+
+        def _copy_superoperator_quadrature_loop(original, clone):
+            # print(original.shape)
+            # print(clone.shape)
+            for t_index in nb.prange(original.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        original_sample = original[t_index, :, :]
+                        clone_sample = clone[t_index, :, :]
+                        _copy_superoperator(
+                            original_sample, clone_sample, y_index, x_index)
+
+        _copy_superoperator_quadrature_loop = nb.jit(
+            _copy_superoperator_quadrature_loop, **cpu_options
         )
 
     def _repeated_quartic_superoperator_run(superoperators, scratch):
@@ -589,6 +876,10 @@ def generate_simulator(
                         superoperators, scratch)
                 _square_superoperator_kernel[grid_size, block_size](
                         scratch, superoperators)
+        else:
+            for _ in range(number_of_quartic_repeats):
+                _square_superoperator_loop(superoperators, scratch)
+                _square_superoperator_loop(scratch, superoperators)
 
     # Rotating frame ----------------------------------------------------------
 
@@ -639,128 +930,257 @@ def generate_simulator(
             def _apply_eig_double_kernel(inp, out, doubles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                t_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < doubles_size:
                     _apply_eig_double(
-                        inp[nc.blockIdx.x, :, :], out[nc.blockIdx.x, :, :],
+                        inp[t_index, :, :], out[t_index, :, :],
                         doubles, y_index, x_index
                     )
 
             def _apply_eig_single_kernel(inp, out, singles):
                 x_index = nc.threadIdx.x + stride*nc.blockIdx.y
                 y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+                t_index = nc.blockIdx.x
                 if x_index < operator_size and y_index < singles_size:
                     _apply_eig_single(
-                        inp[nc.blockIdx.x, 2*doubles_size:, :],
-                        out[nc.blockIdx.x, 2*doubles_size:, :],
+                        inp[t_index, 2*doubles_size:, :],
+                        out[t_index, 2*doubles_size:, :],
                         singles, y_index, x_index
                     )
 
             _apply_eig_double_kernel = nc.jit(_apply_eig_double_kernel)
             _apply_eig_single_kernel = nc.jit(_apply_eig_single_kernel)
 
+        else:
+            _apply_eig_double = nb.jit(_apply_eig_double)
+            _apply_eig_single = nb.jit(_apply_eig_single)
+
+            def _apply_eig_double_loop(inp, out, doubles):
+                for t_index in nb.prange(inp.shape[0]):
+                    for x_index in nb.prange(operator_size):
+                        for y_index in nb.prange(doubles_size):
+                            _apply_eig_double(
+                                inp[t_index, :, :], out[t_index, :, :],
+                                doubles, y_index, x_index
+                            )
+
+            def _apply_eig_single_loop(inp, out, singles):
+                for t_index in nb.prange(inp.shape[0]):
+                    for x_index in nb.prange(operator_size):
+                        for y_index in nb.prange(doubles_size):
+                            _apply_eig_single(
+                                inp[t_index, 2*doubles_size:, :],
+                                out[t_index, 2*doubles_size:, :],
+                                singles, y_index, x_index
+                            )
+
+            _apply_eig_double_loop = nb.jit(
+                _apply_eig_double_loop, **cpu_options)
+            _apply_eig_single_loop = nb.jit(
+                _apply_eig_single_loop, **cpu_options)
+
         def _apply_eig_run(superoperators, scratch, doubles, singles):
             if use_cuda:
                 grid_size = (
                     superoperators.shape[0], number_of_submatrices,
-                    number_of_submatrices
                 )
                 block_size = (submatrix_size, submatrix_size)
 
-                _apply_eig_double_kernel[grid_size, block_size](
-                    superoperators, scratch, doubles
-                )
-                _apply_eig_single_kernel[grid_size, block_size](
-                    superoperators, scratch, singles
-                )
+                if doubles_size > 0:
+                    _apply_eig_double_kernel[grid_size, block_size](
+                        superoperators, scratch, doubles
+                    )
+                if singles_size > 0:
+                    _apply_eig_single_kernel[grid_size, block_size](
+                        superoperators, scratch, singles
+                    )
                 _copy_superoperator_quadrature_kernel[grid_size, block_size](
                     scratch, superoperators
                 )
+            else:
+                if doubles_size > 0:
+                    _apply_eig_double_loop(superoperators, scratch, doubles)
+                if singles_size > 0:
+                    _apply_eig_single_loop(superoperators, scratch, singles)
+                _copy_superoperator_quadrature_loop(scratch, superoperators)
+
+    def _multiply_superoperator_right(right, inp, out, y_index, x_index):
+        if use_residual:
+            out_scratch: datatype = \
+                right[y_index, x_index]
+            if y_index == x_index:
+                out_scratch -= 1
+        else:
+            out_scratch: datatype = 0.0
+
+        for trace_index in range(right.shape[0]):
+            if use_cuda:
+                out_scratch = nc.fma(
+                        inp[y_index, trace_index],
+                        right[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    inp[y_index, trace_index]*right[trace_index, x_index]
+        out[y_index, x_index] = out_scratch
+
+    def _multiply_superoperator_left(left, inp, out, y_index, x_index):
+        if use_residual:
+            out_scratch: datatype = \
+                left[y_index, x_index]
+            if y_index == x_index:
+                out_scratch -= 1
+        else:
+            out_scratch: datatype = 0.0
+
+        for trace_index in range(left.shape[1]):
+            if use_cuda:
+                out_scratch = nc.fma(
+                        left[y_index, trace_index],
+                        inp[trace_index, x_index],
+                        out_scratch
+                )
+            else:
+                out_scratch += \
+                    left[y_index, trace_index]*inp[trace_index, x_index]
+        out[y_index, x_index] = out_scratch
+
+    def _add_superoperator(shift, inp, out, y_index, x_index):
+        out[y_index, x_index] = \
+            shift[y_index, x_index] + inp[y_index, x_index]
+
+    if use_cuda:
+        _multiply_superoperator_right = nc.jit(
+            _multiply_superoperator_right, device=True)
+        _multiply_superoperator_left = nc.jit(
+            _multiply_superoperator_left, device=True)
+        _add_superoperator = nc.jit(_add_superoperator, device=True)
+
+        def _apply_global_sandwich_right_kernel(right, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < right.shape[1] and y_index < right.shape[0]:
+                _multiply_superoperator_right(
+                    right, inp[t_index, :, :],
+                    out[t_index, :, :], y_index, x_index
+                )
+
+        def _apply_global_sandwich_left_kernel(left, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < left.shape[0] and y_index < left.shape[0]:
+                _multiply_superoperator_left(
+                    left, inp[t_index, :, :], out[t_index, :, :],
+                    y_index, x_index
+                )
+
+        def _apply_global_addition_kernel(shift, inp, out):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < shift.shape[0] and y_index < shift.shape[0]:
+                _add_superoperator(
+                    shift, inp[t_index, :, :], out[t_index, :, :],
+                    y_index, x_index
+                )
+
+        _apply_global_sandwich_right_kernel = nc.jit(
+            _apply_global_sandwich_right_kernel
+        )
+        _apply_global_sandwich_left_kernel = nc.jit(
+            _apply_global_sandwich_left_kernel
+        )
+        _apply_global_addition_kernel = nc.jit(_apply_global_addition_kernel)
+
+    else:
+        _multiply_superoperator_right = nb.jit(_multiply_superoperator_right)
+        _multiply_superoperator_left = nb.jit(_multiply_superoperator_left)
+        _add_superoperator = nb.jit(_add_superoperator)
+
+        def _apply_global_sandwich_right_loop(right, inp, out):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(right.shape[1]):
+                    for y_index in nb.prange(right.shape[0]):
+                        _multiply_superoperator_right(
+                            right, inp[t_index, :, :],
+                            out[t_index, :, :], y_index, x_index
+                        )
+
+        def _apply_global_sandwich_left_loop(left, inp, out):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(left.shape[0]):
+                    for y_index in nb.prange(left.shape[0]):
+                        _multiply_superoperator_left(
+                            left, inp[t_index, :, :], out[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        def _apply_global_addition_loop(shift, inp, out):
+            for t_index in nb.prange(inp.shape[0]):
+                for x_index in nb.prange(shift.shape[0]):
+                    for y_index in nb.prange(shift.shape[0]):
+                        _add_superoperator(
+                            shift, inp[t_index, :, :], out[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        _apply_global_sandwich_right_loop = nb.jit(
+            _apply_global_sandwich_right_loop, **cpu_options
+        )
+        _apply_global_sandwich_left_loop = nb.jit(
+            _apply_global_sandwich_left_loop, **cpu_options
+        )
+        _apply_global_addition_loop = nb.jit(
+            _apply_global_addition_loop, **cpu_options
+        )
+
+    def _apply_global_sandwich_run(left, right, time_evolution, scratch):
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices_scratch,
+                number_of_submatrices_scratch
+            )
+            block_size = (submatrix_size_scratch, submatrix_size_scratch)
+
+            _apply_global_sandwich_right_kernel[grid_size, block_size](
+                right, time_evolution, scratch)
+            _apply_global_sandwich_left_kernel[grid_size, block_size](
+                left, scratch, time_evolution)
+        else:
+            _apply_global_sandwich_right_loop(right, time_evolution, scratch)
+            _apply_global_sandwich_left_loop(left, scratch, time_evolution)
+
+    def _apply_global_addition_run(shift, time_evolution, scratch):
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices_density,
+                number_of_submatrices_density
+            )
+            block_size = (submatrix_size_density, submatrix_size_density)
+
+            _apply_global_addition_kernel[grid_size, block_size](
+                shift, time_evolution, scratch)
+            _apply_global_addition_kernel[grid_size, block_size](
+                shift, scratch, time_evolution)
+        else:
+            _apply_global_addition_loop(shift, time_evolution, scratch)
+            _apply_global_addition_loop(shift, scratch, time_evolution)
 
     # Combine samples at different quadrature nodes ---------------------------
 
     if use_cuda:
-        def _quadrature_combine_kernel(superoperators, time_evolutions):
-            if nc.threadIdx.y < operator_size:
-                scratch = nc.shared.array(
-                    (operator_size, operator_size),
-                    dtype=datatype
-                )
-
-                for exponential_index in range(
-                        0, number_of_exponentials, 2):
-                    for x_index_stride in range(operator_stride_max):
-                        x_index_use = \
-                            nc.threadIdx.x + x_index_stride*operator_size_block
-                        if x_index_use < operator_size:
-                            _multiply_superoperator(
-                                superoperators[
-                                    # number_of_exponentials*nc.blockIdx.x
-                                    # + exponential_index,
-                                    number_of_exponentials*(nc.blockIdx.x + 1)
-                                    - exponential_index - 1,
-                                    :, :],
-                                time_evolutions[nc.blockIdx.x, :, :],
-                                scratch,
-                                nc.threadIdx.y,
-                                x_index_use
-                            )
-                    nc.syncthreads()
-
-                    if exponential_index + 1 < number_of_exponentials:
-                        for x_index_stride in range(operator_stride_max):
-                            x_index_use = \
-                                nc.threadIdx.x + x_index_stride*operator_size_block
-                            if x_index_use < operator_size:
-                                _multiply_superoperator(
-                                    superoperators[
-                                        # number_of_exponentials*nc.blockIdx.x
-                                        # + exponential_index + 1,
-                                        number_of_exponentials*(nc.blockIdx.x + 1)
-                                        - exponential_index - 2,
-                                        :, :],
-                                    scratch,
-                                    time_evolutions[nc.blockIdx.x, :, :],
-                                    nc.threadIdx.y,
-                                    x_index_use
-                                )
-                    else:
-                        for x_index_stride in range(operator_stride_max):
-                            x_index_use = \
-                                nc.threadIdx.x + x_index_stride*operator_size_block
-                            if x_index_use < operator_size:
-                                _copy_superoperator(
-                                    scratch,
-                                    time_evolutions[nc.blockIdx.x, :, :],
-                                    nc.threadIdx.y,
-                                    x_index_use
-                                )
-
-                    nc.syncthreads()
-
-        _quadrature_combine_kernel = nc.jit(_quadrature_combine_kernel)
-
         def _id_superoperator_kernel(time_evolutions):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
             if x_index < operator_size and y_index < operator_size:
-                time_evolutions[nc.blockIdx.x, y_index, x_index] = 0
+                time_evolutions[t_index, y_index, x_index] = 0
                 if not use_residual:
                     if y_index == x_index:
-                        time_evolutions[nc.blockIdx.x, y_index, x_index] = 1
-
-            # if nc.threadIdx.y < operator_size:
-            #     for x_index_stride in range(operator_stride_max):
-            #         x_index_use = \
-            #             nc.threadIdx.x + x_index_stride*operator_size_block
-            #         if x_index_use < operator_size:
-            #             time_evolutions[
-            #                 nc.blockIdx.x, nc.threadIdx.y, x_index_use] = 0
-            #             if not use_residual:
-            #                 if x_index_use == nc.threadIdx.y:
-            #                     time_evolutions[
-            #                         nc.blockIdx.x, nc.threadIdx.y,
-            #                         x_index_use
-            #                     ] = 1
+                        time_evolutions[t_index, y_index, x_index] = 1
 
         _id_superoperator_kernel = nc.jit(_id_superoperator_kernel)
 
@@ -783,67 +1203,76 @@ def generate_simulator(
                     y_index, x_index
                 )
 
-        # def _basic_combine_kernel(time_evolutions, time_index):
-        #     scratch = nc.shared.array(
-        #         (operator_size, operator_size),
-        #         dtype=datatype
-        #     )
-
-        #     if nc.threadIdx.y < operator_size:
-        #         for x_index_stride in range(operator_stride_max):
-        #             x_index_use = \
-        #                 nc.threadIdx.x + x_index_stride*operator_size_block
-        #             if x_index_use < operator_size:
-        #                 _multiply_superoperator(
-        #                     time_evolutions[time_index + 1, :, :],
-        #                     time_evolutions[time_index, :, :],
-        #                     scratch,
-        #                     nc.threadIdx.y,
-        #                     x_index_use
-        #                 )
-        #         nc.syncthreads()
-
-        #         for x_index_stride in range(operator_stride_max):
-        #             x_index_use = \
-        #                 nc.threadIdx.x + x_index_stride*operator_size_block
-        #             if x_index_use < operator_size:
-        #                 _copy_superoperator(
-        #                     scratch,
-        #                     time_evolutions[time_index + 1, :, :],
-        #                     nc.threadIdx.y,
-        #                     x_index_use
-        #                 )
-        #         nc.syncthreads()
-
         _basic_combine_kernel = nc.jit(_basic_combine_kernel)
         _basic_combine_copy_kernel = nc.jit(_basic_combine_copy_kernel)
 
+    else:
+        def _id_superoperator_loop(time_evolutions):
+            for t_index in nb.prange(time_evolutions.shape[0]):
+                for x_index in nb.prange(operator_size):
+                    for y_index in nb.prange(operator_size):
+                        time_evolutions[t_index, y_index, x_index] = 0
+                        if not use_residual:
+                            if y_index == x_index:
+                                time_evolutions[t_index, y_index, x_index] = 1
+
+        _id_superoperator_loop = nb.jit(_id_superoperator_loop, **cpu_options)
+
+        def _basic_combine_loop(time_evolutions, time_index, scratch):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    _multiply_superoperator(
+                        time_evolutions[time_index + 1, :, :],
+                        time_evolutions[time_index, :, :], scratch,
+                        y_index, x_index
+                    )
+
+        def _basic_combine_copy_loop(time_evolutions, time_index, scratch):
+            for x_index in nb.prange(operator_size):
+                for y_index in nb.prange(operator_size):
+                    _copy_superoperator(
+                        scratch, time_evolutions[time_index + 1, :, :],
+                        y_index, x_index
+                    )
+
+        _basic_combine_loop = nb.jit(_basic_combine_loop, **cpu_options)
+        _basic_combine_copy_loop = nb.jit(
+            _basic_combine_copy_loop, **cpu_options)
+
     def _quadrature_combine_run(exponentials, time_evolution, scratch):
-        grid_size = (
-            time_evolution.shape[0], number_of_submatrices,
-            number_of_submatrices
-        )
-        block_size = (submatrix_size, submatrix_size)
+        if use_cuda:
+            grid_size = (
+                time_evolution.shape[0], number_of_submatrices,
+                number_of_submatrices
+            )
+            block_size = (submatrix_size, submatrix_size)
+
         for exponential_index in range(0, number_of_exponentials, 2):
-            _multiply_superoperator_quadrature_kernel[grid_size, block_size](
-                exponentials, time_evolution, scratch,
+            if use_cuda:
+                _multiply_superoperator_quadrature_kernel[grid_size, block_size](
+                    exponentials, time_evolution, scratch,
+                        number_of_exponentials - exponential_index - 1)
+            else:
+                _multiply_superoperator_quadrature_loop(
+                    exponentials, time_evolution, scratch,
                     number_of_exponentials - exponential_index - 1)
             if exponential_index + 1 < number_of_exponentials:
-                _multiply_superoperator_quadrature_kernel[
-                    grid_size, block_size](
-                    exponentials, scratch, time_evolution,
-                    number_of_exponentials - exponential_index - 2)
+                if use_cuda:
+                    _multiply_superoperator_quadrature_kernel[
+                        grid_size, block_size](
+                        exponentials, scratch, time_evolution,
+                        number_of_exponentials - exponential_index - 2)
+                else:
+                    _multiply_superoperator_quadrature_loop(
+                        exponentials, scratch, time_evolution,
+                        number_of_exponentials - exponential_index - 2)
             else:
-                _copy_superoperator_quadrature_kernel[
-                    grid_size, block_size](scratch, time_evolution)
-
-
-    # def _quadrature_combine_run(exponentials, time_evolution, scratch):
-    #     if use_cuda:
-    #         grid_size = (time_evolution.shape[0], 1)
-    #         block_size = (operator_size_block, operator_size)
-    #         _quadrature_combine_kernel[grid_size, block_size] \
-    #             (exponentials, time_evolution)
+                if use_cuda:
+                    _copy_superoperator_quadrature_kernel[
+                        grid_size, block_size](scratch, time_evolution)
+                else:
+                    _copy_superoperator_quadrature_loop(
+                        scratch, time_evolution)
 
     def _id_superoperator_run(time_evolution):
         if use_cuda:
@@ -854,16 +1283,23 @@ def generate_simulator(
             block_size = (submatrix_size, submatrix_size)
             _id_superoperator_kernel[grid_size, block_size] \
                 (time_evolution)
+        else:
+            _id_superoperator_loop(time_evolution)
 
     def _basic_combine_run(time_evolutions, scratch):
         if use_cuda:
             grid_size = (1, number_of_submatrices, number_of_submatrices)
             block_size = (submatrix_size, submatrix_size)
-            for time_index in range(0, time_evolutions.shape[0] - 1):
+        for time_index in range(0, time_evolutions.shape[0] - 1):
+            if use_cuda:
                 _basic_combine_kernel[grid_size, block_size] \
                     (time_evolutions, time_index, scratch)
                 _basic_combine_copy_kernel[grid_size, block_size] \
                     (time_evolutions, time_index, scratch)
+            else:
+                # print(time_index)
+                _basic_combine_loop(time_evolutions, time_index, scratch)
+                _basic_combine_copy_loop(time_evolutions, time_index, scratch)
 
     # Accumulate --------------------------------------------------------------
 
@@ -873,12 +1309,16 @@ def generate_simulator(
         else:
             scratch: datatype = 0.0
 
-        for trace_index in range(operator_size):
-            scratch = nc.fma(
-                superoperator[index, trace_index],
-                operator[trace_index],
-                scratch
-            )
+        for trace_index in range(operator_size_density):
+            if use_cuda:
+                scratch = nc.fma(
+                    superoperator[index, trace_index],
+                    operator[trace_index],
+                    scratch
+                )
+            else:
+                scratch += \
+                    superoperator[index, trace_index]*operator[trace_index]
 
         out[index] = scratch
 
@@ -890,49 +1330,159 @@ def generate_simulator(
 
         def _apply_time_evolution_kernel(
                 time_evolutions, density_operator_initial, density_operators):
-            if nc.threadIdx.x < operator_size:
+            x_index = nc.threadIdx.x
+            t_index = nc.blockIdx.x
+            if x_index < operator_size_density:
                 _multiply_superoperator_operator(
-                    time_evolutions[nc.blockIdx.x, :, :],
+                    time_evolutions[t_index, :, :],
                     density_operator_initial,
-                    density_operators[nc.blockIdx.x, :],
-                    nc.threadIdx.x
+                    density_operators[t_index, :],
+                    x_index
                 )
 
         _apply_time_evolution_kernel = nc.jit(_apply_time_evolution_kernel)
+    else:
+        _multiply_superoperator_operator = nb.jit(
+            _multiply_superoperator_operator)
+
+        def _apply_time_evolution_loop(
+                time_evolutions, density_operator_initial, density_operators):
+            for t_index in nb.prange(time_evolutions.shape[0]):
+                for x_index in nb.prange(operator_size_density):
+                    _multiply_superoperator_operator(
+                        time_evolutions[t_index, :, :],
+                        density_operator_initial,
+                        density_operators[t_index, :],
+                        x_index
+                    )
+
+        _apply_time_evolution_loop = nb.jit(
+            _apply_time_evolution_loop, **cpu_options)
 
     def _apply_time_evolution_run(
             time_evolutions, density_operator_initial, density_operators):
         if use_cuda:
             grid_size = (time_evolutions.shape[0], 1)
-            block_size = (operator_size, 1)
+            block_size = (operator_size_density, 1)
             _apply_time_evolution_kernel[grid_size, block_size] \
                 (time_evolutions, density_operator_initial, density_operators)
+        else:
+            _apply_time_evolution_loop(
+                time_evolutions, density_operator_initial, density_operators)
 
     # Unitary -----------------------------------------------------------------
 
     def _kronecker_product(
             time_evolutions_unitary, time_evolutions, y_index, x_index):
-        y_index_out = y_index//(time_evolutions.shape[0]//2)
-        x_index_out = x_index//(time_evolutions.shape[1]//2)
-        y_index_in = y_index % (time_evolutions.shape[0]//2)
-        x_index_in = x_index % (time_evolutions.shape[1]//2)
+        y_index_out = y_index//(operator_size//2)
+        x_index_out = x_index//(operator_size//2)
+        y_index_in = y_index % (operator_size//2)
+        x_index_in = x_index % (operator_size//2)
 
         out_r: datatype = time_evolutions[2*y_index_out, 2*x_index_out]
-        out_i: datatype = time_evolutions[2*y_index_out + 1, 2*x_index_out]
+        out_i: datatype = -time_evolutions[2*y_index_out + 1, 2*x_index_out]
         in_r: datatype = time_evolutions[2*y_index_in, 2*x_index_in]
         in_i: datatype = time_evolutions[2*y_index_in + 1, 2*x_index_in]
 
-        scratch_r: datatype = out_r*in_r + out_i*in_i
-        scratch_i: datatype = out_r*in_i - out_i*in_r
+        scratch_r: datatype = out_r*in_r - out_i*in_i
+        scratch_i: datatype = out_r*in_i + out_i*in_r
 
         if use_residual:
-            scratch_r += (y_index_out == x_index_out)*out_r
+            scratch_r += (y_index_out == x_index_out)*in_r
+            scratch_i += (y_index_out == x_index_out)*in_i
             scratch_r += (y_index_in == x_index_in)*out_r
-            scratch_i += (y_index_out == x_index_out)*out_i
-            scratch_i -= (y_index_in == x_index_in)*out_i
+            scratch_i += (y_index_in == x_index_in)*out_i
 
-        time_evolutions_unitary[y_index, x_index, 0] = scratch_r
-        time_evolutions_unitary[y_index, x_index, 1] = scratch_i
+        time_evolutions_unitary[2*y_index, 2*x_index] = scratch_r
+        time_evolutions_unitary[2*y_index + 1, 2*x_index + 1] = scratch_r
+        time_evolutions_unitary[2*y_index + 1, 2*x_index] = -scratch_i
+        time_evolutions_unitary[2*y_index, 2*x_index + 1] = scratch_i
+
+        # time_evolutions_unitary[y_index, x_index] = 0
+        # if y_index < operator_size and x_index < operator_size:
+        #     time_evolutions_unitary[y_index, x_index] = time_evolutions[y_index, x_index]
+
+    if use_cuda:
+        _kronecker_product = nc.jit(_kronecker_product, device=True)
+
+        def _kronecker_product_kernel(time_evolutions_unitary, time_evolutions):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < operator_size_unitary//2 \
+                    and y_index < operator_size_unitary//2:
+                _kronecker_product(
+                    time_evolutions_unitary[t_index, :, :],
+                    time_evolutions[t_index, :, :],
+                    y_index, x_index
+                )
+
+        _kronecker_product_kernel = nc.jit(_kronecker_product_kernel)
+
+        def _copy_unitary_kernel(original, clone):
+            x_index = nc.threadIdx.x + stride*nc.blockIdx.y
+            y_index = nc.threadIdx.y + stride*nc.blockIdx.z
+            t_index = nc.blockIdx.x
+            if x_index < operator_size_unitary \
+                    and y_index < operator_size_unitary:
+                _copy_superoperator(
+                    original[t_index, :, :], clone[t_index, :, :],
+                    y_index, x_index
+                )
+
+        _copy_unitary_kernel = nc.jit(_copy_unitary_kernel)
+
+    else:
+        _kronecker_product = nb.jit(_kronecker_product)
+
+        def _kronecker_product_loop(time_evolutions_unitary, time_evolutions):
+            for t_index in nb.prange(time_evolutions_unitary.shape[0]):
+                for x_index in nb.prange(operator_size_unitary//2):
+                    for y_index in nb.prange(operator_size_unitary//2):
+                        _kronecker_product(
+                            time_evolutions_unitary[t_index, :, :],
+                            time_evolutions[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        _kronecker_product_loop = nb.jit(
+            _kronecker_product_loop, **cpu_options)
+
+        def _copy_unitary_loop(original, clone):
+            for t_index in nb.prange(original.shape[0]):
+                for x_index in nb.prange(operator_size_unitary):
+                    for y_index in nb.prange(operator_size_unitary):
+                        _copy_superoperator(
+                            original[t_index, :, :], clone[t_index, :, :],
+                            y_index, x_index
+                        )
+
+        _copy_unitary_loop = nb.jit(_copy_unitary_loop, **cpu_options)
+
+    def _kronecker_product_run(time_evolutions_unitary, time_evolutions):
+        if use_cuda:
+            grid_size = (
+                time_evolutions_unitary.shape[0],
+                number_of_submatrices_unitary,
+                number_of_submatrices_unitary
+            )
+            block_size = (submatrix_size_unitary, submatrix_size_unitary)
+            _kronecker_product_kernel[grid_size, block_size] \
+                (time_evolutions_unitary, time_evolutions)
+        else:
+            _kronecker_product_loop(time_evolutions_unitary, time_evolutions)
+
+    def _copy_unitary_run(original, clone):
+        if use_cuda:
+            grid_size = (
+                original.shape[0], number_of_submatrices_unitary,
+                number_of_submatrices_unitary
+            )
+            block_size = (submatrix_size_unitary, submatrix_size_unitary)
+            _copy_unitary_kernel[grid_size, block_size](original, clone)
+        else:
+            _copy_unitary_loop(original, clone)
+
 
     # Simulation --------------------------------------------------------------
 
@@ -952,11 +1502,9 @@ def generate_simulator(
         # Convert density operator into real matrix
         if verbose:
             print("Get flat density")
+        wavefunction_size = density_operator_initial.shape[0]
         density_operator_initial_real = np.empty(
-            (
-                density_operator_initial.shape[0],
-                density_operator_initial.shape[1], 2
-            ),
+            (wavefunction_size, wavefunction_size, 2),
             dtype=datatype
         )
         density_operator_initial_real[:, :, 0] = \
@@ -967,7 +1515,7 @@ def generate_simulator(
 
         # Flatten density operator
         density_operator_initial_flat = \
-            np.empty(vectorisation_map.shape[0], dtype=datatype)
+            np.empty(operator_size_density, dtype=datatype)
         for operator_index in range(vectorisation_map.shape[0]):
             y_index = vectorisation_map[operator_index, 0]
             x_index = vectorisation_map[operator_index, 1]
@@ -980,13 +1528,16 @@ def generate_simulator(
         if use_kernel:
             if verbose:
                 print("Get density in equivalence class")
-            density_operator_initial_flat_projection = \
-                image_projection.T@density_operator_initial_flat
-            density_operator_initial_flat_kernel = \
-                density_operator_initial_flat \
-                - image_projection@density_operator_initial_flat_projection
-            density_operator_initial_flat = \
-                density_operator_initial_flat_projection
+            # density_operator_initial_flat_projection = \
+            #     image_projection.T@density_operator_initial_flat
+            # density_operator_initial_flat_kernel = \
+            #     density_operator_initial_flat \
+            #     - image_projection@density_operator_initial_flat_projection
+
+            # density_operator_initial_flat_kernel = \
+            #     density_operator_initial_flat \
+            #     - image_projection@image_projection.T \
+            #     @ density_operator_initial_flat
 
         # Rotating frame
         if use_rotating:
@@ -1101,8 +1652,8 @@ def generate_simulator(
                         sample_index, :, :, 2*doubles.shape[0] + eigen_index
                     ] *= singles_forward[sample_index, eigen_index]
 
-            density_operator_initial_flat = \
-                inv_vectors_real@density_operator_initial_flat
+            # density_operator_initial_flat = \
+            #     inv_vectors_real@density_operator_initial_flat
 
         # Declare VRAM
         if use_cuda:
@@ -1155,11 +1706,17 @@ def generate_simulator(
                 # print(singles)
                 # print(doubles*time_step/number_of_fine_divisions)
                 # print(singles*time_step/number_of_fine_divisions)
-                doubles_forward_device = nc.to_device(
-                    doubles_forward[-1, :, :])
+                if doubles_size > 0:
+                    doubles_forward_device = nc.to_device(
+                        doubles_forward[-1, :, :])
+                else:
+                    doubles_forward_device = 0
                 # print(doubles_forward[-1, :, :])
-                singles_forward_device = nc.to_device(
-                    singles_forward[-1, :])
+                if singles_size > 0:
+                    singles_forward_device = nc.to_device(
+                        singles_forward[-1, :])
+                else:
+                    singles_forward_device = 0
                 # print(singles_forward[-1, :])
                 generators_device = nc.to_device(generators_rotating)
             else:
@@ -1170,38 +1727,196 @@ def generate_simulator(
             if verbose:
                 print("  Declare superoperator VRAM")
             superoperators_device = nc.device_array(
-                (weighted_coefficients_device.shape[0],
-                 operator_size, operator_size),
-                dtype=datatype)
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size, operator_size
+                ), dtype=datatype)
 
             scratch_device = nc.device_array(
-                (weighted_coefficients_device.shape[0],
-                 operator_size, operator_size),
-                dtype=datatype)
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size_scratch, operator_size_scratch
+                ), dtype=datatype
+            )
 
             # Storage for time evolution superoperators
             if verbose:
                 print("  Declare time evolution VRAM")
             time_evolution_device = nc.device_array(
-                (time_device.shape[0], operator_size, operator_size),
-                dtype=datatype
+                (
+                    time_device.shape[0],
+                    operator_size_scratch, operator_size_scratch
+                ), dtype=datatype
             )
 
             # Initial density operator
             if verbose:
                 print("  Move initial state to GPU")
             density_operator_initial_device = nc.to_device(
-                                  density_operator_initial_flat)
+                  density_operator_initial_flat)
+
+            if use_rotating:
+                # Diagonalisation
+                if verbose:
+                    print("  Move diagonalisation to GPU")
+                vectors_real_device = nc.to_device(vectors_real)
+                inv_vectors_real_device = nc.to_device(inv_vectors_real)
+
+            if use_kernel:
+                if verbose:
+                    print("  Move kernel projection to GPU")
+                image_projection_device = nc.to_device(image_projection)
+                image_projection_transpose_device = nc.to_device(
+                    image_projection.T)
+                kernel_projection = -image_projection@image_projection.T
+                kernel_projection += np.eye(kernel_projection.shape[0])
+                kernel_projection_device = nc.to_device(kernel_projection/2)
+
+            if use_unitary:
+                # Diagonalisation
+                if verbose:
+                    print("  Move elimination to GPU")
+                elimination_device = nc.to_device(elimination)
+                duplication_device = nc.to_device(duplication)
 
             # Storage for evaluated density operators
             if verbose:
-                print("  Move generators to GPU")
+                print("  Declare density operator VRAM")
             density_operators_device = nc.device_array(
-                (time_evolution_device.shape[0], operator_size),
+                (time_evolution_device.shape[0], operator_size_density),
                 dtype=datatype)
 
-        if verbose:
-            print("Finished declaring VRAM")
+            if verbose:
+                print("Finished declaring VRAM")
+        else:
+            if verbose:
+                print("Declare RAM")
+
+            # Time
+            if verbose:
+                print("  Declare time RAM")
+            time_device = np.empty(
+                number_of_samples, dtype=datatype)
+
+            # Gauss-Legendre quadrature definition
+            if verbose:
+                print("  Declare Magnus RAM")
+                print("    Quadrature times")
+            sample_quadrature_device = sample_quadrature
+
+            # Storage for Gauss-Legendre quadrature points
+            if verbose:
+                print("    Quadrature times expanded")
+            time_sample_device = np.empty(
+                number_of_samples*sample_quadrature_device.size,
+                dtype=datatype)
+
+            # Weights for commutator-free integrator
+            if verbose:
+                print("    Quadrature weights")
+            weights_device = weights
+
+            if verbose:
+                print("  Declare superoperator RAM")
+            # Storage for coefficients of superoperators of Lindbladian
+            coefficients_device = np.empty(
+                (time_sample_device.size, generators.shape[0]),
+                dtype=datatype
+            )
+            weighted_coefficients_device = np.empty(
+                (
+                    weights_device.shape[0]*number_of_samples,
+                    generators.shape[0]
+                ),
+                dtype=datatype
+            )
+
+            # Basis for the Lindbladian
+            # print(generators.shape)
+            if verbose:
+                print("  Declare basis RAM")
+            if use_rotating:
+                # print(doubles)
+                # print(singles)
+                # print(doubles*time_step/number_of_fine_divisions)
+                # print(singles*time_step/number_of_fine_divisions)
+                doubles_forward_device = (
+                    doubles_forward[-1, :, :])
+                # print(doubles_forward[-1, :, :])
+                singles_forward_device = (
+                    singles_forward[-1, :])
+                # print(singles_forward[-1, :])
+                generators_device = generators_rotating
+            else:
+                generators_device = generators
+
+            # Storage for individual exponentials of the commutator-free
+            # integrator
+            if verbose:
+                print("  Declare superoperator RAM")
+            superoperators_device = np.empty(
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size, operator_size
+                ),
+                dtype=datatype
+            )
+
+            scratch_device = np.empty(
+                (
+                    weighted_coefficients_device.shape[0],
+                    operator_size_scratch, operator_size_scratch
+                ), dtype=datatype
+            )
+
+            # Storage for time evolution superoperators
+            if verbose:
+                print("  Declare time evolution RAM")
+            time_evolution_device = np.empty(
+                (
+                    time_device.shape[0], operator_size_scratch,
+                    operator_size_scratch
+                ), dtype=datatype
+            )
+
+            # Initial density operator
+            if verbose:
+                print("  Move initial state to CPU")
+            density_operator_initial_device = (
+                  density_operator_initial_flat)
+
+            if use_rotating:
+                # Diagonalisation
+                if verbose:
+                    print("  Move diagonalisation to CPU")
+                vectors_real_device = vectors_real
+                inv_vectors_real_device = inv_vectors_real
+
+            if use_kernel:
+                if verbose:
+                    print("  Move kernel projection to CPU")
+                image_projection_device = image_projection
+                image_projection_transpose_device = image_projection.T
+                kernel_projection = -image_projection@image_projection.T
+                kernel_projection += np.eye(kernel_projection.shape[0])
+                kernel_projection_device = kernel_projection/2
+
+            if use_unitary:
+                # Diagonalisation
+                if verbose:
+                    print("  Move elimination to CPU")
+                elimination_device = elimination
+                duplication_device = duplication
+
+            # Storage for evaluated density operators
+            if verbose:
+                print("  Declare density operator RAM")
+            density_operators_device = np.empty(
+                (time_evolution_device.shape[0], operator_size_density),
+                dtype=datatype)
+
+            if verbose:
+                print("Finished declaring RAM")
 
         # Calculate time
         if verbose:
@@ -1221,7 +1936,11 @@ def generate_simulator(
                 time_device, time_sample_device, time_start + time_offset,
                 time_step, sample_quadrature_device)
 
+            # print(_calculate_time_quadrature_loop.inspect_asm(_calculate_time_quadrature_loop.signatures[0]))
+            # input("?")
+
             # Sample coefficients from user function
+            # print(coefficients_device)
             sample_run(time_sample_device, coefficients_device)
 
             if use_rotating:
@@ -1234,6 +1953,8 @@ def generate_simulator(
                 _combine_coefficients_run(
                     coefficients_device, weighted_coefficients_device,
                     weights_device)
+                # print(weighted_coefficients_device)
+                # print("")
 
                 # Scale generators by time step and reduction for
                 # exponentiation
@@ -1244,11 +1965,7 @@ def generate_simulator(
 
             # Put Lindbladian superoperator in matrix form
             _scale_differential_basic_run(superoperators_device)
-
-            # # Apply a Cayley transform (Pade 1,1) to the Lindbladian for
-            # # smoother exponentiation
-            # if use_cayley:
-            #     _calculate_cayley_run(superoperators_device)
+            # print(superoperators_device)
 
             # Repeatedly square (1 +) Lindbladian superoperator for
             # exponentiation
@@ -1259,19 +1976,14 @@ def generate_simulator(
             # calculation
             _quadrature_combine_run(
                 superoperators_device, time_evolution_device,
-                scratch_device[:superoperators_device.shape[0], :, :]
+                scratch_device[:number_of_samples, :operator_size, :operator_size]
+                # scratch_device
             )
 
             if use_rotating:
-                # print(time_evolution_device.shape)
-                # print(
-                #     scratch_device[:superoperators_device.shape[0], :, :].shape
-                # )
-                # print(doubles_forward_device.shape)
-                # print(singles_forward_device.shape)
                 _apply_eig_run(
-                    time_evolution_device,
-                    scratch_device[:superoperators_device.shape[0], :, :],
+                    time_evolution_device[:, :operator_size, :operator_size],
+                    scratch_device[:number_of_samples, :operator_size, :operator_size],
                     doubles_forward_device,
                     singles_forward_device
                 )
@@ -1282,13 +1994,64 @@ def generate_simulator(
         # Accumulate time evolution across all time steps
         if verbose:
             print("Combining time evolution steps")
-        _basic_combine_run(time_evolution_device, scratch_device[0, :, :])
+
+        # print(time_evolution_device.shape, scratch_device[0, :, :].shape)
+        _basic_combine_run(
+            time_evolution_device[:, :operator_size, :operator_size],
+            scratch_device[0, :operator_size, :operator_size]
+        )
+
+        if use_rotating:
+            if verbose:
+                print("Moving out of the rotating frame")
+            _apply_global_sandwich_run(
+                vectors_real_device, inv_vectors_real_device,
+                time_evolution_device[:, :operator_size, :operator_size],
+                scratch_device[:number_of_samples, :operator_size, :operator_size]
+            )
+
+        if use_kernel:
+            if verbose:
+                print("Moving out of the equivalence class")
+            _apply_global_sandwich_run(
+                image_projection_device, image_projection_transpose_device,
+                time_evolution_device[:, :operator_size, :operator_size],
+                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
+            )
+            _apply_global_addition_run(
+                kernel_projection_device,
+                time_evolution_device[:, :operator_size_density, :operator_size_density],
+                scratch_device[:number_of_samples, :operator_size_density, :operator_size_density]
+            )
+
+        if use_unitary:
+            if verbose:
+                print("Moving from operator to superoperator form")
+            # print(time_evolution_device[:, :operator_size, :operator_size].copy_to_host())
+            _kronecker_product_run(
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
+                time_evolution_device[:, :operator_size, :operator_size]
+            )
+            # print(scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary].copy_to_host())
+            # print(operator_size)
+            # input(operator_size_unitary)
+            _copy_unitary_run(
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary],
+                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary]
+            )
+            _apply_global_sandwich_run(
+                elimination_device, duplication_device,
+                # duplication_device, elimination_device,
+                time_evolution_device[:, :operator_size_unitary, :operator_size_unitary],
+                scratch_device[:number_of_samples, :operator_size_unitary, :operator_size_unitary]
+            )
+            # input(time_evolution_device[:, :operator_size_density, :operator_size_density])
 
         # Apply time evolution superoperators to initial condition
         if verbose:
             print("Applying time evolution to initial state")
         _apply_time_evolution_run(
-            time_evolution_device,
+            time_evolution_device[:, :operator_size_density, :operator_size_density],
             density_operator_initial_device,
             density_operators_device
         )
@@ -1302,26 +2065,31 @@ def generate_simulator(
             # print(time_evolution)
             density_operators_flat = density_operators_device.copy_to_host()
             # print(density_operators_flat)
-
-        if use_rotating:
+        else:
             if verbose:
-                print(
-                    "Moving out of generalised rotating frame diagonal basis"
-                )
-            density_operators_flat = \
-                (vectors_real@density_operators_flat.reshape((
-                    density_operators_flat.shape[0],
-                    density_operators_flat.shape[1],
-                    1
-                ))).reshape(density_operators_flat.shape)
+                print("Retrieving solution from CPU")
+            time = time_device
+            density_operators_flat = density_operators_device
 
-        if use_kernel:
-            if verbose:
-                print("Moving out of equivalence class")
-            density_operators_flat = np.matvec(
-                image_projection, density_operators_flat)
-            density_operators_flat += \
-                density_operator_initial_flat_kernel
+        # if use_rotating:
+        #     if verbose:
+        #         print(
+        #             "Moving out of generalised rotating frame diagonal basis"
+        #         )
+        #     density_operators_flat = \
+        #         (vectors_real@density_operators_flat.reshape((
+        #             density_operators_flat.shape[0],
+        #             density_operators_flat.shape[1],
+        #             1
+        #         ))).reshape(density_operators_flat.shape)
+
+        # if use_kernel:
+        #     if verbose:
+        #         print("Moving out of equivalence class")
+        #     density_operators_flat = np.matvec(
+        #         image_projection, density_operators_flat)
+        #     density_operators_flat += \
+        #         density_operator_initial_flat_kernel
 
         # Unflatten density operators
         if verbose:

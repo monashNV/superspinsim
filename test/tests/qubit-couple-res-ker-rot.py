@@ -44,6 +44,7 @@ def main():
         number_of_exponentials=1,
         number_of_fine_divisions=100,
         use_kernel=True,
+        use_unitary=False,
         verbose=True
     )
 

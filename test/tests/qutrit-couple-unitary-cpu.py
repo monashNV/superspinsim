@@ -42,10 +42,11 @@ def main():
         density_initial,                    # Initial state
         use_rotating=True,
         use_residual=True,
-        number_of_exponentials=1,
+        number_of_exponentials=5,
         number_of_fine_divisions=100,
-        use_kernel=True,
-        use_unitary=False,
+        use_kernel=False,
+        use_unitary=True,
+        use_cuda=False,
         verbose=True
     )
 

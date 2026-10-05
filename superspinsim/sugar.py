@@ -1,5 +1,10 @@
 import numpy as np
-from numba import cuda as nc
+
+import numba as nb
+try:
+    from numba import cuda as nc
+except:
+    nc = None
 
 import os
 import sys
@@ -16,7 +21,8 @@ from superspinsim.generate_generators import \
 def mesolve(
         H, rho0: np.ndarray, ti: float, tf: float, dt: float, c_ops=None,
         allowed: np.ndarray = None, use_rotating: bool = True,
-        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10):
+        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10,
+        use_cuda=True):
     """A wrapper for superspinsim to provide a similar syntax to other
     simulators, like `qutip.mesolve`.
 
@@ -72,8 +78,21 @@ def mesolve(
     time: np.ndarray
         Time samples in seconds.
     density: np.ndarray
-        Evaluated density matrices at the times given by :obj"`time` .
+        Evaluated density matrices at the times given by :obj:`time` .
     """
+
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
+            print("Cuda not available.\nWill run on CPU instead.")
+    if not use_cuda:
+        cpu_options = {
+            "nopython": True,
+            "error_model": "numpy",
+            "fastmath": True,
+            "parallel": True,
+            # "boundscheck": True
+        }
 
     ham_quiescent, ham_time_dependent, ham_coefficients = \
         _sort_operators(H, "H")
@@ -91,16 +110,26 @@ def mesolve(
     coefficients = []
 
     for coefficient in ham_coefficients:
-        coefficient_device = nc.jit(device=True)(coefficient)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient)
+        else:
+            coefficient_device = nb.jit(coefficient, **cpu_options)
         coefficients.append(coefficient_device)
 
     for coefficient in jump_coefficients:
-        coefficient_device = nc.jit(device=True)(coefficient)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient)
+        else:
+            coefficient_device = nb.jit(coefficient, **cpu_options)
 
         def coefficient_sqrt(time):
             return np.sqrt(coefficient_device(time))
 
-        coefficient_device = nc.jit(device=True)(coefficient_sqrt)
+        if use_cuda:
+            coefficient_device = nc.jit(device=True)(coefficient_sqrt)
+        else:
+            coefficient_device = nb.jit(coefficient_sqrt, **cpu_options)
+
         coefficients.append(coefficient_device)
 
     # Write coefficient function factory
@@ -117,7 +146,8 @@ def mesolve(
         lindbladian, superoperators_time_dependent, valid_indices,
         number_of_exponentials=number_of_exponentials,
         number_of_fine_divisions=number_of_fine_divisions,
-        use_rotating=use_rotating, **rotating_dict
+        use_rotating=use_rotating, **rotating_dict,
+        use_cuda=use_cuda
     )
     return_value = simulator(rho0, ti, tf, dt)
 
@@ -364,6 +394,7 @@ def simspins(
         number_of_fine_divisions: int = 1,
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True, use_kernel: bool = False,
+        use_unitary: bool = False, use_cuda:bool = True,
         verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
@@ -414,6 +445,9 @@ def simspins(
         Whether or not to use the residual arithmetic technique.
     use_kernel: bool (default is False)
         Whether or not to use the equivalence class technique.
+    use_unitary: bool (default is False)
+        Whether or not to simplify representations when there are only unitary
+        dynamics.
     verbose: book (default is False)
         Prints debug information.
 
@@ -425,18 +459,43 @@ def simspins(
         Evaluated density matrices at the times given by :obj:`time` .
     """
 
+    if use_cuda:
+        if nc is None:
+            use_cuda = False
+            print("Cuda not available.\nWill run on CPU instead.")
+
     generators, vectorisation_map = generate_atoms(
-        spins, spin_interactions, group_interactions)
-    if "generators" in generators:
+        spins, spin_interactions, group_interactions, use_unitary,
+        verbose=verbose
+    )
+    if use_unitary:
+        if "unitary" not in generators:
+            use_unitary = False
+
+    unitary_dict = {}
+    if not use_unitary:
         if verbose:
             print("Using superoperator representation.")
-        generators = list(generators["generators"].values())
-        is_unitary = False
+        # generators = list(generators["generators"].values())
+        generators = [
+            generators["generators"]["L0"],
+            generators["generators"]["Gx"],
+            generators["generators"]["Gy"],
+            generators["generators"]["Gz"],
+            generators["generators"]["Gr"],
+        ]
     else:
         if verbose:
             print("Using operator representation.")
-        generators = list(generators["unitary"].values())
-        is_unitary = True
+        unitary_dict = generators["elimination"]
+        # generators = list(generators["unitary"].values())
+        generators = [
+            generators["unitary"]["H0"],
+            generators["unitary"]["Gx"],
+            generators["unitary"]["Gy"],
+            generators["unitary"]["Gz"],
+            generators["unitary"]["Gr"],
+        ]
 
     kernel_dict = {}
     if use_kernel:
@@ -479,7 +538,9 @@ def simspins(
                 "singles": singles
             }
 
-    lindbladian = _generate_lindbladian(coefficients, use_rotating)
+    lindbladian = _generate_lindbladian(
+        coefficients, use_rotating, use_cuda=use_cuda)
+
     simulator = generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,
         use_residual=use_residual,
@@ -488,7 +549,8 @@ def simspins(
         number_of_quartic_repeats=number_of_quadratic_repeats,
         use_rotating=use_rotating, **rotating_dict,
         use_kernel=use_kernel, **kernel_dict,
-        is_unitary=is_unitary,
+        use_unitary=use_unitary, **unitary_dict,
+        use_cuda=use_cuda,
         verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
