@@ -174,7 +174,7 @@ def _add_electron(
     else:
         spin = 0
 
-    spin_vec, projectors, spin_identity = add_spin(
+    spin_vec, projectors, spin_identity = _add_spin(
         spin, hilbert_space_shape)
     for key, projector in projectors.items():
         _record_operator(
@@ -308,7 +308,7 @@ def _add_nucleus(
 
         spin = atom["I"]
 
-        spin_vec, projectors, spin_identity = add_spin(
+        spin_vec, projectors, spin_identity = _add_spin(
             spin, hilbert_space_shape)
 
         _record_spin_vec(
@@ -905,7 +905,7 @@ def _mult(left: np.ndarray, right: np.ndarray) -> np.ndarray:
     return operator_out
 
 
-def add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
+def _add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
     """
     Add a new spin system to the Hilbert/operator space.
     See Sakurai 3ed Section 3.5.3.
@@ -914,39 +914,47 @@ def add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
     spin_dimension = int(2*spin + 1)
     hilbert_space_shape.append(spin_dimension)
 
-    magnetic = np.linspace(
-        spin, -spin, spin_dimension,
-        dtype=meta_datatype
-    )
-    diag_p = np.sqrt(
-        (spin - magnetic)*(1 + spin + magnetic))[1:]
-    diag_m = np.sqrt(
-        (spin + magnetic)*(1 + spin - magnetic))[:-1]
-    spin_p = np.diag(diag_p, 1)
-    spin_m = np.diag(diag_m, -1)
+    if spin == 0:
+        spin_x = np.zeros((1, 1, 2), dtype=meta_datatype)
+        spin_y = np.zeros((1, 1, 2), dtype=meta_datatype)
+        spin_z = np.zeros((1, 1, 2), dtype=meta_datatype)
+        spin_identity = np.zeros((1, 1, 2), dtype=meta_datatype)
+        spin_identity[0, 0, 0] = 1
 
-    spin_x = np.zeros(
-        (spin_p.shape[0], spin_p.shape[1], 2),
-        dtype=meta_datatype
-    )
-    spin_x[:, :, 0] = (spin_p + spin_m)/2
+    else:
+        magnetic = np.linspace(
+            spin, -spin, spin_dimension,
+            dtype=meta_datatype
+        )
+        diag_p = np.sqrt(
+            (spin - magnetic)*(1 + spin + magnetic))[1:]
+        diag_m = np.sqrt(
+            (spin + magnetic)*(1 + spin - magnetic))[:-1]
+        spin_p = np.diag(diag_p, 1)
+        spin_m = np.diag(diag_m, -1)
 
-    spin_y = np.zeros_like(spin_x)
-    spin_y[:, :, 1] = (spin_m - spin_p)/2
+        spin_x = np.zeros(
+            (spin_p.shape[0], spin_p.shape[1], 2),
+            dtype=meta_datatype
+        )
+        spin_x[:, :, 0] = (spin_p + spin_m)/2
 
-    spin_z = np.zeros_like(spin_x)
-    spin_z[:, :, 0] = np.diag(magnetic)
+        spin_y = np.zeros_like(spin_x)
+        spin_y[:, :, 1] = (spin_m - spin_p)/2
 
-    spin_identity = np.zeros_like(spin_x)
-    spin_identity[:, :, 0] = np.eye(spin_x.shape[0])
+        spin_z = np.zeros_like(spin_x)
+        spin_z[:, :, 0] = np.diag(magnetic)
+
+        spin_identity = np.zeros_like(spin_x)
+        spin_identity[:, :, 0] = np.eye(spin_x.shape[0])
 
     projectors = {}
     for magnetic_index, magnetic_number in \
             enumerate(np.arange(-spin, spin + 0.1)):
         projector = np.zeros_like(spin_identity)
         projector[magnetic_index, magnetic_index, 0] = 1
-        if magnetic_number != 0:
-            magnetic_number *= -1
+        # if magnetic_number != 0:
+        #     magnetic_number *= -1
         if np.isclose(np.fmod(spin, 1), 0):
             key = f"|{magnetic_number:.0f})({magnetic_number:.0f}|"
         else:
