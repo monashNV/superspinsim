@@ -1,6 +1,6 @@
 [project]
 name = "superspinsim"
-version = "1.2.3"
+version = "1.3.0"
 description = """
     A general, GPU-based simulator, optimised for time-dependent spin systems.
     We were motivated by the ability to quickly simulate highly time-dependent

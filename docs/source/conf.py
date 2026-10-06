@@ -4,7 +4,7 @@ import sys
 project = 'superspinsim'
 copyright = '2025-2026, Alex Tritt'
 author = 'Alex Tritt'
-release = '1.2.3'
+release = '1.3.0'
 
 extensions = [
     "sphinx_rtd_theme",

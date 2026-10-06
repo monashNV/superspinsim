@@ -74,11 +74,11 @@ def generate_atoms(
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
-    for ((block_a, atom_a), (block_b, atom_b)), interaction in \
-            block_interactions.items():
+    for v_index, (((block_a, atom_a), (block_b, atom_b)), interaction) in \
+            enumerate(block_interactions.items()):
         _add_block_interaction(
             block_a, atom_a, block_b, atom_b, interaction, description,
-            label_sets
+            label_sets, v_index
         )
 
     # Create lists of operators
@@ -1336,6 +1336,10 @@ def _combine_blocks(
         else:
             # If the blocks are incoherent, then the combined allowed indices
             # are the direct sum of the individual ones.
+            if current_allowed is None:
+                current_allowed = np.ones((1), dtype=meta_datatype)
+            if combined_allowed is None:
+                combined_allowed = np.ones((1), dtype=meta_datatype)
             combined_allowed = _direct_sum(
                 combined_allowed, current_allowed)
         combined_size += current_size
@@ -1393,7 +1397,7 @@ def _combine_blocks_operator_previous(
 def _add_block_interaction(
         block_a: int, atom_a: int, block_b: int, atom_b: int,
         interaction: dict, description: list[list[dict]],
-        label_sets: dict[str, set[str]]):
+        label_sets: dict[str, set[str]], v_index: int = 0):
     """
         Add interactions between blocks.
     """
@@ -1421,6 +1425,16 @@ def _add_block_interaction(
                 ini = coherent["ini"]
                 fin = coherent["fin"]
                 amp = coherent["amp"]
+                con = False
+
+                if "con" in coherent:
+                    if coherent["con"]:
+                        con = True
+
+                _couple_coherent_blocks(
+                    atom_a_dict, atom_b_dict, spin_a, spin_b, ini, fin, amp,
+                    v_index, con, interaction, label_sets
+                )
 
         # Spin-dependent
         if spin_a == spin_b:
@@ -1862,8 +1876,8 @@ def _couple_coherent_blocks(
         spin_a, magnetic_a)
     _, magnetic_label_b, operator_label_b = _get_spin_labels(
         spin_b, magnetic_b)
-    projector_a = atom_a_dict[magnetic_a]
-    projector_b = atom_b_dict[magnetic_b]
+    projector_a = atom_a_dict[magnetic_label_a]
+    projector_b = atom_b_dict[magnetic_label_b]
     couplings = _couple_coherent(
         projector_a, projector_b, np.zeros_like(projector_a))
 
