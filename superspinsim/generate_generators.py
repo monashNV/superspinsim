@@ -36,13 +36,15 @@ def generate_atoms(
     field_labels = set()
     projector_labels = set()
     dissipator_labels = set()
+    coherent_coupling_labels = set()
     label_sets = {
         "operator_labels": operator_labels,
         "tensor_labels": tensor_labels,
         "zero_field_labels": zero_field_labels,
         "field_labels": field_labels,
         "projector_labels": projector_labels,
-        "dissipator_labels": dissipator_labels
+        "dissipator_labels": dissipator_labels,
+        "coherent_coupling_labels": coherent_coupling_labels
     }
     previous_identity = None
 
@@ -74,9 +76,10 @@ def generate_atoms(
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
-    for v_index, (((block_a, atom_a), (block_b, atom_b)), interaction) in \
-            enumerate(block_interactions.items()):
-        _add_block_interaction(
+    v_index = 0
+    for ((block_a, atom_a), (block_b, atom_b)), interaction in \
+            block_interactions.items():
+        v_index = _add_block_interaction(
             block_a, atom_a, block_b, atom_b, interaction, description,
             label_sets, v_index
         )
@@ -108,7 +111,10 @@ def generate_atoms(
         }
     else:
         # Generate superoperators
-        operators_to_super = {**operator_dicts["jump"], **coherent_blocks}
+        operators_to_super = {
+            **operator_dicts["jump"], **coherent_blocks,
+            **operator_dicts["coherent_coupling"]
+        }
         superoperators = _generate_superoperators(
             operators_to_super, valid_indices)
         dissipator_dict = _combine_superoperators(superoperators)
@@ -126,6 +132,8 @@ def generate_atoms(
 
             operator_dicts["generators"] = generators_dict
 
+    # print(operator_dicts["all"]["[0, 0, 1, 0] Vr 1 0"])
+    # input(list(operator_dicts["all"].keys()))
     return operator_dicts, valid_indices
 
 
@@ -798,11 +806,13 @@ def _list_operators(
     zero_field_labels = label_sets["zero_field_labels"]
     tensor_labels = label_sets["tensor_labels"]
     dissipator_labels = label_sets["dissipator_labels"]
+    coherent_coupling_labels = label_sets["coherent_coupling_labels"]
 
     operator_dict = {}
     jump_dict = {}
     composite_operator_dict = {}
     tensor_dict = {}
+    coherent_coupling_dict = {}
     for block_index, (block, atom_interaction) in \
             enumerate(zip(description, atom_interactions)):
         for atom_index, atom in enumerate(block):
@@ -875,7 +885,7 @@ def _list_operators(
                 operator_dict[operator_name] = \
                     block_interaction[operator_label]
 
-        # Operators
+        # Jump
         for operator_label in dissipator_labels:
             if operator_label in block_interaction.keys():
                 operator_name = \
@@ -883,11 +893,21 @@ def _list_operators(
                     + f" {block_index_b}, {atom_index_b}] {operator_label}"
                 jump_dict[operator_name] = block_interaction[operator_label]
 
+        # Coherent coupling
+        for operator_label in coherent_coupling_labels:
+            if operator_label in block_interaction.keys():
+                operator_name = \
+                    f"[{block_index_a}, {atom_index_a}," \
+                    + f" {block_index_b}, {atom_index_b}] {operator_label}"
+                coherent_coupling_dict[operator_name] = \
+                    block_interaction[operator_label]
+
     operator_dicts = {
             "all": operator_dict,
             "jump": jump_dict,
             "composite": composite_operator_dict,
-            "tensor": tensor_dict
+            "tensor": tensor_dict,
+            "coherent_coupling": coherent_coupling_dict
     }
     return operator_dicts
 
@@ -953,8 +973,9 @@ def _add_spin(spin: int, hilbert_space_shape: tuple) -> tuple[np.ndarray]:
             enumerate(np.arange(-spin, spin + 0.1)):
         projector = np.zeros_like(spin_identity)
         projector[magnetic_index, magnetic_index, 0] = 1
-        # if magnetic_number != 0:
-        #     magnetic_number *= -1
+        # Cycle from +spin to -spin as is standard
+        if magnetic_number != 0:
+            magnetic_number *= -1
         if np.isclose(np.fmod(spin, 1), 0):
             key = f"|{magnetic_number:.0f})({magnetic_number:.0f}|"
         else:
@@ -1350,6 +1371,7 @@ def _combine_blocks(
                 combined_allowed = np.ones((1), dtype=meta_datatype)
             combined_allowed = _direct_sum(
                 combined_allowed, current_allowed)
+            combined_allowed = np.ones_like(combined_allowed)
         combined_size += current_size
 
     return combined_allowed[:, :, 0]
@@ -1443,6 +1465,7 @@ def _add_block_interaction(
                     atom_a_dict, atom_b_dict, spin_a, spin_b, ini, fin, amp,
                     v_index, con, interaction, label_sets
                 )
+                v_index += 1
 
         # Spin-dependent
         if spin_a == spin_b:
@@ -1463,6 +1486,8 @@ def _add_block_interaction(
 
         elif spin_a == 1 and spin_b == 0:
             # NV ISC excited
+            relaxation_rate_0 = None
+            relaxation_rate_1 = None
             if "s_gets_0" in interaction.keys():
                 relaxation_rate_0 = interaction["s_gets_0"]
             if "s_gets_1" in interaction.keys():
@@ -1475,6 +1500,8 @@ def _add_block_interaction(
 
         elif spin_a == 0 and spin_b == 1:
             # NV ISC ground
+            relaxation_rate_0 = None
+            relaxation_rate_1 = None
             if "0_gets_s" in interaction.keys():
                 relaxation_rate_0 = interaction["0_gets_s"]
             if "1_gets_s" in interaction.keys():
@@ -1518,6 +1545,7 @@ def _add_block_interaction(
                     g_gets_psi, g_gets_phi,
                     interaction, label_sets
                 )
+    return v_index
 
 
 def _couple_optical(
@@ -1879,12 +1907,15 @@ def _couple_coherent_blocks(
         controllable: bool, interaction: dict,
         label_sets: dict[str, dict[str, np.ndarray]]):
     operator_labels = label_sets["operator_labels"]
+    coherent_coupling_labels = label_sets["coherent_coupling_labels"]
 
     _, magnetic_label_a, operator_label_a = _get_spin_labels(
         spin_a, magnetic_a)
     _, magnetic_label_b, operator_label_b = _get_spin_labels(
         spin_b, magnetic_b)
     projector_a = atom_a_dict[magnetic_label_a]
+    # print(list(atom_a_dict.keys()))
+    # input(list(atom_b_dict.keys()))
     projector_b = atom_b_dict[magnetic_label_b]
     couplings = _couple_coherent(
         projector_a, projector_b, np.zeros_like(projector_a))
@@ -1899,7 +1930,7 @@ def _couple_coherent_blocks(
         _record_operator(
             f"{operator_label} {v_index} {index}",
             coupling, interaction,
-            [operator_labels]
+            [operator_labels, coherent_coupling_labels]
         )
 
 
@@ -2124,12 +2155,14 @@ def _combine_superoperators(superoperator_dict: dict):
                             superoperator.copy()
     superoperator_dict.update(superoperator_dict_add)
     dissipator_dict.update(superoperator_dict_add)
+    # input(list(superoperator_dict.keys()))
 
     # Sum all of the system/dc/quiescent dissipators into D, and all of the
     # controllable dissipators into Gr.
     superoperator_combine_labels_dict = {
         "D": ["LS1", "LI1", "LS2", "LI2", "Llc", "Lln", "Lisc", "Lbell"],
-        "Gr": ["Lrc", "Lrn", "Vr"]
+        "Gr": ["Lrc", "Lrn", "Vr"],
+        "Vc": ["Vc"]
     }
     superoperator_dict_add = {}
     for combined_label, superoperator_combine_labels in \
