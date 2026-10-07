@@ -71,7 +71,28 @@ def generate_atoms(
     coherent_atoms = _combine_coherent_atoms(
         description, atom_interactions, field_labels)
 
-    allowed = _combine_blocks(description, coherent_atoms, label_sets)
+    number_of_blocks = len(description)
+    coherent_blocks = np.eye(number_of_blocks, dtype=np.int32)
+    for ((block_a, atom_a), (block_b, atom_b)), interaction in \
+            block_interactions.items():
+        if "coh" in interaction:
+            coherent_blocks[block_a, block_b] = 1
+            coherent_blocks[block_b, block_a] = 1
+    coherent_sum = 0
+    current_sum = np.sum(coherent_blocks)
+    while current_sum > coherent_sum:
+        coherent_sum = current_sum
+        for block_a in range(number_of_blocks):
+            for block_b in range(number_of_blocks):
+                for block_c in range(number_of_blocks):
+                    if coherent_blocks[block_c, block_a] \
+                            and coherent_blocks[block_c, block_b]:
+                        coherent_blocks[block_a, block_b] = 1
+                        coherent_blocks[block_b, block_a] = 1
+        current_sum = np.sum(coherent_blocks)
+
+    allowed = _combine_blocks(
+        description, coherent_atoms, label_sets, coherent_blocks)
     # allowed = np.ones_like(allowed)
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
@@ -1270,7 +1291,7 @@ def _record_spin_quadratic(
 
 def _combine_blocks(
         description: list[list[dict]], coherent_atoms: list[dict],
-        label_sets: dict[str, set[str]]):
+        label_sets: dict[str, set[str]], coherent_blocks: np.ndarray):
     """
         Direct sum the blocks together.
     """
@@ -1281,6 +1302,7 @@ def _combine_blocks(
     combined_size = 0
     combined_zero = None
     combined_allowed = None
+    hilbert_shape = []
     for block_index, (block, coherent_atom) in \
             enumerate(zip(description, coherent_atoms)):
         current_size = 0
@@ -1362,6 +1384,8 @@ def _combine_blocks(
         # element that can be non-zero.
         if combined_size == 0:
             combined_allowed = current_allowed
+            if combined_allowed is None:
+                combined_allowed = np.ones((1), dtype=meta_datatype)
         else:
             # If the blocks are incoherent, then the combined allowed indices
             # are the direct sum of the individual ones.
@@ -1369,10 +1393,35 @@ def _combine_blocks(
                 current_allowed = np.ones((1), dtype=meta_datatype)
             if combined_allowed is None:
                 combined_allowed = np.ones((1), dtype=meta_datatype)
-            combined_allowed = _direct_sum(
-                combined_allowed, current_allowed)
-            combined_allowed = np.ones_like(combined_allowed)
+            combined_allowed = _direct_sum(combined_allowed, current_allowed)
+
         combined_size += current_size
+        hilbert_shape.append(current_size)
+
+    # If the blocks are coherent, the block-off-diagonals are also
+    # allowed.
+    for block_a in range(len(hilbert_shape)):
+        for block_b in range(len(hilbert_shape)):
+            if coherent_blocks[block_a, block_b]:
+                # print(block_a, block_b)
+                # print(sum(hilbert_shape[:block_a]), sum(hilbert_shape[:block_a + 1]))
+                # print(sum(hilbert_shape[:block_b]), sum(hilbert_shape[:block_b + 1]))
+                bra = np.arange(combined_size, dtype=np.int32)
+                bra = np.zeros(combined_size, dtype=np.int32)
+                bra[sum(hilbert_shape[:block_a]):sum(hilbert_shape[:block_a + 1])] \
+                    = 1
+                ket = np.zeros(combined_size, dtype=np.int32)
+                ket[sum(hilbert_shape[:block_b]):sum(hilbert_shape[:block_b + 1])] \
+                    = 1
+                addition = np.outer(bra, ket) + np.outer(ket, bra)
+                # print(bra, ket)
+                # print(addition)
+                combined_allowed[:, :, 0] += addition
+    combined_allowed = np.clip(combined_allowed, 0, 1)
+
+    # input(coherent_blocks)
+    # input(hilbert_shape)
+    # input(combined_allowed[:, :, 0])
 
     return combined_allowed[:, :, 0]
 
