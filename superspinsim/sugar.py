@@ -559,6 +559,7 @@ def simspins(
         use_rotating=use_rotating, **rotating_dict,
         use_kernel=use_kernel, **kernel_dict,
         use_unitary=use_unitary, **unitary_dict,
+        use_hermitian=use_hermitian,
         use_cuda=use_cuda,
         verbose=verbose
     )

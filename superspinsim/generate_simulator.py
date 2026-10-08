@@ -66,11 +66,14 @@ def generate_simulator(
 
     if use_hermitian:
         operator_size_density = vectorisation_map.shape[0]
+        # input("Sideroad")
     else:
         if use_unitary:
-            operator_size_density = operator_size
-        else:
             operator_size_density = 2*(operator_size//2)**2
+        else:
+            operator_size_density = operator_size
+        # input(operator_size_density)
+        # raise Exception()
         hilbert_size = int(math.sqrt(operator_size_density//2))
 
     operator_size_scratch = operator_size_density
