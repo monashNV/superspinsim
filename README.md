@@ -89,6 +89,11 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.3.0
+
+Added ability to have coherences between blocks when using the `simspins` atom
+generator.
+
 ### 1.2.3
 
 Fixed bug of incorrect bounds and memory leaks when using the kernel

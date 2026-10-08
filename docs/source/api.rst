@@ -134,38 +134,69 @@ Key            Description
 Incoherent interactions between coherent blocks
 -----------------------------------------------
 
-The incoherent interaction between two spins in different coherent blocks is
-defined by a python :obj:`dict`, with keys as defined below.
+The interaction between two spins in different coherent blocks is defined by a
+python :obj:`dict`, with keys as defined below.
 These :obj:`dict` s are organised into an encompassing :obj:`dict` under keys
 of the form :obj:`((block_0, spin_0), (block_1, spin_1))`.
 Here, the spin of index :obj:`spin_0` from coherent block :obj:`block_0` is
 interacting with a spin of index :obj:`spin_0` from coherent block
 :obj:`block_0` .
 
-Therefore, the description of the incoherent interactions between spins of
-different blocks takes the form of a :obj:`dict` of :obj:`dict` s.
+Therefore, the description of the interactions between spins of different
+blocks takes the form of a :obj:`dict` of :obj:`dict` s.
 
-These blocks are designed to model the orbital interactions of the NV centre.
+These blocks are designed to model the orbital interactions of the NV centre,
+and therefore most of them are incoherent.
 
-===============  ==============================================================
-Key              Description
-===============  ==============================================================
-:obj:`rel`       Spin-conserving optical relaxation rate in population/second.
-:obj:`rel_n`     Spin-nonconserving optical relaxation rate in
-                 population/second.
-:obj:`s_gets_0`  Transition rate from the :math:`m_S=0` state of a triplet to a
-                 singlet, in population/second.
-                 Useful for modelling NV centres in diamond.
-:obj:`s_gets_1`  Transition rate from the :math:`m_S=\pm1` states of a triplet
-                 to a singlet, in population/second.
-                 Useful for modelling NV centres in diamond.
-:obj:`0_gets_s`  Transition rate from a singlet to the :math:`m_S=0` state of a
-                 triplet, in population/second.
-                 Useful for modelling NV centres in diamond.
-:obj:`1_gets_s`  Transition rate from a singlet to the :math:`m_S=\pm1` states
-                 of a triplet, in population/second.
-                 Useful for modelling NV centres in diamond.
-===============  ==============================================================
+================= =============================================================
+Key               Description
+================= =============================================================
+:obj:`rel`        Spin-conserving optical relaxation rate in population/second.
+:obj:`rel_n`      Spin-nonconserving optical relaxation rate in
+                  population/second.
+:obj:`s_gets_0`   Transition rate from the :math:`m_S=0` state of a triplet to
+                  a singlet, in population/second.
+                  Useful for modelling NV centres in diamond.
+:obj:`s_gets_1`   Transition rate from the :math:`m_S=\pm1` states of a triplet
+                  to a singlet, in population/second.
+                  Useful for modelling NV centres in diamond.
+:obj:`0_gets_s`   Transition rate from a singlet to the :math:`m_S=0` state of
+                  a triplet, in population/second.
+                  Useful for modelling NV centres in diamond.
+:obj:`1_gets_s`   Transition rate from a singlet to the :math:`m_S=\pm1` states
+                  of a triplet, in population/second.
+                  Useful for modelling NV centres in diamond.
+:obj:`phi_gets_e` Transition rate between a singlet (e) and the aligned
+                  entangled state of two qubits (phi).
+                  Here :obj:`spin_1` is the index of the first spin of the
+                  qubit, and :obj:`spin_1 + 1` is the index of the second.
+                  Useful for modelling carbon qubits in hBN.
+:obj:`psi_gets_e` Transition rate between a singlet (e) and the anti-aligned
+                  entangled state of two qubits (psi).
+                  Here :obj:`spin_1` is the index of the first spin of the
+                  qubit, and :obj:`spin_1 + 1` is the index of the second.
+                  Useful for modelling carbon qubits in hBN.
+:obj:`g_gets_phi` Transition rate between the aligned entangled state of two
+                  qubits (phi), and a singlet state (g).
+                  Here :obj:`spin_0` is the index of the first spin of the
+                  qubit, and :obj:`spin_0 + 1` is the index of the second.
+                  Useful for modelling carbon qubits in hBN.
+:obj:`g_gets_psi` Transition rate between the anti-aligned entangled state of
+                  two qubits (psi), and a singlet state (g).
+                  Here :obj:`spin_0` is the index of the first spin of the
+                  qubit, and :obj:`spin_0 + 1` is the index of the second.
+                  Useful for modelling carbon qubits in hBN.
+:obj:`coh`        A :obj:`list` of :obj:`dict` describing *coherent*
+                  interactions between individual :math:`m_S` states between
+                  blocks.
+                  The dictionary contains
+                  :obj:`ini`: the initial :math:`m_S` number;
+                  :obj:`fin`: the final :math:`m_S` number; and
+                  :obj:`amp`: the rabi frequency in rad/s of the coupling.
+                  Additionally, if the optional key :obj:`con` is set to
+                  :obj:`True`, then the interaction strength is modulated by
+                  the fourth, "excitation", user-provided coefficient.
+================= =============================================================
 
 
 Simulations using QuTiP-syntax
