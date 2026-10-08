@@ -21,8 +21,8 @@ from superspinsim.generate_generators import \
 def mesolve(
         H, rho0: np.ndarray, ti: float, tf: float, dt: float, c_ops=None,
         allowed: np.ndarray = None, use_rotating: bool = True,
-        number_of_exponentials: int = 5, number_of_fine_divisions: int = 10,
-        use_cuda=True):
+        use_hermitian: bool = True, number_of_exponentials: int = 5,
+        number_of_fine_divisions: int = 10, use_cuda: bool = True):
     """A wrapper for superspinsim to provide a similar syntax to other
     simulators, like `qutip.mesolve`.
 
@@ -65,6 +65,10 @@ def mesolve(
     use_rotating: `bool` (default is `True`)
         Whether or not to transform the problem into the generalised rotating
         frame.
+    use_hermitian: `bool` (default is `True`)
+        Whether or not to only consider transformations on Hermitian density
+        matrices, which should be the case.
+        Compresses the representation of states and operators.
     number_of_exponentials: `int` (default is 5)
         The choice of which commutator-free magnus integrator to use, labelled
         by the number of exponentials per step used in said integrator.
@@ -103,7 +107,7 @@ def mesolve(
     superoperators_time_dependent, valid_indices, rotating_dict = \
         _make_superoperators(
             ham_quiescent, ham_time_dependent, jump_quiescent,
-            jump_time_dependent, allowed, use_rotating
+            jump_time_dependent, allowed, use_rotating, use_hermitian
         )
 
     # Compile coefficients
@@ -287,7 +291,7 @@ def _make_superoperators(
         ham_quiescent: list[np.ndarray], ham_time_dependent: list[np.ndarray],
         jump_quiescent: list[np.ndarray],
         jump_time_dependent: list[np.ndarray], allowed: np.ndarray,
-        use_rotating: bool):
+        use_rotating: bool, use_hermitian: bool = True):
     operator_dict = {}
     for gen_index, gen in enumerate(ham_quiescent):
         operator_dict[f"Hq{gen_index}"] = gen
@@ -321,7 +325,8 @@ def _make_superoperators(
             raise TypeError("No operators specified.")
     valid_indices = _generate_valid_indices(allowed)
 
-    superoperators = _generate_superoperators(operator_dict, valid_indices)
+    superoperators = _generate_superoperators(
+            operator_dict, valid_indices, use_hermitian)
 
     # Compile time-independent superoperators
     superoperators_quiescent = _compile_superoperators(superoperators, "Hq")
@@ -395,7 +400,7 @@ def simspins(
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True, use_kernel: bool = False,
         use_unitary: bool = False, use_cuda: bool = True,
-        verbose: bool = False):
+        use_hermitian: bool = True, verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -448,6 +453,10 @@ def simspins(
     use_unitary: bool (default is False)
         Whether or not to simplify representations when there are only unitary
         dynamics.
+    use_hermitian: `bool` (default is `True`)
+        Whether or not to only consider transformations on Hermitian density
+        matrices, which should be the case.
+        Compresses the representation of states and operators.
     verbose: book (default is False)
         Prints debug information.
 
@@ -466,7 +475,7 @@ def simspins(
 
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions, use_unitary,
-        verbose=verbose
+        use_hermitian, verbose=verbose
     )
     if use_unitary:
         if "unitary" not in generators:
