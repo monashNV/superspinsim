@@ -89,6 +89,11 @@ uv add ../superspinsim
 
 ## Version log
 
+### 1.3.1
+
+Added ability to switch to using standard vectorisation as well as the
+optimised vectorisation.
+
 ### 1.3.0
 
 Added ability to have coherences between blocks when using the `simspins` atom
