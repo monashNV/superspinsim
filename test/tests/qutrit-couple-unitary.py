@@ -51,7 +51,7 @@ def main():
         verbose=True
     )
 
-    # print(density)
+    print(density)
     compare_density("qutrit-couple", density)
 
 

@@ -49,6 +49,7 @@ def main():
         verbose=True
     )
 
+    print(density)
     compare_density("qubit-couple", density)
 
 

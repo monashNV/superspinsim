@@ -39,7 +39,7 @@ def generate_simulator(
         elimination: np.ndarray = None,
         duplication: np.ndarray = None,
 
-        use_hermitian: bool = False,
+        use_hermitian: bool = True,
 
         verbose: bool = False,
 
@@ -67,8 +67,11 @@ def generate_simulator(
     if use_hermitian:
         operator_size_density = vectorisation_map.shape[0]
     else:
-        operator_size_density = operator_size
-        hilbert_size = int(math.sqrt(operator_size_density))
+        if use_unitary:
+            operator_size_density = operator_size
+        else:
+            operator_size_density = 2*(operator_size//2)**2
+        hilbert_size = int(math.sqrt(operator_size_density//2))
 
     operator_size_scratch = operator_size_density
     if use_unitary:
@@ -1539,6 +1542,7 @@ def generate_simulator(
 
             density_operator_initial_flat[operator_index] = \
                 density_operator_initial[y_index, x_index, c_index]
+        # input(density_operator_initial_flat)
 
         # Project into equivalence classes
         if use_kernel:
