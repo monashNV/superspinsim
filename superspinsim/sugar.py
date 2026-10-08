@@ -400,7 +400,8 @@ def simspins(
         number_of_quadratic_repeats: int = 35, use_rotating: bool = True,
         use_residual: bool = True, use_kernel: bool = False,
         use_unitary: bool = False, use_cuda: bool = True,
-        use_hermitian: bool = True, verbose: bool = False):
+        use_hermitian: bool = True, use_incoherent: bool = True,
+        verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
 
@@ -457,6 +458,11 @@ def simspins(
         Whether or not to only consider transformations on Hermitian density
         matrices, which should be the case.
         Compresses the representation of states and operators.
+    use_incoherent: `bool` (default is `True`)
+        Whether or not to disregard coherence terms of density operators and
+        superoperators when there is no coherent coupling between groups.
+        This is the case for the NV centre.
+        Compresses the representation of states and operators.
     verbose: book (default is False)
         Prints debug information.
 
@@ -475,7 +481,7 @@ def simspins(
 
     generators, vectorisation_map = generate_atoms(
         spins, spin_interactions, group_interactions, use_unitary,
-        use_hermitian, verbose=verbose
+        use_hermitian, use_incoherent, verbose=verbose
     )
     if use_unitary:
         if "unitary" not in generators:
