@@ -19,8 +19,8 @@ meta_datatype = np.float64
 def generate_atoms(
         description: list[list[dict]], atom_interactions: list[dict],
         block_interactions: dict, use_unitary: bool = False,
-        use_hermitian: bool = True, verbose: bool = False) -> \
-        [dict, dict, list[dict], dict]:
+        use_hermitian: bool = True, use_incoherent: bool = True,
+        verbose: bool = False) -> [dict, dict, list[dict], dict]:
     """
         Define a system of multiple spins.
     """
@@ -94,7 +94,8 @@ def generate_atoms(
 
     allowed = _combine_blocks(
         description, coherent_atoms, label_sets, coherent_blocks)
-    # allowed = np.ones_like(allowed)
+    if not use_incoherent:
+        allowed = np.ones_like(allowed)
 
     coherent_blocks = _combine_coherent_blocks(coherent_atoms)
 
