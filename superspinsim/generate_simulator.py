@@ -39,6 +39,8 @@ def generate_simulator(
         elimination: np.ndarray = None,
         duplication: np.ndarray = None,
 
+        use_hermitian: bool = True,
+
         verbose: bool = False,
 
         use_cayley: bool = False
@@ -59,7 +61,21 @@ def generate_simulator(
     generators = generators.astype(datatype)
     # input(generators)
     operator_size = generators.shape[1]
-    operator_size_density = vectorisation_map.shape[0]
+    if use_hermitian and vectorisation_map is None:
+        use_hermitian = False
+
+    if use_hermitian:
+        operator_size_density = vectorisation_map.shape[0]
+        # input("Sideroad")
+    else:
+        if use_unitary:
+            operator_size_density = 2*(operator_size//2)**2
+        else:
+            operator_size_density = operator_size
+        # input(operator_size_density)
+        # raise Exception()
+        hilbert_size = int(math.sqrt(operator_size_density//2))
+
     operator_size_scratch = operator_size_density
     if use_unitary:
         operator_size_unitary = 2*(operator_size//2)**2
@@ -1517,13 +1533,19 @@ def generate_simulator(
         # Flatten density operator
         density_operator_initial_flat = \
             np.empty(operator_size_density, dtype=datatype)
-        for operator_index in range(vectorisation_map.shape[0]):
-            y_index = vectorisation_map[operator_index, 0]
-            x_index = vectorisation_map[operator_index, 1]
-            c_index = vectorisation_map[operator_index, 2]
+        for operator_index in range(operator_size_density):
+            if use_hermitian:
+                y_index = vectorisation_map[operator_index, 0]
+                x_index = vectorisation_map[operator_index, 1]
+                c_index = vectorisation_map[operator_index, 2]
+            else:
+                c_index = operator_index % 2
+                x_index = (operator_index // 2) % hilbert_size
+                y_index = (operator_index // 2) // hilbert_size
 
             density_operator_initial_flat[operator_index] = \
                 density_operator_initial[y_index, x_index, c_index]
+        # input(density_operator_initial_flat)
 
         # Project into equivalence classes
         if use_kernel:
@@ -2138,17 +2160,22 @@ def generate_simulator(
              wavefunction_size, wavefunction_size, 2),
             dtype=datatype
         )
-        for operator_index in range(vectorisation_map.shape[0]):
-            y_index = vectorisation_map[operator_index, 0]
-            x_index = vectorisation_map[operator_index, 1]
-            c_index = vectorisation_map[operator_index, 2]
+        for operator_index in range(operator_size_density):
+            if use_hermitian:
+                y_index = vectorisation_map[operator_index, 0]
+                x_index = vectorisation_map[operator_index, 1]
+                c_index = vectorisation_map[operator_index, 2]
+            else:
+                c_index = operator_index % 2
+                x_index = (operator_index // 2) % hilbert_size
+                y_index = (operator_index // 2) // hilbert_size
 
             density_operators[:, y_index, x_index, c_index] = \
                 density_operators_flat[:, operator_index]
 
             # If we are dealing with a coherence, also add to other
             # off-diagonal
-            if y_index != x_index:
+            if use_hermitian and y_index != x_index:
                 if c_index:
                     # Imaginary part
                     density_operators[:, x_index, y_index, c_index] = \

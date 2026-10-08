@@ -19,7 +19,8 @@ meta_datatype = np.float64
 def generate_atoms(
         description: list[list[dict]], atom_interactions: list[dict],
         block_interactions: dict, use_unitary: bool = False,
-        verbose: bool = False) -> [dict, dict, list[dict], dict]:
+        use_hermitian: bool = True, verbose: bool = False) -> \
+        [dict, dict, list[dict], dict]:
     """
         Define a system of multiple spins.
     """
@@ -121,8 +122,11 @@ def generate_atoms(
 
     if use_unitary:
         operator_dicts["unitary"] = _complex_to_real_all(coherent_blocks)
-        basis_hermitian = _get_hermitian_basis_from_valid_indices(
-            valid_indices, np.prod(hilbert_space_shape))
+        if use_hermitian:
+            basis_hermitian = _get_hermitian_basis_from_valid_indices(
+                valid_indices, np.prod(hilbert_space_shape))
+        else:
+            basis_hermitian = _get_full_basis(np.prod(hilbert_space_shape))
         basis_full = _get_full_basis(np.prod(hilbert_space_shape))
         elimination_matrix, duplication_matrix = \
             _calculate_elimination_matrices(basis_hermitian, basis_full)
@@ -137,7 +141,7 @@ def generate_atoms(
             **operator_dicts["coherent_coupling"]
         }
         superoperators = _generate_superoperators(
-            operators_to_super, valid_indices)
+            operators_to_super, valid_indices, use_hermitian)
         dissipator_dict = _combine_superoperators(superoperators)
 
         operator_dicts["super_all"] = superoperators
@@ -2069,7 +2073,8 @@ def _get_spin_labels(
 
 
 def _generate_superoperators(
-        operator_dict: dict, valid_indices: np.ndarray) -> dict:
+        operator_dict: dict, valid_indices: np.ndarray,
+        use_hermitian: bool = True) -> dict:
     """
         Find vectorised forms of the dissipators and von Neumann
         superoperators.
@@ -2080,37 +2085,50 @@ def _generate_superoperators(
         if "|" not in label:
             if "L" in label:
                 superoperator = _generate_dissipator(
-                    operator, valid_indices)
+                    operator, valid_indices, use_hermitian)
             else:
                 superoperator = _generate_von_neumann(
-                    operator, valid_indices)
+                    operator, valid_indices, use_hermitian)
             superoperator_dict[label] = superoperator
     return superoperator_dict
 
 
-def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
+def _generate_von_neumann(
+        operator: np.ndarray, valid_indices: np.ndarray,
+        use_hermitian: bool = True):
     """
         Calculate the vectorised expression for the von Neumann superoperator
         from its effect on the Hermitian su(N) basis states defined by
         `valid_indices`.
     """
 
-    operator_dimension = valid_indices.shape[0]
     hilbert_size = operator.shape[0]
+    if use_hermitian:
+        operator_dimension = valid_indices.shape[0]
+    else:
+        operator_dimension = operator.size
+
     superoperator = np.empty(
         (operator_dimension, operator_dimension),
         dtype=meta_datatype
     )
 
     for in_index in range(operator_dimension):
-        y_in_index = valid_indices[in_index, 0]
-        x_in_index = valid_indices[in_index, 1]
-        c_in_index = valid_indices[in_index, 2]
-
         density_matrix = np.zeros(
             (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+
+        if use_hermitian:
+            y_in_index = valid_indices[in_index, 0]
+            x_in_index = valid_indices[in_index, 1]
+            c_in_index = valid_indices[in_index, 2]
+        else:
+            c_in_index = in_index % 2
+            x_in_index = (in_index // 2) % hilbert_size
+            y_in_index = (in_index // 2) // hilbert_size
+
         density_matrix[y_in_index, x_in_index, c_in_index] = 1
-        if y_in_index != x_in_index:
+
+        if use_hermitian and y_in_index != x_in_index:
             if c_in_index:
                 density_matrix[x_in_index, y_in_index, c_in_index] = -1
             else:
@@ -2123,36 +2141,56 @@ def _generate_von_neumann(operator: np.ndarray, valid_indices: np.ndarray):
         operator_out[:, :, 1] = -scratch[:, :, 0]
 
         for out_index in range(operator_dimension):
-            y_out_index = valid_indices[out_index, 0]
-            x_out_index = valid_indices[out_index, 1]
-            c_out_index = valid_indices[out_index, 2]
+            if use_hermitian:
+                y_out_index = valid_indices[out_index, 0]
+                x_out_index = valid_indices[out_index, 1]
+                c_out_index = valid_indices[out_index, 2]
+            else:
+                c_out_index = out_index % 2
+                x_out_index = (out_index // 2) % hilbert_size
+                y_out_index = (out_index // 2) // hilbert_size
+
             superoperator[out_index, in_index] = \
                 operator_out[y_out_index, x_out_index, c_out_index]
+
     return superoperator
 
 
-def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
+def _generate_dissipator(
+        operator: np.ndarray, valid_indices: np.ndarray,
+        use_hermitian: bool = True):
     """
         Calculate the vectorised expression for a dissipator from its effect on
         the Hermitian su(N) basis states defined by `valid_indices`.
     """
 
-    operator_dimension = valid_indices.shape[0]
     hilbert_size = operator.shape[0]
+    if use_hermitian:
+        operator_dimension = valid_indices.shape[0]
+    else:
+        operator_dimension = operator.size
+
     superoperator = np.empty(
         (operator_dimension, operator_dimension),
         dtype=meta_datatype
     )
 
     for in_index in range(operator_dimension):
-        y_in_index = valid_indices[in_index, 0]
-        x_in_index = valid_indices[in_index, 1]
-        c_in_index = valid_indices[in_index, 2]
-
         density_matrix = np.zeros(
             (hilbert_size, hilbert_size, 2), dtype=meta_datatype)
+
+        if use_hermitian:
+            y_in_index = valid_indices[in_index, 0]
+            x_in_index = valid_indices[in_index, 1]
+            c_in_index = valid_indices[in_index, 2]
+        else:
+            c_in_index = in_index % 2
+            x_in_index = (in_index // 2) % hilbert_size
+            y_in_index = (in_index // 2) // hilbert_size
+
         density_matrix[y_in_index, x_in_index, c_in_index] = 1
-        if y_in_index != x_in_index:
+
+        if use_hermitian and y_in_index != x_in_index:
             if c_in_index:
                 density_matrix[x_in_index, y_in_index, c_in_index] = -1
             else:
@@ -2167,9 +2205,15 @@ def _generate_dissipator(operator: np.ndarray, valid_indices: np.ndarray):
         operator_out -= 0.5*_mult(density_matrix, proj)
 
         for out_index in range(operator_dimension):
-            y_out_index = valid_indices[out_index, 0]
-            x_out_index = valid_indices[out_index, 1]
-            c_out_index = valid_indices[out_index, 2]
+            if use_hermitian:
+                y_out_index = valid_indices[out_index, 0]
+                x_out_index = valid_indices[out_index, 1]
+                c_out_index = valid_indices[out_index, 2]
+            else:
+                c_out_index = out_index % 2
+                x_out_index = (out_index // 2) % hilbert_size
+                y_out_index = (out_index // 2) // hilbert_size
+
             superoperator[out_index, in_index] = \
                 operator_out[y_out_index, x_out_index, c_out_index]
     return superoperator
