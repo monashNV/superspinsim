@@ -25,6 +25,9 @@ def generate_atoms(
         Define a system of multiple spins.
     """
 
+    if not use_hermitian:
+        use_incoherent = False
+
     # We're going to add to these structures, so it's best to deep copy.
     description = copy.deepcopy(description)
     atom_interactions = copy.deepcopy(atom_interactions)
@@ -2385,7 +2388,10 @@ def real_eig(generator):
         block-diagonal form.
     """
 
+    tol = 1e-16
+
     values, vectors = np.linalg.eig(generator)
+    # print(np.linalg.cond(vectors))
 
     vectors_complex = np.empty(
         (vectors.shape[0], vectors.shape[1], 2), dtype=np.float64)
@@ -2405,6 +2411,8 @@ def real_eig(generator):
             *vectors_list_real, vector_real]
         vectors_array = np.array(vectors_list).T
         rank = np.linalg.matrix_rank(vectors_array)
+        # cond = np.linalg.cond(vectors_array)
+        # print(rank)
         if rank > rank_best:
             rank_best = rank
             vector_real /= math.sqrt(np.sum(vector_real**2))
@@ -2417,6 +2425,8 @@ def real_eig(generator):
             *vectors_list_real, vector_imag]
         vectors_array = np.array(vectors_list).T
         rank = np.linalg.matrix_rank(vectors_array)
+        # cond = np.linalg.cond(vectors_array)
+        # print(rank, cond)
         if rank > rank_best:
             rank_best = rank
             vector_imag /= math.sqrt(np.sum(vector_imag**2))
@@ -2460,6 +2470,9 @@ def real_eig(generator):
         [*vectors_list_real_double, *vectors_list_real_single]
     vectors_real = np.array(vectors_list_real).T
     inv_vectors_real = np.linalg.inv(vectors_real)
+
+    # print(np.linalg.matrix_rank(vectors_real, rtol=tol), vectors_real.shape, np.linalg.cond(vectors_real))
+    # input("x")
 
     return (
         vectors_real, inv_vectors_real, values_real_double,

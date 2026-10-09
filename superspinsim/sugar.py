@@ -483,6 +483,7 @@ def simspins(
         spins, spin_interactions, group_interactions, use_unitary,
         use_hermitian, use_incoherent, verbose=verbose
     )
+
     if use_unitary:
         if "unitary" not in generators:
             use_unitary = False

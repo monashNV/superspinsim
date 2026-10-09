@@ -1545,7 +1545,6 @@ def generate_simulator(
 
             density_operator_initial_flat[operator_index] = \
                 density_operator_initial[y_index, x_index, c_index]
-        input(density_operator_initial_flat)
 
         # Project into equivalence classes
         if use_kernel:
