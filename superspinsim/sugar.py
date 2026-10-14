@@ -14,8 +14,8 @@ import qutip as qt
 
 from superspinsim.generate_simulator import generate_simulator
 from superspinsim.generate_generators import \
-    _generate_valid_indices, _generate_superoperators, real_eig, \
-    generate_atoms, _generate_lindbladian, find_kernel
+    _generate_valid_indices, _generate_superoperators, make_rotating, \
+    RotatingFrameError, generate_atoms, _generate_lindbladian, find_kernel
 
 
 def mesolve(
@@ -351,8 +351,17 @@ def _make_superoperators(
             raise TypeError("No operators defined.")
 
     if use_rotating:
-        return_value = _make_rotating(
-            superoperator_quiescent, superoperators_time_dependent)
+        try:
+            return_value = make_rotating(
+                superoperator_quiescent, superoperators_time_dependent)
+        except RotatingFrameError:
+            print(
+                "Lindblad operator is not invertible.\n"
+                "Rotating frame cannot be used."
+            )
+            use_rotating = False
+
+    if use_rotating:
         superoperators_time_dependent, vectors_real, inv_vectors_real, \
             doubles, singles = return_value
         rotating_dict = {
@@ -370,24 +379,6 @@ def _make_superoperators(
 
     return_value = \
         (superoperators_time_dependent, valid_indices, rotating_dict)
-    return return_value
-
-
-def _make_rotating(
-        superoperator_quiescent: np.ndarray,
-        superoperators_time_dependent: list[np.ndarray]):
-    vectors_real, inv_vectors_real, doubles, singles = \
-        real_eig(superoperator_quiescent)
-
-    superoperators_time_dependent_new = [
-        inv_vectors_real@generator@vectors_real
-        for generator in superoperators_time_dependent
-    ]
-
-    return_value = (
-        superoperators_time_dependent_new, vectors_real, inv_vectors_real,
-        doubles, singles
-    )
     return return_value
 
 
@@ -545,14 +536,23 @@ def simspins(
         if np.sum(np.abs(generators[0])) == 0:
             use_rotating = False
         else:
-            generators, vectors_real, inv_vectors_real, doubles, singles = \
-                _make_rotating(generators[0], generators[1:])
-            rotating_dict = {
-                "vectors_real": vectors_real,
-                "inv_vectors_real": inv_vectors_real,
-                "doubles": doubles,
-                "singles": singles
-            }
+            try:
+                generators, vectors_real, inv_vectors_real, doubles, singles \
+                    = make_rotating(generators[0], generators[1:])
+            except RotatingFrameError:
+                print(
+                    "Lindblad operator is not invertible.\n"
+                    "Rotating frame cannot be used."
+                )
+                use_rotating = False
+
+    if use_rotating:
+        rotating_dict = {
+            "vectors_real": vectors_real,
+            "inv_vectors_real": inv_vectors_real,
+            "doubles": doubles,
+            "singles": singles
+        }
 
     lindbladian = _generate_lindbladian(
         coefficients, use_rotating, use_cuda=use_cuda)

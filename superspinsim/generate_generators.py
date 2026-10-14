@@ -2382,7 +2382,11 @@ def _generate_valid_indices(valid_mask: np.ndarray = None):
     return valid_indices
 
 
-def real_eig(generator):
+class RotatingFrameError(Exception):
+    pass
+
+
+def _real_eig(generator):
     """
         Diagonalise the system/dc/quiescent Lindblad operator into it's real
         block-diagonal form.
@@ -2410,7 +2414,7 @@ def real_eig(generator):
         vectors_list = [
             *vectors_list_real, vector_real]
         vectors_array = np.array(vectors_list).T
-        rank = np.linalg.matrix_rank(vectors_array)
+        rank = np.linalg.matrix_rank(vectors_array, rtol=tol)
         # cond = np.linalg.cond(vectors_array)
         # print(rank)
         if rank > rank_best:
@@ -2424,7 +2428,7 @@ def real_eig(generator):
         vectors_list = [
             *vectors_list_real, vector_imag]
         vectors_array = np.array(vectors_list).T
-        rank = np.linalg.matrix_rank(vectors_array)
+        rank = np.linalg.matrix_rank(vectors_array, rtol=tol)
         # cond = np.linalg.cond(vectors_array)
         # print(rank, cond)
         if rank > rank_best:
@@ -2469,7 +2473,10 @@ def real_eig(generator):
     vectors_list_real = \
         [*vectors_list_real_double, *vectors_list_real_single]
     vectors_real = np.array(vectors_list_real).T
-    inv_vectors_real = np.linalg.inv(vectors_real)
+    try:
+        inv_vectors_real = np.linalg.inv(vectors_real)
+    except np.linalg.LinAlgError:
+        raise RotatingFrameError
 
     # print(np.linalg.matrix_rank(vectors_real, rtol=tol), vectors_real.shape, np.linalg.cond(vectors_real))
     # input("x")
@@ -2478,6 +2485,24 @@ def real_eig(generator):
         vectors_real, inv_vectors_real, values_real_double,
         values_real_single
     )
+
+
+def make_rotating(
+        superoperator_quiescent: np.ndarray,
+        superoperators_time_dependent: list[np.ndarray]):
+    vectors_real, inv_vectors_real, doubles, singles = \
+        _real_eig(superoperator_quiescent)
+
+    superoperators_time_dependent_new = [
+        inv_vectors_real@generator@vectors_real
+        for generator in superoperators_time_dependent
+    ]
+
+    return_value = (
+        superoperators_time_dependent_new, vectors_real, inv_vectors_real,
+        doubles, singles
+    )
+    return return_value
 
 
 # Kernel ======================================================================
@@ -2878,7 +2903,7 @@ def generate_7(
 
     if use_rotating:
         vectors_real, inv_vectors_real, doubles, singles = \
-            real_eig(generators_list[0])
+            _real_eig(generators_list[0])
 
         generators_list = generators_list[1:]
 
