@@ -997,7 +997,8 @@ def generate_simulator(
         def _apply_eig_run(superoperators, scratch, doubles, singles):
             if use_cuda:
                 grid_size = (
-                    superoperators.shape[0], number_of_submatrices,
+                    superoperators.shape[0],
+                    number_of_submatrices, number_of_submatrices
                 )
                 block_size = (submatrix_size, submatrix_size)
 
