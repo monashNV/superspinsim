@@ -531,14 +531,16 @@ def simspins(
         if verbose:
             print(
                 "Using generalised rotating frame. "
-                "Calculating SuperOperators in the generalised rotating frame."
+                "Calculating super operators in the generalised rotating "
+                "frame."
             )
         if np.sum(np.abs(generators[0])) == 0:
             use_rotating = False
         else:
             try:
-                generators, vectors_real, inv_vectors_real, doubles, singles \
-                    = make_rotating(generators[0], generators[1:])
+                generators_new, vectors_real, inv_vectors_real, doubles, \
+                    singles = make_rotating(generators[0], generators[1:])
+                generators = generators_new
             except RotatingFrameError:
                 print(
                     "Lindblad operator is not invertible.\n"
@@ -555,7 +557,7 @@ def simspins(
         }
 
     lindbladian = _generate_lindbladian(
-        coefficients, use_rotating, use_cuda=use_cuda)
+        coefficients, use_rotating=use_rotating, use_cuda=use_cuda)
 
     simulator = generate_simulator(
         lindbladian, np.array(generators), vectorisation_map,

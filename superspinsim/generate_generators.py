@@ -2386,13 +2386,14 @@ class RotatingFrameError(Exception):
     pass
 
 
+_real_eig_tol = 1e-16
 def _real_eig(generator):
     """
         Diagonalise the system/dc/quiescent Lindblad operator into it's real
         block-diagonal form.
     """
 
-    tol = 1e-16
+    tol = _real_eig_tol
 
     values, vectors = np.linalg.eig(generator)
     # print(np.linalg.cond(vectors))
@@ -2497,6 +2498,19 @@ def make_rotating(
         inv_vectors_real@generator@vectors_real
         for generator in superoperators_time_dependent
     ]
+
+    # print(doubles)
+    # print(singles)
+    # tol = _real_eig_tol
+    # error = np.sqrt(np.sum(sum(
+    #     (vectors_real@generator_rot@inv_vectors_real - generator)**2 for
+    #     generator_rot, generator in zip(
+    #     superoperators_time_dependent_new, superoperators_time_dependent))) \
+    #     / (len(superoperators_time_dependent)
+    #         * superoperators_time_dependent[0].size))
+    # print(error)
+    # if error > tol:
+    #    raise RotatingFrameError
 
     return_value = (
         superoperators_time_dependent_new, vectors_real, inv_vectors_real,

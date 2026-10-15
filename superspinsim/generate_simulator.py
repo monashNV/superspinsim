@@ -1076,17 +1076,17 @@ def generate_simulator(
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             t_index = nc.blockIdx.x
-            if x_index < right.shape[1] and y_index < right.shape[0]:
+            if x_index < right.shape[0] and y_index < right.shape[0]:
                 _multiply_superoperator_right(
                     right, inp[t_index, :, :],
                     out[t_index, :, :], y_index, x_index
                 )
 
-        def _apply_global_sandwich_left_kernel(left, inp, out):
+        def _apply_global_sandwich_left_kernel(left, inp, out, right):
             x_index = nc.threadIdx.x + stride*nc.blockIdx.y
             y_index = nc.threadIdx.y + stride*nc.blockIdx.z
             t_index = nc.blockIdx.x
-            if x_index < left.shape[0] and y_index < left.shape[0]:
+            if x_index < right.shape[1] and y_index < left.shape[0]:
                 _multiply_superoperator_left(
                     left, inp[t_index, :, :], out[t_index, :, :],
                     y_index, x_index
@@ -1117,16 +1117,16 @@ def generate_simulator(
 
         def _apply_global_sandwich_right_loop(right, inp, out):
             for t_index in nb.prange(inp.shape[0]):
-                for x_index in nb.prange(right.shape[1]):
+                for x_index in nb.prange(right.shape[0]):
                     for y_index in nb.prange(right.shape[0]):
                         _multiply_superoperator_right(
                             right, inp[t_index, :, :],
                             out[t_index, :, :], y_index, x_index
                         )
 
-        def _apply_global_sandwich_left_loop(left, inp, out):
+        def _apply_global_sandwich_left_loop(left, inp, out, right):
             for t_index in nb.prange(inp.shape[0]):
-                for x_index in nb.prange(left.shape[1]):
+                for x_index in nb.prange(right.shape[1]):
                     for y_index in nb.prange(left.shape[0]):
                         _multiply_superoperator_left(
                             left, inp[t_index, :, :], out[t_index, :, :],
@@ -1163,10 +1163,11 @@ def generate_simulator(
             _apply_global_sandwich_right_kernel[grid_size, block_size](
                 right, time_evolution, scratch)
             _apply_global_sandwich_left_kernel[grid_size, block_size](
-                left, scratch, time_evolution)
+                left, scratch, time_evolution, right)
         else:
             _apply_global_sandwich_right_loop(right, time_evolution, scratch)
-            _apply_global_sandwich_left_loop(left, scratch, time_evolution)
+            _apply_global_sandwich_left_loop(
+                left, scratch, time_evolution, right)
 
     def _apply_global_addition_run(shift, time_evolution, scratch):
         if use_cuda:
