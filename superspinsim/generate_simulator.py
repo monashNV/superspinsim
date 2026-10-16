@@ -108,7 +108,7 @@ def generate_simulator(
         cpu_options = {
             "nopython": True,
             "error_model": "numpy",
-            "fastmath": True,
+            "fastmath": {"nnan", "ninf", "nsz", "arcp", "contract", "reassoc"},
             "parallel": True,
             # "boundscheck": True
         }

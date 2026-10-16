@@ -491,6 +491,10 @@ def simspins(
             generators["generators"]["Gz"],
             generators["generators"]["Gr"],
         ]
+        # print(generators[0].shape)
+        # print(vectorisation_map.shape)
+        # print(vectorisation_map)
+        # print("X")
     else:
         if verbose:
             print("Using operator representation.")

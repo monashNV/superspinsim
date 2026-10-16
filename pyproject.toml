@@ -127,6 +127,7 @@ dependencies = [
 	"numpy<2.5",
 	"sympy",
 	"qutip",
+	"icc-rt>=2020.0.133",
 ]
 
 [tool.setuptools.packages.find]
