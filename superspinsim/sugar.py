@@ -392,6 +392,7 @@ def simspins(
         use_residual: bool = True, use_kernel: bool = False,
         use_unitary: bool = False, use_cuda: bool = True,
         use_hermitian: bool = True, use_incoherent: bool = True,
+        datatype=np.float64,
         verbose: bool = False):
     """Run a simulation based on a description of spins, as described in
     `Spin description syntax`_.
@@ -454,6 +455,8 @@ def simspins(
         superoperators when there is no coherent coupling between groups.
         This is the case for the NV centre.
         Compresses the representation of states and operators.
+    datatype: `np.float64`
+        The data type (precision) to use for the simulation.
     verbose: book (default is False)
         Prints debug information.
 
@@ -574,6 +577,7 @@ def simspins(
         use_unitary=use_unitary, **unitary_dict,
         use_hermitian=use_hermitian,
         use_cuda=use_cuda,
+        datatype=datatype,
         verbose=verbose
     )
     return_value = simulator(density_initial, time_start, time_end, time_step)
