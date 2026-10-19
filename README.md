@@ -40,6 +40,10 @@ There are some further features which are thinking about adding, possibly after
 the manuscript is submitted:
 
 - Support to split the problem over multiple GPUs, rather than just one.
+
+Known issues:
+
+- Gives incorrect result when using the non-compressed representation on GPU.
   
 
 ## Installation
@@ -88,6 +92,10 @@ uv add ../superspinsim
 ```
 
 ## Version log
+
+### 1.3.2
+
+Fixed bug of using incorrect bounds when sandwiching.
 
 ### 1.3.1
 
